@@ -1,0 +1,2760 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>남양주청년봉사단 위브 (Weave) — 지역을 함께 연결하는 청년 봉사</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-bs-spy="scroll" data-bs-target="#navbar" data-bs-offset="80">
+
+<header class="site-header fixed-top shadow-sm" id="navbar" style="background: #31b7ff;">
+  <nav class="navbar navbar-expand-lg navbar-light" style="background: #31b7ff;">
+    <div class="container">
+      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="#home" data-panel="home">
+        <div class="logo-wrapper">
+          <img src="logo.png" alt="위브 로고" class="logo-img">
+        </div>
+        <span class="d-none d-sm-inline text-white">남양주청년봉사단 위브</span>
+      </a>
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav ms-auto fw-medium align-items-center w-100">
+          <li class="nav-item flex-grow-1 nav-with-submenu">
+            <a class="nav-link text-center" href="#about" data-panel="about">소개</a>
+            <div class="nav-submenu">
+              <a href="#" data-panel="about" data-about-tab="history">연혁</a>
+              <a href="#" data-panel="about" data-about-tab="logo">로고</a>
+              <a href="#" data-panel="about" data-about-tab="rules">규칙및규약</a>
+              <a href="#" data-panel="about" data-about-tab="awards">상장수여기준</a>
+              <a href="#" data-panel="about" data-about-tab="fees">회비</a>
+            </div>
+          </li>
+          <li class="nav-item flex-grow-1 nav-with-submenu">
+            <a class="nav-link text-center" href="#activities" data-panel="activities">활동</a>
+          </li>
+          <li class="nav-item flex-grow-1 nav-with-submenu">
+            <a class="nav-link text-center" href="#gallery" data-panel="gallery">갤러리</a>
+            <div class="nav-submenu">
+              <a href="#" data-panel="gallery" data-gallery-filter="*">전체</a>
+              <a href="#" data-panel="gallery" data-gallery-filter=".y2026">2026</a>
+              <a href="#" data-panel="gallery" data-gallery-filter=".y2025">2025</a>
+              <a href="#" data-panel="gallery" data-gallery-filter=".y2024">2024</a>
+              <a href="#" data-panel="gallery" data-gallery-filter=".y2023">2023</a>
+              <a href="#" data-panel="gallery" data-gallery-filter=".y2022">2022</a>
+            </div>
+          </li>
+          <li class="nav-item flex-grow-1 nav-with-submenu">
+            <a class="nav-link text-center" href="#news" data-panel="news">소식</a>
+            <div class="nav-submenu">
+              <a href="#" data-panel="news" data-news-tab="notice">공지사항</a>
+              <a href="#" data-panel="news" data-news-tab="faq">FAQ</a>
+              <a href="#" data-panel="news" data-news-tab="qna">Q&A</a>
+            </div>
+          </li>
+          <li class="nav-item flex-grow-1 nav-with-submenu"><a class="nav-link text-center" href="#join" data-panel="join">참여</a></li>
+          <li class="nav-item ms-auto">
+            <div id="auth-buttons" class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#loginModal">로그인</button>
+              <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#signupModal">회원가입</button>
+            </div>
+            <div id="user-profile" class="d-flex align-items-center gap-2" style="display:none !important;">
+              <button class="btn btn-sm btn-light" id="my-info-btn" data-panel="myinfo">내 정보</button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+<!-- HOME: HERO + STATS -->
+<section id="home" class="hero py-5 text-dark position-relative overflow-hidden panel-active" style="background: white;">
+  <div class="hero-bg"></div>
+  <div class="container position-relative z-1">
+    <div class="row align-items-center hero-content-row">
+      <div class="col-lg-8 mx-auto text-center">
+        <div class="mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
+          <img src="logo.png" alt="위브 로고" class="hero-main-logo">
+        </div>
+        <p class="lead fs-5 mb-4 animate__animated animate__fadeInUp" style="animation-delay:0.2s;">
+          남양주의 청년 봉사자들이 <strong>연결(Weave)하고 성장</strong>하는 커뮤니티
+        </p>
+        <p class="text-white-50 mb-5 animate__animated animate__fadeInUp" style="animation-delay:0.3s;">
+          함께 나누고, 함께 성장하고, 함께 변화하는 지역사회
+        </p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap animate__animated animate__fadeInUp" style="animation-delay:0.4s;">
+          <a href="#about" class="btn btn-outline-primary btn-lg px-5" data-panel="about" data-about-tab="history">자세히 알아보기</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-scroll-hint mt-5 text-center animate__animated animate__bounce animate__infinite">
+    <i class="fas fa-chevron-down"></i>
+  </div>
+</section>
+
+<!-- STATS SECTION -->
+<section id="home-stats" class="stats-section py-5 bg-light">
+  <div class="container">
+    <div class="row g-4 text-center">
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number text-primary" id="stat-generation">5기</div>
+          <div class="stat-label">현 활동 기수</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number text-primary" id="stat-members">49명</div>
+          <div class="stat-label">누적 참여 인원</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number text-primary" id="stat-activities">115회</div>
+          <div class="stat-label">누적 봉사 활동</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number text-primary" id="stat-impact">지역사회 기여</div>
+          <div class="stat-label">사회에 미친 영향</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT SECTION -->
+<section id="about" class="py-6 panel">
+  <div class="container">
+    <div class="section-header mb-5 text-center">
+      <h2 class="display-5 fw-bold mb-3">위브라는 신뢰</h2>
+      <p class="lead text-muted">남양주 지역을 더 따뜻하게, 청년들을 더 강하게</p>
+    </div>
+    
+    <div class="row g-5 align-items-center mb-5">
+      <div class="col-lg-6">
+        <img src="https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="봉사 활동 모습" class="img-fluid rounded-3 shadow-lg animate__animated animate__fadeInLeft">
+      </div>
+      <div class="col-lg-6 animate__animated animate__fadeInRight">
+        <h3 class="fs-4 fw-bold mb-3 text-primary">우리의 가치</h3>
+        <ul class="list-unstyled">
+          <li class="mb-3"><i class="fas fa-check-circle text-primary me-2"></i><strong>연결:</strong> 지역과 청년, 사람과 사람을 연결합니다</li>
+          <li class="mb-3"><i class="fas fa-check-circle text-primary me-2"></i><strong>성장:</strong> 봉사를 통해 개인과 함께 지역이 성장합니다</li>
+          <li class="mb-3"><i class="fas fa-check-circle text-primary me-2"></i><strong>변화:</strong> 자발성과 책임감으로 진정한 변화를 만듭니다</li>
+          <li class="mb-3"><i class="fas fa-check-circle text-primary me-2"></i><strong>투명성:</strong> 모든 활동과 결과를 투명하게 공유합니다</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row g-4 mt-5">
+      <div class="col-md-6">
+        <div class="info-card bg-primary-light p-4 rounded-3">
+          <h4 class="mb-2"><i class="fas fa-users text-primary me-2"></i>가입 자격</h4>
+          <p class="mb-0">만 19~39세 남양주시 거주/근무/재학 중인 청년 누구나</p>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="info-card bg-primary-light p-4 rounded-3">
+          <h4 class="mb-2"><i class="fas fa-calendar text-primary me-2"></i>모집 시기</h4>
+          <p class="mb-0">매년 1월~2월, 남양주시자원봉사센터 공개 모집</p>
+        </div>
+      </div>
+    </div>
+    <!-- About sub-tabs -->
+    <div class="row mt-5">
+      <div class="col-12 text-center mb-3">
+        <div class="btn-group" role="group" aria-label="About tabs">
+          <button type="button" class="btn btn-outline-primary" id="btn-history">연혁</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-logo">로고</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-rules">규칙및규약</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-awards">상장수여기준</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-fees">회비</button>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div id="logo-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4 text-center">
+            <h4 class="fw-bold mb-3">위브 로고 소개</h4>
+            <img src="logo.png" alt="위브 로고" style="max-width:220px; width:100%; height:auto;" class="mx-auto mb-4">
+            <ul class="text-start mb-0">
+              <li>‘엮다’ 라는 의미이며 봉사단을 통해 사랑과 사랑을 잇고 위브(we give), 우리가 나눠준다는 의미를 함께 내포</li>
+              <li>W가 입이고 위 표정을 더해 항상 밝게 웃으며 봉사하는 청년의 얼굴을 상징</li>
+              <li>파란색과 폰트는 청년봉사단의 활기찬 모습을 나타냄</li>
+              <li>봉사 성격에 따라 산타버전, 동물 버전 등으로 응용해 꾸밀 수 있는 장점 보유</li>
+              <li>로고 아래쪽의 점들은 점자를 표현</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="awards-panel" class="about-panel">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold">상장 수여 기준</h4>
+            <p class="mb-2"><strong>봉사 시간 점수 (+)</strong></p>
+            <ul>
+              <li>봉사시간 1시간 당 <strong>0.25점</strong> 가산 (예: 봉사시간 4시간 → 1점)</li>
+              <li>청년봉사단 활동 시간과 회의(기획 회의 포함) 시간을 합산하여 산정</li>
+              <li>청년봉사단 외 활동은 점수에 반영되지 않음</li>
+              <li>1년간 청년봉사단 활동 개근 시 <strong>가산점 2점</strong> 부여 (기획회의·홍보팀·비정기 활동 제외)</li>
+              <li>뒷풀이(회식) 등 봉사와 직접 관련 없는 활동은 점수 미부여</li>
+            </ul>
+            <p class="mb-2"><strong>홍보팀 활동 점수 (+)</strong></p>
+            <p>홍보팀에 참여하여 1년간 정상적으로 활동 시 <strong>5점</strong> 부여</p>
+            <p class="mb-2"><strong>패널티 점수 (-)</strong></p>
+            <p>봉사 활동 참여 신청 후 미참여 시, 사유와 관계없이 <strong>0.25점</strong> 차감</p>
+            <p class="mb-2"><strong>추가 사항</strong></p>
+            <ul>
+              <li>단장·부단장은 센터 판단에 따라 우선순위 부여 가능</li>
+              <li>같은 상에 대해 2년 이내 수상 이력 보유자는 후보에서 제외</li>
+              <li>정기 시상(연말 평가회)은 당해연도 점수 적용, 비정기 시상은 최근 3년 누적 점수 적용</li>
+              <li>청년 봉사단 외 봉사 포함 총 봉사 시간이 <strong>100시간 미만</strong>인 자는 수상 후보에서 제외</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="rules-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold">규칙 및 규약</h4>
+            <h5 class="mt-3">목적</h5>
+            <p>남양주청년봉사단은 자원봉사활동을 통해 청년들의 역량강화와 친목을 도모하며, 지역사회 문제해결에 함께 참여하여 자원봉사 문화를 이끌어나갈 차세대 리더를 양성하는데 목적을 둔다.</p>
+            <h5>자격</h5>
+            <p>청년봉사단원의 자격은 만 19세~39세의 남양주시 거주 또는 근무(재학) 중인 자로 한다.</p>
+            <h5>모집</h5>
+            <p>청년봉사단의 모집은 매 년 1월~2월 남양주시자원봉사센터를 통한 공개 모집을 원칙으로 한다.</p>
+            <h5>임원</h5>
+            <p>임원은 단장 1명, 부단장 1명, 기획부장 1명, 홍보부장 1명으로 하며 임기는 2년이다. 단장은 전년도 활동 70% 이상 참여한 자 중 단원 투표로 결정한다. 부단장과 기획부장은 단장의 지명으로 선출한다. 임원은 개인사정 또는 센터 판단에 따라 사임할 수 있으며, 결원이 발생하면 센터가 잔여기간 수행할 임원을 임명한다.</p>
+            <h5>조직</h5>
+            <p>조직은 기획팀과 홍보팀으로 구성하며 팀원은 1년마다 모집을 통해 구성한다. 단장·부단장은 당연직이다.</p>
+            <h5>의무</h5>
+            <p>청년봉사단은 월 1회 활동을 원칙으로 하며, 1년간 활동 미참여 시 차기 연도 봉사단 가입을 불허한다(발대식·평가회 제외).</p>
+            <h5>수상</h5>
+            <p>수상은 예외 없이 "남양주청년봉사단 상장 수여 기준"을 통해 선정한다.</p>
+            <h5>재정</h5>
+            <p>연회비는 3만원이며 운영비는 연회비·찬조금·후원금 등을 적립하여 사용한다. 운영비는 금융권에 예치하며 임원진 명의로 개설 후 관리한다. 기금 지출은 임원회의를 통해 결정하며 매년 평가회에서 지출 내역을 보고한다.</p>
+            <h5>기타</h5>
+            <p>기타 정하지 않은 사항은 단원과의 협의를 통해 결정한다.</p>
+          </div>
+        </div>
+
+        <div id="history-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold">연혁</h4>
+            <div class="mt-3">
+              <h5>2022년</h5>
+              <ul>
+                <li>단장: 이도은, 부단장: 강한솔</li>
+                <li>남양주 청년봉사단 창설 및 초대 활동 시작 (총 13회 활동)</li>
+              </ul>
+
+              <h5>2023년</h5>
+              <ul>
+                <li>단장: 박규리, 부단장: 윤종현</li>
+                <li>조별 활동 중심 운영 및 대외 봉사 활동 확대 (총 16회 활동)</li>
+              </ul>
+
+              <h5>2024년</h5>
+              <ul>
+                <li>단장: 강인수, 부단장: 서지훈</li>
+                <li>조별 활동을 폐지하고 단체 활동으로 전환, 기획팀·홍보팀 창립</li>
+                <li>규칙·수상 기준·운영 방침 정비 (총 25회 활동)</li>
+              </ul>
+
+              <h5>2025년</h5>
+              <ul>
+                <li>담당자: 송동빈(상반기), 박미경(하반기)</li>
+                <li>단장: 강인수, 부단장: 강예진 — 활동 확대 및 첫 관외 워크숍(대부도), 총 36회 활동</li>
+              </ul>
+
+              <h5>2026년</h5>
+              <ul>
+                <li>담당자: 송동빈</li>
+                <li>단장: 강인수, 부단장: 강예진</li>
+                <li>기획부장: 이주영, 홍보부장: 서지훈</li>
+                <li>조직 재정비 및 연간 활동 계획 실행 (명단은 임원진 중심으로 표기)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div id="fees-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold">회비</h4>
+            <h5 class="mt-3">규칙</h5>
+            <ul>
+              <li>연회비 3만원</li>
+              <li>회비 미납부 시, 봉사단 활동 불가능</li>
+              <li>봉사단 탈퇴 시 회비 미환급</li>
+              <li>찬조금, 후원금 등이 있을 시 회비에 포함하여 운영</li>
+              <li>운영비는 금융권에 예치하며, 임원진 명의로 개설 후 관리 및 지출</li>
+              <li>매년 평가회에 임원진은 단원들에게 기금의 지출 내역 및 잔액을 보고</li>
+              <li>1년간 활동 후 남은 회비는 내년으로 이월</li>
+            </ul>
+
+            <h5 class="mt-3">목적 및 사용처</h5>
+            <ul>
+              <li>노쇼 방지비</li>
+              <li>워크샵 비용 - 숙소 등</li>
+              <li>이벤트 비용 - 게임 상품 비용, 연말 상장 수상자 축하 꽃 등 구입 비용 등</li>
+              <li>연말 센터 운영비가 부족할 시, 회비에서 충당하여 활동비로 사용(봉사 물품 구입, 식사비 등)</li>
+            </ul>
+
+            <h5 class="mt-3">계좌</h5>
+            <ul>
+              <li>계좌 관리자 : 단장 강인수</li>
+              <li>계좌 번호 : 3333-32-7242838</li>
+              <li>카카오 뱅크 모임 통장 사용</li>
+              <li>카카오 뱅크를 가입했고 회비를 납부한 단원은 언제든지 계좌의 거래 내역 확인 가능</li>
+              <li>카카오 뱅크를 가입하지 않더라도 위 계좌 번호로 계좌이체하여 회비 납부 가능</li>
+              <li>모임 통장 체크 카드를 발급하여 오프라인에서도 사용</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-5">
+      <div class="col-12">
+        <h4 class="mb-3">연도별 주요 활동 (요약)</h4>
+        <div class="card p-3">
+          <ul class="mb-0">
+            <li><strong>2026:</strong> 발대식, 정기/임원 회의, 플로깅·환경봉사, 유기견 봉사, 워크숍·문화의 날, 자원봉사 박람회 및 평가회 등 (연중 다수 활동)</li>
+            <li><strong>2025:</strong> 발대식, 지키링 제작·지키링 관련 봉사, 대부도 워크샵, 플로깅·가드닝, 유기견 봉사, 축제·부스 봉사, 연말 평가회</li>
+            <li><strong>2024:</strong> 발대식, 산불조심 캠페인·플로깅, 농촌 봉사·농활, 환경 축제 및 지역 행사 참여</li>
+            <li><strong>2023:</strong> 발대식, 플로깅·부스 봉사·유기견 봉사 등 지역 중심 활동</li>
+            <li><strong>2022:</strong> 창설 연도 — 발대식, 플로깅, 유기견 봉사, 평가회 등 기본 활동 시작</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACTIVITIES SECTION -->
+<section id="activities" class="py-6 bg-light panel">
+  <div class="container">
+    <div class="section-header mb-5 text-center">
+      <h2 class="display-5 fw-bold mb-3">위브의 활동</h2>
+      <p class="lead text-muted">다양한 봉사 프로그램으로 지역사회에 기여합니다</p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-leaf fa-2x text-primary"></i>
+          </div>
+          <h4 id="activity-env">환경 봉사</h4>
+          <p>하천 정화, 플로깅, 공원 가꾸기 등 지속가능한 환경을 위한 활동</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-hand-holding-heart fa-2x text-primary"></i>
+          </div>
+          <h4 id="activity-care">취약계층 지원</h4>
+          <p>생필품 지원, 주거 보수, 노인 돌봄 등 실질적인 도움 제공</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-book fa-2x text-primary"></i>
+          </div>
+          <h4 id="activity-dog">유기견봉사</h4>
+          <p>유기견 보호소 지원, 산책·미용·물품 제작 등 생명존중 중심 활동</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-globe fa-2x text-primary"></i>
+          </div>
+          <h4 id="activity-farm">농촌일손지원</h4>
+          <p>농번기 인력 지원, 수확/정리 활동으로 지역 농가의 실질적 부담 완화</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-people-group fa-2x text-primary"></i>
+          </div>
+          <h4>네트워킹</h4>
+          <p>기수별 소통, 동아리 활동, 문화생활로 유대감 강화</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="activity-card h-100">
+          <div class="activity-icon bg-primary-light">
+            <i class="fas fa-flag-checkered fa-2x text-primary"></i>
+          </div>
+          <h4>캠페인</h4>
+          <p>발대식, 놀이마당, 해단식 등 기수별 특색 있는 행사 운영</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-4 border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="fw-bold mb-3">실제 진행 봉사 내역 (연도별)</h5>
+        <ul class="mb-0">
+          <li><strong>2026:</strong> 발대식, 플로깅, 유기견 봉사, 백봉산 캠페인, 카네이션 만들기, 농촌일손지원, 취약계층 가구 청소, 바닥벽화, 자원봉사박람회, 문화의 날 시리즈, 평가회, 케이크 봉사 등</li>
+          <li><strong>2025:</strong> 발대식, 유기견 봉사, 가드닝·플로깅, 지키링 제작, 대부도 워크샵, 청소년 자원봉사 캠프, 환경축제·청년축제·광릉숲 축제, 연탄·김장 봉사, 평가회 등</li>
+          <li><strong>2024:</strong> 발대식, 백봉산 플로깅, 농촌 봉사(수동/포도밭), 유기견 관련 봉사, 심폐소생술 교육, 수해복구, 축제·부스 봉사, 연탄/평가회/연말 봉사</li>
+          <li><strong>2023:</strong> 새해 회의, 발대식, 플로깅, 유기견 봉사, 점프벼룩시장, V패스티벌, 지역아동센터 봉사, 양성평등주간행사, 광릉숲 축제, 평가회</li>
+          <li><strong>2022:</strong> 발대식, 수제간식/노즈워크 전달, 플로깅, 유기견 봉사, 마을안전학교, 이그나이트, 광릉숲 축제, 중간평가회/평가회, 자원봉사대축제</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GENERATION / 기수 정보 -->
+<section id="generation" class="py-6 panel d-none">
+  <div class="container">
+    <div class="section-header mb-5 text-center">
+      <h2 class="display-5 fw-bold mb-3">위브의 기수</h2>
+      <p class="lead text-muted">지난 시간들과 함께한 청년들의 발자국</p>
+    </div>
+
+    <!-- 현재 기수 강조 -->
+    <div class="generation-featured mb-5">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-4 text-center">
+          <div class="generation-emblem">
+            <div class="emblem-circle bg-primary">
+              <span class="emblem-text text-white">7기</span>
+            </div>
+            <h3 class="mt-4">청년 Chill하다</h3>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-lg">
+            <div class="card-body p-5">
+              <p class="text-muted mb-3">활동 기간: 2025년 ~ 2026년</p>
+              <p class="mb-3"><strong>단장:</strong> 김용대 | <strong>부단장:</strong> 이지혜</p>
+              <hr class="my-4">
+              <div class="row g-3 text-center">
+                <div class="col-4">
+                  <div class="fw-bold text-primary fs-5">1,666명</div>
+                  <small class="text-muted">기수 인원</small>
+                </div>
+                <div class="col-4">
+                  <div class="fw-bold text-primary fs-5">540회</div>
+                  <small class="text-muted">봉사 횟수</small>
+                </div>
+                <div class="col-4">
+                  <div class="fw-bold text-primary fs-5">4,305명</div>
+                  <small class="text-muted">참여 인원</small>
+                </div>
+              </div>
+              <hr class="my-4">
+              <p class="mb-0"><strong>주요 활동:</strong> 발대식, 기획봉사, 센터주도봉사, 해외봉사, 네트워크 활동</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 과거 기수 -->
+    <div class="mt-5 pt-5 border-top">
+      <h4 class="mb-4">이전 기수</h4>
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="generation-card">
+            <div class="generation-num">6기</div>
+            <h5>육각형청년</h5>
+            <p class="text-muted small">2024년</p>
+            <div class="stats-row"><span>단장: 이지은</span> | <span>2,148명</span></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="generation-card">
+            <div class="generation-num">5기</div>
+            <h5>하이파이브</h5>
+            <p class="text-muted small">2023년</p>
+            <div class="stats-row"><span>단장: 박아람</span> | <span>1,494명</span></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="generation-card">
+            <div class="generation-num">4기</div>
+            <h5>4기는사랑</h5>
+            <p class="text-muted small">2022년</p>
+            <div class="stats-row"><span>단장: 김정원</span> | <span>1,571명</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY / 갤러리 -->
+<section id="gallery" class="py-6 bg-light panel">
+  <div class="container">
+    <div class="section-header mb-5 text-center">
+      <h2 class="display-5 fw-bold mb-3">활동 갤러리</h2>
+      <p class="lead text-muted">위브의 따뜻한 순간들</p>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div class="d-flex gap-2 align-items-center">
+        <input id="gallery-search" type="text" class="form-control form-control-sm" placeholder="제목 검색" style="min-width:220px;">
+        <button id="gallery-search-btn" class="btn btn-sm btn-primary text-nowrap">검색</button>
+      </div>
+      <button class="btn btn-primary btn-sm d-none text-nowrap" id="gallery-write-btn">글쓰기</button>
+    </div>
+
+    <div class="gallery-filter mb-4 text-center">
+      <button class="btn btn-sm btn-outline-primary active" data-filter="*">전체</button>
+      <button class="btn btn-sm btn-outline-primary" data-filter=".y2026">2026</button>
+      <button class="btn btn-sm btn-outline-primary" data-filter=".y2025">2025</button>
+      <button class="btn btn-sm btn-outline-primary" data-filter=".y2024">2024</button>
+      <button class="btn btn-sm btn-outline-primary" data-filter=".y2023">2023</button>
+      <button class="btn btn-sm btn-outline-primary" data-filter=".y2022">2022</button>
+    </div>
+
+    <div class="gallery-grid row g-3" id="gallery-grid">
+      <!-- 갤러리 항목은 JS로 동적 생성 -->
+    </div>
+
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center" id="gallery-pagination"></ul>
+    </nav>
+
+
+  </div>
+
+</section>
+
+<!-- GALLERY DETAIL / 갤러리 상세 -->
+<section id="gallery-detail" class="py-6 panel bg-light">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button class="btn btn-outline-secondary btn-sm" id="gallery-back-btn">← 목록으로</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm d-none" id="gallery-detail-edit-btn">수정</button>
+        <button class="btn btn-danger btn-sm d-none" id="gallery-detail-delete-btn">삭제</button>
+      </div>
+    </div>
+    <article class="card border-0 shadow-sm">
+      <img id="gallery-detail-image" src="" alt="갤러리 이미지" class="img-fluid rounded-top">
+      <div class="card-body p-4 p-lg-5">
+        <h2 class="h4 fw-bold mb-2" id="gallery-detail-title"></h2>
+        <p class="small text-muted mb-4" id="gallery-detail-meta"></p>
+        <div id="gallery-detail-content" style="white-space: pre-wrap;"></div>
+        <hr>
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">추천</button>
+          <span class="small text-muted">추천수 <span id="gallery-recommend-count">0</span></span>
+        </div>
+        <div id="gallery-comments-section"></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- NEWS / 소식 -->
+<section id="news" class="py-6 panel">
+  <div class="container">
+    <div class="section-header mb-5 text-center">
+      <h2 class="display-5 fw-bold mb-3">최근 소식</h2>
+      <div class="d-flex justify-content-center gap-2 flex-wrap" id="news-tab-nav">
+        <button class="btn btn-outline-primary active" id="notice-tab-btn" type="button">공지사항</button>
+        <button class="btn btn-outline-primary" id="faq-tab-btn" type="button">FAQ</button>
+        <button class="btn btn-outline-primary" id="qna-tab-btn" type="button">Q&A</button>
+      </div>
+    </div>
+
+    <div id="notice-tab" class="news-tab-pane">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div class="small text-muted">총 <span id="news-total-count">0</span>건</div>
+        <div class="d-flex gap-2 align-items-center">
+          <input id="news-search" type="text" class="form-control form-control-sm" placeholder="제목 검색" style="min-width:220px;">
+          <button id="news-search-btn" class="btn btn-sm btn-primary text-nowrap">검색</button>
+          <button class="btn btn-primary btn-sm d-none text-nowrap" id="news-write-btn">글쓰기</button>
+        </div>
+      </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle" id="news-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width:10%">번호</th>
+            <th>글제목</th>
+            <th style="width:15%">작성자</th>
+            <th style="width:15%">날짜</th>
+            <th style="width:12%">조회/추천</th>
+            <th style="width:10%">관리</th>
+          </tr>
+        </thead>
+        <tbody id="news-table-body"></tbody>
+      </table>
+    </div>
+
+      <nav class="mt-3">
+        <ul class="pagination justify-content-center" id="news-pagination"></ul>
+      </nav>
+    </div>
+
+    <div id="faq-tab" class="news-tab-pane d-none">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div class="small text-muted">총 <span id="faq-total-count">0</span>건</div>
+        <button class="btn btn-primary btn-sm d-none text-nowrap" id="faq-write-btn">글쓰기</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="faq-table">
+          <thead class="table-light">
+            <tr>
+              <th style="width:10%">번호</th>
+              <th>질문</th>
+              <th style="width:15%">작성자</th>
+              <th style="width:15%">날짜</th>
+              <th style="width:10%">조회수</th>
+              <th style="width:10%">관리</th>
+            </tr>
+          </thead>
+          <tbody id="faq-table-body"></tbody>
+        </table>
+      </div>
+      <nav class="mt-3">
+        <ul class="pagination justify-content-center" id="faq-pagination"></ul>
+      </nav>
+    </div>
+
+    <div id="qna-tab" class="news-tab-pane d-none">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div class="small text-muted">총 <span id="qna-total-count">0</span>건</div>
+        <button class="btn btn-primary btn-sm d-none text-nowrap" id="qna-write-btn">글쓰기</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="qna-table">
+          <thead class="table-light">
+            <tr>
+              <th style="width:10%">번호</th>
+              <th>질문</th>
+              <th style="width:15%">작성자</th>
+              <th style="width:15%">날짜</th>
+              <th style="width:10%">상태</th>
+              <th style="width:10%">관리</th>
+            </tr>
+          </thead>
+          <tbody id="qna-table-body"></tbody>
+        </table>
+      </div>
+      <nav class="mt-3">
+        <ul class="pagination justify-content-center" id="qna-pagination"></ul>
+      </nav>
+    </div>
+  </div>
+</section>
+
+<!-- QNA DETAIL / 질의응답 상세 -->
+<section id="qna-detail" class="py-6 panel bg-light">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button class="btn btn-outline-secondary btn-sm" id="qna-back-btn">← 목록으로</button>
+      <button class="btn btn-primary btn-sm d-none" id="qna-answer-btn">답변 작성</button>
+    </div>
+    <article class="card border-0 shadow-sm">
+      <div class="card-body p-4 p-lg-5">
+        <h5 class="fw-bold mb-2">Q</h5>
+        <h2 class="h5 fw-bold mb-2" id="qna-detail-title"></h2>
+        <p class="small text-muted mb-3" id="qna-detail-meta"></p>
+        <div id="qna-detail-question" style="white-space: pre-wrap;"></div>
+        <hr>
+        <h5 class="fw-bold mb-2">A</h5>
+        <div id="qna-detail-answer" style="white-space: pre-wrap;" class="text-muted">아직 답변이 등록되지 않았습니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NEWS DETAIL / 소식 상세 -->
+<section id="news-detail" class="py-6 panel bg-light">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button class="btn btn-outline-secondary btn-sm" id="news-back-btn">← 목록으로</button>
+      <button class="btn btn-danger btn-sm d-none" id="news-detail-delete-btn">삭제</button>
+    </div>
+    <article class="card border-0 shadow-sm">
+      <div class="card-body p-4 p-lg-5">
+        <h2 class="h4 fw-bold mb-2" id="news-detail-title"></h2>
+        <p class="small text-muted mb-4" id="news-detail-meta"></p>
+        <img id="news-detail-image" src="" alt="소식 이미지" class="img-fluid rounded mb-4 d-none">
+        <div id="news-detail-content" style="white-space: pre-wrap;"></div>
+        <hr>
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <button class="btn btn-sm btn-outline-primary" id="news-recommend-btn">추천</button>
+          <span class="small text-muted">추천수 <span id="news-recommend-count">0</span></span>
+        </div>
+        <div id="news-comments-section"></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- JOIN / 참여 -->
+<section id="join" class="py-6 bg-primary-gradient text-white position-relative overflow-hidden panel">
+  <div class="join-bg-animation"></div>
+  <div class="container position-relative z-1">
+    <div class="row align-items-center">
+      <div class="col-lg-8 mx-auto text-center">
+        <h2 class="display-4 fw-bold mb-4">
+          <i class="fas fa-handshake me-3"></i>함께하세요
+        </h2>
+        <p class="fs-5 mb-5 text-white-75">
+          위브와 함께 지역을 더 따뜻하게, 너와 나를 더 강하게 만들어봅시다.
+        </p>
+
+        <div class="row g-4 mb-5">
+          <div class="col-md-4">
+            <div class="join-benefit">
+              <i class="fas fa-lightbulb fa-2x mb-3"></i>
+              <h5>역량 강화</h5>
+              <p>리더십, 소통, 협력 능력 개발</p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="join-benefit">
+              <i class="fas fa-people-group fa-2x mb-3"></i>
+              <h5>네트워크</h5>
+              <p>뜻이 맞는 청년들과의 만남</p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="join-benefit">
+              <i class="fas fa-heart fa-2x mb-3"></i>
+              <h5>의미 있는 봉사</h5>
+              <p>실제 변화를 만드는 경험</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+          <a href="mailto:weave@nyjvc.or.kr?subject=위브%20문의" class="btn btn-light btn-lg px-5 fw-bold">
+            <i class="fas fa-envelope me-2"></i>이메일 문의
+          </a>
+          <a href="tel:031-0000-0000" class="btn btn-outline-light btn-lg px-5 fw-bold">
+            <i class="fas fa-phone me-2"></i>전화 문의
+          </a>
+          <a href="#" class="btn btn-outline-light btn-lg px-5 fw-bold" onclick="return false;">
+            <i class="fas fa-hand-holding-heart me-2"></i>기부하기 (3333-32-7242838)
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MY INFO PANEL -->
+<section id="myinfo" class="py-6 bg-light panel">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="card shadow-lg border-0">
+          <div class="card-body p-5 text-center">
+            <div class="profile-avatar mb-4">
+              <i class="fas fa-user-circle fa-5x text-primary"></i>
+            </div>
+            <h3 id="profile-name" class="fw-bold mb-2"></h3>
+            <p id="profile-email" class="text-muted mb-4"></p>
+            <div class="text-start small text-muted mb-4" id="profile-details"></div>
+            <p id="profile-joindate" class="small text-muted mb-4"></p>
+            <hr>
+            <div class="d-flex flex-column gap-2">
+              <button class="btn btn-outline-primary w-100" id="change-password-btn">
+                <i class="fas fa-key me-2"></i>비밀번호 변경
+              </button>
+              <button class="btn btn-danger w-100" id="logout-btn-profile">
+                <i class="fas fa-sign-out-alt me-2"></i>로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- WRITE PANEL -->
+<section id="write" class="py-6 panel bg-light">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card shadow-sm border-0">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">글쓰기</h5>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="write-back-btn">뒤로가기</button>
+            </div>
+
+            <ul class="nav nav-tabs mb-3" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="news-tab" data-bs-toggle="tab" data-bs-target="#news-admin">소식 관리</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="gallery-tab" data-bs-toggle="tab" data-bs-target="#gallery-admin">갤러리 관리</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-admin">홈 통계 관리</button>
+              </li>
+            </ul>
+
+            <div class="tab-content">
+              <div class="tab-pane fade show active" id="news-admin" role="tabpanel">
+                <form id="add-news-form">
+                  <input type="hidden" name="editId">
+                  <input type="hidden" name="imageData">
+                  <div class="mb-3">
+                    <label class="form-label">제목</label>
+                    <input type="text" class="form-control" name="title" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">탭</label>
+                    <select class="form-control" name="postTab" required>
+                      <option value="notice">공지사항</option>
+                      <option value="faq">FAQ</option>
+                      <option value="qna">Q&A</option>
+                    </select>
+                  </div>
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="isSecret" id="post-secret">
+                    <label class="form-check-label" for="post-secret">비밀글</label>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">작성자</label>
+                    <input type="text" class="form-control" name="author" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">내용</label>
+                    <div class="editor-toolbar mb-2" data-editor-target="news-editor">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="underline"><u>U</u></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyLeft">좌</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyCenter">중</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyFull">가로</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="indent">들여쓰기</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList">번호</button>
+                      <input type="color" class="form-control form-control-color d-inline-block align-middle" data-cmd="foreColor" value="#000000" title="글자색">
+                    </div>
+                    <div id="news-editor" class="rich-editor" contenteditable="true"></div>
+                    <input type="hidden" name="content" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">이미지 파일</label>
+                    <input type="file" class="form-control" name="imageFile" accept="image/*">
+                    <div class="image-dropzone mt-2" id="news-image-dropzone">이미지를 끌어다 놓거나 클릭해서 선택하세요.</div>
+                    <img id="news-image-preview" class="img-fluid rounded mt-2 d-none" alt="소식 이미지 미리보기" style="max-height:180px;">
+                  </div>
+                  <button type="submit" class="btn btn-primary">소식 추가</button>
+                </form>
+              </div>
+
+              <div class="tab-pane fade" id="gallery-admin" role="tabpanel">
+                <form id="add-gallery-form">
+                  <input type="hidden" name="imageData">
+                  <div class="mb-3">
+                    <label class="form-label">제목</label>
+                    <input type="text" class="form-control" name="title" required>
+                  </div>
+                  <input type="hidden" name="editId">
+                  <div class="mb-3">
+                    <label class="form-label">탭(연도)</label>
+                    <select class="form-control" name="year" id="gallery-year-select" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">이미지 파일</label>
+                    <input type="file" class="form-control" name="imageFile" accept="image/*">
+                    <div class="image-dropzone mt-2" id="gallery-image-dropzone">이미지를 끌어다 놓거나 클릭해서 선택하세요.</div>
+                    <img id="gallery-image-preview" class="img-fluid rounded mt-2 d-none" alt="갤러리 이미지 미리보기" style="max-height:180px;">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">내용</label>
+                    <div class="editor-toolbar mb-2" data-editor-target="gallery-editor">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="underline"><u>U</u></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyLeft">좌</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyCenter">중</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyFull">가로</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="indent">들여쓰기</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList">번호</button>
+                      <input type="color" class="form-control form-control-color d-inline-block align-middle" data-cmd="foreColor" value="#000000" title="글자색">
+                    </div>
+                    <div id="gallery-editor" class="rich-editor" contenteditable="true"></div>
+                    <input type="hidden" name="content">
+                  </div>
+                  <button type="submit" class="btn btn-primary">갤러리 추가</button>
+                </form>
+              </div>
+
+              <div class="tab-pane fade" id="stats-admin" role="tabpanel">
+                <form id="update-stats-form">
+                  <div class="mb-3"><label class="form-label">현 활동 기수</label><input type="text" class="form-control" name="generation" required></div>
+                  <div class="mb-3"><label class="form-label">누적 참여 인원</label><input type="text" class="form-control" name="members" required></div>
+                  <div class="mb-3"><label class="form-label">누적 봉사 활동</label><input type="text" class="form-control" name="activities" required></div>
+                  <div class="mb-3"><label class="form-label">사회에 미친 영향</label><input type="text" class="form-control" name="impact" required></div>
+                  <button type="submit" class="btn btn-primary">통계 저장</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOGIN MODAL -->
+<div class="modal fade" id="loginModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">로그인</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="login-form">
+          <div class="mb-3">
+            <label class="form-label">아이디</label>
+            <input type="text" class="form-control" name="username" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">비밀번호</label>
+            <input type="password" class="form-control" name="password" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">로그인</button>
+          <div class="text-center mt-3">
+            <small class="text-muted d-block mb-2">계정이 없나요? <a href="#" onclick="document.querySelector('#loginModal .btn-close').click(); new bootstrap.Modal(document.getElementById('signupModal')).show(); return false;">가입하기</a></small>
+            <small class="text-muted"><a href="#" onclick="findUsernameFlow(); return false;">아이디 찾기</a> · <a href="#" onclick="findPasswordFlow(); return false;">비밀번호 찾기</a></small>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SIGNUP MODAL -->
+<div class="modal fade" id="signupModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">회원가입</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="signup-form">
+          <div class="mb-3">
+            <label class="form-label">이름</label>
+            <input type="text" class="form-control" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">이메일</label>
+            <input type="email" class="form-control" name="email" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">생년월일 (yyyy.mm.dd)</label>
+            <input type="text" class="form-control" name="birthdate" placeholder="2000.01.31" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">연락처</label>
+            <input type="text" class="form-control" name="phone" placeholder="010-1234-5678" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">이메일 확인</label>
+            <input type="email" class="form-control" name="emailConfirm" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">아이디</label>
+            <input type="text" class="form-control" name="username" minlength="4" maxlength="20" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">비밀번호</label>
+            <input type="password" class="form-control" name="password" placeholder="6자 이상" minlength="6" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">비밀번호 확인</label>
+            <input type="password" class="form-control" name="confirm-password" minlength="6" required>
+          </div>
+          <div class="mb-3 border rounded p-2" style="max-height:140px; overflow-y:auto; font-size:12px;">
+            <strong>이용약관(필수)</strong>
+            <p class="mb-1">본 약관은 남양주시자원봉사센터가 운영하는 남양주시청년봉사단 온라인플랫폼 서비스 이용조건, 권리/의무 및 책임사항을 규정합니다. 회원은 실명·정확한 정보를 제공해야 하며, 타인 도용/허위정보/불법 게시물 등록 시 이용이 제한될 수 있습니다. 서비스는 센터 사정에 따라 변경/중지될 수 있고, 관련 법령에 따릅니다. 상세 조항의 '경기도' 표기는 본 사이트 적용 시 '남양주시' 기준으로 적용합니다.</p>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="terms-agree" name="termsAgree" required>
+            <label class="form-check-label" for="terms-agree">이용약관(필수)에 동의합니다.</label>
+          </div>
+
+          <div class="mb-3 border rounded p-2" style="max-height:140px; overflow-y:auto; font-size:12px;">
+            <strong>개인정보처리방침(필수)</strong>
+            <p class="mb-1">남양주시청년봉사단 플랫폼은 회원가입/운영을 위해 이름, 아이디, 생년월일, 연락처, 이메일 등 개인정보를 처리합니다. 수집정보는 회원관리, 봉사활동 안내, 민원처리 등에 활용되며 관련 법령에 따라 보호됩니다. 제3자 제공·위탁·보유기간·파기절차·권리행사 등은 고지된 방침을 따릅니다. 상세 문구의 '경기도' 표기는 본 사이트 적용 시 '남양주시' 기준으로 적용합니다.</p>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="privacy-agree" name="privacyAgree" required>
+            <label class="form-check-label" for="privacy-agree">개인정보처리방침(필수)에 동의합니다.</label>
+          </div>
+          <button type="submit" class="btn btn-secondary w-100" id="signup-submit-btn" disabled>가입</button>
+          <div class="text-center mt-3">
+            <small class="text-muted">이미 계정이 있나요? <a href="#" onclick="document.querySelector('#signupModal .btn-close').click(); new bootstrap.Modal(document.getElementById('loginModal')).show(); return false;">로그인하기</a></small>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-white py-5" style="background: #31b7ff;">
+  <div class="container">
+    <div class="row g-5 mb-5">
+      <div class="col-md-4">
+        <h5 class="fw-bold mb-3">남양주청년봉사단 위브</h5>
+        <p class="text-white-50 small">지역을 함께 연결하고, 청년의 미래를 함께 만드는 비영리 봉사단입니다.</p>
+      </div>
+      <div class="col-md-4">
+        <h6 class="fw-bold mb-3">연락처</h6>
+        <p class="small mb-1"><i class="fas fa-envelope text-primary me-2"></i><a href="mailto:weave@nyjvc.or.kr" class="text-white-50 text-decoration-none">weave@nyjvc.or.kr</a></p>
+        <p class="small mb-1"><i class="fas fa-phone text-primary me-2"></i><a href="tel:031-0000-0000" class="text-white-50 text-decoration-none">031-0000-0000</a></p>
+        <p class="small"><i class="fas fa-map-marker-alt text-primary me-2"></i>경기도 남양주시</p>
+      </div>
+      <div class="col-md-4">
+        <h6 class="fw-bold mb-3">팔로우</h6>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="https://www.instagram.com/nyjvcyouth?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-circle text-center" style="width:40px;height:40px;line-height:28px;">
+            <i class="fab fa-instagram"></i>
+          </a>
+                  <a href="https://blog.naver.com/nyjvcyouth" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-circle text-center fw-bold" style="width:40px;height:40px;line-height:28px;">B</a>
+                  <a href="https://www.nyjvc.or.kr/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-circle text-center" style="width:40px;height:40px;line-height:28px;" title="남양주자원봉사센터">
+                    <i class="fas fa-building"></i>
+                  </a>
+        </div>
+      </div>
+    </div>
+    <hr class="border-secondary">
+    <div class="text-center text-white-50 small">
+      <p class="mb-0">© 2026 남양주청년봉사단 위브 (Weave). All Rights Reserved. | <a href="#" class="text-white-50 text-decoration-none">개인정보처리방침</a> | <a href="#" class="text-white-50 text-decoration-none">이용약관</a></p>
+    </div>
+  </div>
+</footer>
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wow/1.1.2/wow.min.js"></script>
+
+<script>
+  // Initialize WOW animations
+  new WOW().init();
+
+  // ============ GLOBAL STATE (localStorage) ============
+  const DATA_KEY = 'weave_content';
+  const COMMENTS_KEY = 'weave_comments';
+  const CURRENT_USER_KEY = 'weave_current_user';
+  const STATS_KEY = 'weave_stats';
+  const ADMIN_EMAILS = ['admin@weave.com', 'weave@youth.gg.kr'];
+  const API_BASE = '/api';
+
+  // ============ AUTH FUNCTIONS ============
+  function getCurrentUser() {
+    const user = localStorage.getItem(CURRENT_USER_KEY);
+    return user ? JSON.parse(user) : null;
+  }
+
+  function setCurrentUser(user) {
+    if (user) {
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(CURRENT_USER_KEY);
+    }
+    updateAuthUI();
+  }
+
+  async function apiRequest(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, {
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      ...options
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || '요청 처리 중 오류가 발생했습니다.');
+    }
+    return data;
+  }
+
+  async function hydrateCurrentUser() {
+    try {
+      const data = await apiRequest('/auth/me', { method: 'GET' });
+      setCurrentUser(data.user || null);
+    } catch (error) {
+      setCurrentUser(null);
+    }
+  }
+
+  function isAdminUser(user) {
+    return !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
+  }
+
+  function normalizeContact(value) {
+    return String(value || '').trim().replaceAll('-', '').toLowerCase();
+  }
+
+  async function findUsernameFlow() {
+    const contact = prompt('이메일 또는 연락처를 입력하세요.');
+    if (!contact) return;
+    try {
+      const data = await apiRequest('/auth/find-username', {
+        method: 'POST',
+        body: JSON.stringify({ contact })
+      });
+      alert(`아이디는 ${data.username} 입니다.`);
+    } catch (error) {
+      alert(error.message || '일치하는 계정을 찾지 못했습니다.');
+    }
+  }
+
+  async function findPasswordFlow() {
+    const username = prompt('아이디를 입력하세요.');
+    if (!username) return;
+    const contact = prompt('이메일 또는 연락처를 입력하세요.');
+    if (!contact) return;
+    const newPassword = prompt('새 비밀번호를 입력하세요. (6자 이상)');
+    if (!newPassword || newPassword.length < 6) {
+      alert('새 비밀번호는 6자 이상이어야 합니다.');
+      return;
+    }
+    try {
+      const data = await apiRequest('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ username, contact, newPassword })
+      });
+      alert(data.message || '비밀번호가 재설정되었습니다.');
+    } catch (error) {
+      alert(error.message || '비밀번호 재설정에 실패했습니다.');
+    }
+  }
+
+  function getStats() {
+    const defaults = {
+      generation: '5기',
+      members: '49명',
+      activities: '115회',
+      impact: '지역사회 기여'
+    };
+    const data = localStorage.getItem(STATS_KEY);
+    return data ? JSON.parse(data) : defaults;
+  }
+
+  function saveStats(stats) {
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  }
+
+  function renderStats() {
+    const stats = getStats();
+    const generationEl = document.getElementById('stat-generation');
+    const membersEl = document.getElementById('stat-members');
+    const activitiesEl = document.getElementById('stat-activities');
+    const impactEl = document.getElementById('stat-impact');
+    const trim = (value, max = 12) => {
+      const text = String(value || '');
+      return text.length > max ? `${text.slice(0, max)}…` : text;
+    };
+    if (generationEl) generationEl.innerText = trim(stats.generation, 10);
+    if (membersEl) membersEl.innerText = trim(stats.members, 10);
+    if (activitiesEl) activitiesEl.innerText = trim(stats.activities, 10);
+    if (impactEl) impactEl.innerText = trim(stats.impact, 12);
+  }
+
+  function updateAuthUI() {
+    const user = getCurrentUser();
+    const authButtons = document.getElementById('auth-buttons');
+    const userProfile = document.getElementById('user-profile');
+    const newsWriteBtn = document.getElementById('news-write-btn');
+    const faqWriteBtn = document.getElementById('faq-write-btn');
+    const qnaWriteBtn = document.getElementById('qna-write-btn');
+    const galleryWriteBtn = document.getElementById('gallery-write-btn');
+
+    if (user) {
+      authButtons.style.display = 'none';
+      userProfile.classList.add('show');
+      document.getElementById('profile-name').innerText = `${user.name} (${user.username})`;
+      document.getElementById('profile-email').innerText = user.email;
+      document.getElementById('profile-details').innerHTML = `
+        <div>이름: ${user.name || '-'}</div>
+        <div>아이디: ${user.username || '-'}</div>
+        <div>이메일: ${user.email || '-'}</div>
+        <div>생년월일: ${user.birthDate || '-'}</div>
+        <div>연락처: ${user.phone || '-'}</div>
+      `;
+      const joinDate = new Date(user.joinDate || new Date()).toLocaleDateString('ko-KR');
+      document.getElementById('profile-joindate').innerText = `가입일: ${joinDate} | 생년월일: ${user.birthDate || '-'}`;
+      if (newsWriteBtn) newsWriteBtn.classList.remove('d-none');
+      if (faqWriteBtn) faqWriteBtn.classList.toggle('d-none', !isAdminUser(user));
+      if (qnaWriteBtn) qnaWriteBtn.classList.remove('d-none');
+      if (galleryWriteBtn) galleryWriteBtn.classList.remove('d-none');
+    } else {
+      authButtons.style.display = 'flex';
+      userProfile.classList.remove('show');
+      if (newsWriteBtn) newsWriteBtn.classList.add('d-none');
+      if (faqWriteBtn) faqWriteBtn.classList.add('d-none');
+      if (qnaWriteBtn) qnaWriteBtn.classList.add('d-none');
+      if (galleryWriteBtn) galleryWriteBtn.classList.add('d-none');
+    }
+    if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
+  }
+
+  function isValidBirthDate(value) {
+    if (!/^\d{4}\.\d{2}\.\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split('.').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  }
+
+  // ============ LOGIN / SIGNUP ============
+  document.addEventListener('DOMContentLoaded', async function() {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const identifier = e.target.username.value.trim();
+        const password = e.target.password.value;
+        try {
+          const data = await apiRequest('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ username: identifier, password })
+          });
+          setCurrentUser(data.user);
+          const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+          if (loginModal) loginModal.hide();
+          e.target.reset();
+          alert(`${data.user.name}님 환영합니다!`);
+        } catch (error) {
+          alert(error.message || '아이디 또는 비밀번호가 틀렸습니다.');
+        }
+      };
+    }
+
+    const signupForm = document.getElementById('signup-form');
+    if (signupForm) {
+      const signupSubmitBtn = document.getElementById('signup-submit-btn');
+      const signupInputs = signupForm.querySelectorAll('input');
+
+      function updateSignupSubmitState() {
+        const requiredFilled = Array.from(signupInputs).every(input => {
+          if (input.type === 'checkbox') return input.checked;
+          return String(input.value || '').trim().length > 0;
+        });
+        if (signupSubmitBtn) {
+          signupSubmitBtn.disabled = !requiredFilled;
+          signupSubmitBtn.classList.toggle('btn-secondary', !requiredFilled);
+          signupSubmitBtn.classList.toggle('btn-primary', requiredFilled);
+        }
+      }
+
+      signupInputs.forEach(input => {
+        input.addEventListener('input', updateSignupSubmitState);
+        input.addEventListener('change', updateSignupSubmitState);
+      });
+      updateSignupSubmitState();
+
+      signupForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const name = e.target.name.value.trim();
+        const email = e.target.email.value.trim();
+        const birthDate = e.target.birthdate.value.trim();
+        const phone = e.target.phone.value.trim();
+        const emailConfirm = e.target.emailConfirm.value.trim();
+        const username = e.target.username.value.trim();
+        const password = e.target.password.value;
+        const confirmPassword = e.target['confirm-password'].value;
+
+        if (password !== confirmPassword) {
+          alert('비밀번호가 일치하지 않습니다.');
+          return;
+        }
+        if (!isValidBirthDate(birthDate)) {
+          alert('생년월일은 yyyy.mm.dd 형식으로 정확히 입력해주세요.');
+          return;
+        }
+        if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone)) {
+          alert('연락처 형식이 올바르지 않습니다. (예: 010-1234-5678)');
+          return;
+        }
+        if (email !== emailConfirm) {
+          alert('이메일과 이메일 확인 값이 일치하지 않습니다.');
+          return;
+        }
+        if (!e.target.termsAgree.checked || !e.target.privacyAgree.checked) {
+          alert('이용약관 및 개인정보처리방침 필수 동의가 필요합니다.');
+          return;
+        }
+        try {
+          const data = await apiRequest('/auth/signup', {
+            method: 'POST',
+            body: JSON.stringify({ name, username, email, phone, birthDate, password })
+          });
+
+          setCurrentUser(data.user);
+          const signupModal = bootstrap.Modal.getInstance(document.getElementById('signupModal'));
+          if (signupModal) signupModal.hide();
+          e.target.reset();
+          alert(`${name}님, 위브에 오신 것을 환영합니다!`);
+          updateSignupSubmitState();
+        } catch (error) {
+          alert(error.message || '회원가입 중 오류가 발생했습니다.');
+        }
+      };
+    }
+
+    // LOGOUT HANDLER (from navbar)
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await apiRequest('/auth/logout', { method: 'POST' });
+        } catch (_) {}
+        setCurrentUser(null);
+        alert('로그아웃되었습니다.');
+      });
+    }
+
+    // MY INFO BUTTON
+    const myInfoBtn = document.getElementById('my-info-btn');
+    if (myInfoBtn) {
+      myInfoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('[class*="panel"]').forEach(p => {
+          p.classList.remove('panel-active');
+        });
+        document.getElementById('myinfo').classList.add('panel-active');
+        const statsSection = document.getElementById('home-stats');
+        if (statsSection) statsSection.style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    // LOGOUT FROM PROFILE PAGE
+    const logoutBtnProfile = document.getElementById('logout-btn-profile');
+    if (logoutBtnProfile) {
+      logoutBtnProfile.addEventListener('click', async () => {
+        try {
+          await apiRequest('/auth/logout', { method: 'POST' });
+        } catch (_) {}
+        setCurrentUser(null);
+        document.querySelectorAll('[class*="panel"]').forEach(p => {
+          p.classList.remove('panel-active');
+        });
+        document.getElementById('home').classList.add('panel-active');
+        const statsSection = document.getElementById('home-stats');
+        if (statsSection) statsSection.style.display = 'block';
+        alert('로그아웃되었습니다.');
+      });
+    }
+
+    // Initial auth UI update
+    await hydrateCurrentUser();
+    updateAuthUI();
+  });
+
+  function buildGalleryData() {
+    const raw = {
+      2026: [
+        ['💼홍보팀 회의', '2026-01-09'], ['💼임원 회의', '2026-01-24'], ['🎆발대식', '2026-02-07'], ['💼임원 회의', '2026-02-20'], ['🚯플로깅', '2026-02-21'],
+        ['🐕유기견 봉사', '2026-03-14'], ['⛰️백봉산 플로깅 및 산불조심 캠페인', '2026-03-28'], ['위브 문화의 날 #1. 워크숍', '2026-04-11~2026-04-12'], ['🌹카네이션만들기', '2026-04-25'],
+        ['🧑‍🌾농촌일손지원', '2026-05-09'], ['취약계층 가구 청소 봉사활동', '2026-05-23'], ['🐬바닥의 시작 캠페인(바닥벽화)', '2026-06-06'], ['🐕유기견 봉사', '2026-06-20'],
+        ['위브 문화의 날 #2. 한강 피크닉', '2026-06-27'], ['자원봉사박람회', '2026-07-11'], ['📮고민 편지함', '2026-07-11'], ['🐕강아지 터그 만들기', '2026-08-08'],
+        ['위브 문화의 날 #3. 위브 체육대회 / 지키링', '2026-08-22'], ['이그나이트 행사지원', '2026-08-29'], ['청년문화축제', '2026-09-05'], ['자원봉사 대축제', '2026-12-05'],
+        ['🎆평가회', '2026-12-12'], ['🎅케이크는 사랑을 싣고', '2026-12-19'], ['⛷️위브 문화의 날 #4. 스키캠프', '미정'], ['🇰🇷광릉숲축제', '미정'], ['호평동마을축제', '미정']
+      ],
+      2025: [
+        ['임원 회의', '2025-01-03'], ['기획팀 1차 회의', '2025-02-01'], ['발대식', '2025-02-22'], ['기획팀 2차 회의', '2025-02-22'], ['서지훈 남양주 시장 표창', '2025-03-04'],
+        ['🐕유기견 봉사', '2025-03-15'], ['가드닝&플로깅 봉사', '2025-03-29'], ['운영, 인사 위원 위촉식', '2025-04-07'], ['지키링 제작 봉사', '2025-04-12'], ['대부도 워크샵', '2025-04-26~2025-04-27'],
+        ['🐕유기견 봉사', '2025-05-10'], ['플로깅&회식', '2025-05-31'], ['기획팀 3차 회의', '2025-06-08'], ['집 청소 봉사', '2025-06-14'], ['지키링 제작 봉사', '2025-06-28'],
+        ['지키링 제작 봉사', '2025-07-12'], ['강아지 터그 만들기 봉사', '2025-07-26'], ['청소년 자원봉사 캠프', '2025-08-07~2025-08-08'], ['지키링 제작 및 9월 축제 준비 봉사', '2025-08-09'],
+        ['주광덕 시장님과의 점심 간담회', '2025-08-30'], ['환경축제', '2025-09-07'], ['청년축제', '2025-09-20'], ['광릉숲 축제 봉사', '2025-09-27'], ['왕숙천 어들목 환경축제', '2025-10-09'],
+        ['호평동 마을 축제', '2025-10-18'], ['🐕유기견 봉사(비정기)', '2025-10-25'], ['이주영 남양주 시장 표창', '2025-11-03'], ['🐕유기견 봉사', '2025-11-08'], ['연탄봉사', '2025-11-09'],
+        ['풍양별곡 봉사(토)', '2025-11-15'], ['풍양별곡 봉사(일)', '2025-11-16'], ['김장봉사', '2025-11-22'], ['자원봉사대축제', '2025-12-06'], ['평가회', '2025-12-13'],
+        ['케이크는 사랑을 싣고 봉사', '2025-12-20'], ['임원 회의', '2025-12-26']
+      ],
+      2024: [
+        ['발대식', '2024-02-24'], ['백봉산 플로깅 및 산불조심 캠페인', '2024-03-16'], ['농활 1차 기획 회의', '2024-04-06'], ['농활 2차 기획 회의', '2024-04-14'], ['농활 3차 기획 회의', '2024-12-26'],
+        ['수동 농촌 봉사 활동 및 워크샵', '2024-04-27~2024-04-28'], ['호평 자원봉사박람회', '2024-05-11'], ['환경축제', '2024-06-01'], ['경기도의회 시상식', '2024-06-15'], ['포도밭 농활', '2024-06-22'],
+        ['기획 회의', '2024-07-01'], ['유기견 샴푸 제작', '2024-07-11'], ['심폐 소생술 교육 및 지키링 제작', '2024-07-27'], ['충청남도 논산시 수해복구 봉사', '2024-07-30'], ['🐕별에서 온 댕댕 유기견 봉사', '2024-08-10'],
+        ['지키링 제작 봉사', '2024-09-07'], ['광릉숲 준비 봉사', '2024-09-27'], ['광릉숲 축제 봉사', '2024-09-28'], ['정약용 문화제 봉사', '2024-10-12'], ['바닥 벽화 봉사', '2024-11-02'],
+        ['연탄 봉사', '2024-11-10'], ['이그나이트 봉사', '2024-11-23'], ['자원봉사 대축제', '2024-12-07'], ['평가회', '2024-12-14'], ['케이크는 사랑을 싣고', '2024-12-21']
+      ],
+      2023: [
+        ['새해 첫 회의', '2023-02-12'], ['삼패공원 플로깅', '2023-03-25'], ['발대식', '2023-04-22'], ['🐕별에서 온 댕댕 유기견 봉사', '2023-05-13'], ['삼패공원 점프벼룩시장', '2023-05-20'],
+        ['남양주체육문화센터 청소년 예능대회', '2023-05-27'], ['V패스티벌', '2023-06-10'], ['퇴계원 지역아동센터 봉사', '2023-06-17'], ['기쁜누리 지역아동센터 봉사', '2023-07-15'], ['호만천 플로깅', '2023-07-22'],
+        ['이그나이트 봉사', '2023-09-09'], ['양성평등주간행사봉사', '2023-09-16'], ['광릉숲 기획 봉사', '2023-09-24'], ['광릉숲 축제 봉사', '2023-10-07'], ['🐕진건 유기견 봉사', '2023-11-04'],
+        ['금곡동 플로깅 및 평가회', '2023-11-25']
+      ],
+      2022: [
+        ['발대식', '2022-03-26'], ['수제간식 및 노즈워크 만들고 전달', '2022-04-16'], ['🐕진건 유기견 봉사', '2022-05-21'], ['호평동 플로깅', '2022-06-18'], ['마을안전학교 봉사', '2022-07-16'],
+        ['중간 평가회', '2022-08-27'], ['이그나이트 봉사', '2022-09-03'], ['광릉숲 축제 봉사', '2022-10-08'], ['삼패지구 한강걷기대회 봉사', '2022-10-15'], ['기획 회의', '2022-10-30'],
+        ['마석고등학교 뻔뻔한가을운동회', '2022-11-12'], ['평가회', '2022-11-26'], ['자원봉사대축제', '2022-12-03']
+      ]
+    };
+
+    let id = 1;
+    const items = [];
+    [2026, 2025, 2024, 2023, 2022].forEach(year => {
+      raw[year].forEach(([title, date]) => {
+        items.push({ id: id++, title, date, year, category: `y${year}`, image: 'logo.png' });
+      });
+    });
+    return items;
+  }
+
+  const DEFAULT_DATA = {
+    news: [
+      { id: 1, title: '2026년 발대식 안내', author: '관리자', date: '2026-02-01', views: 0, image: 'logo.png', content: '2026년 발대식 일정 및 안내사항입니다.' },
+      { id: 2, title: '2월 플로깅 활동 공지', author: '관리자', date: '2026-02-15', views: 0, image: 'logo.png', content: '2월 플로깅 장소 및 준비물 안내입니다.' }
+    ],
+    faq: [
+      { id: 1, title: '위브는 누구나 참여할 수 있나요?', author: '관리자', date: '2026-02-01', views: 0, content: '만 19~39세 남양주시 거주/근무/재학 청년이 참여할 수 있습니다.' },
+      { id: 2, title: '활동 일정은 어디서 확인하나요?', author: '관리자', date: '2026-02-03', views: 0, content: '소식 탭 공지사항과 공식 SNS에서 확인 가능합니다.' }
+    ],
+    qna: [],
+    gallery: buildGalleryData()
+  };
+
+  const NEWS_PAGE_SIZE = 10;
+  const FAQ_PAGE_SIZE = 10;
+  const QNA_PAGE_SIZE = 10;
+  let newsCurrentPage = 1;
+  let faqCurrentPage = 1;
+  let qnaCurrentPage = 1;
+  let newsSearchKeyword = '';
+  let gallerySearchKeyword = '';
+  let currentNewsTab = 'notice';
+  const GALLERY_PAGE_SIZE = 9;
+  let galleryCurrentPage = 1;
+  let galleryCurrentFilter = '*';
+  let currentNewsDetailId = null;
+  let currentGalleryDetailId = null;
+
+  function getContent() {
+    const data = localStorage.getItem(DATA_KEY);
+    return data ? JSON.parse(data) : DEFAULT_DATA;
+  }
+
+  function saveContent(data) {
+    localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  }
+
+  function getTodayString() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function getPostKey(type, id) {
+    return `${type}-${id}`;
+  }
+
+  function getComments(itemId) {
+    const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+    return all[itemId] || { comments: [], recommendUsers: [] };
+  }
+
+  function saveComments(itemId, comments) {
+    const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+    all[itemId] = comments;
+    localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+  }
+
+  function getRecommendCount(itemKey) {
+    const info = getComments(itemKey);
+    return (info.recommendUsers || []).length;
+  }
+
+  function addRecommendation(itemKey) {
+    const user = getCurrentUser();
+    if (!user) {
+      alert('추천하려면 로그인이 필요합니다.');
+      return false;
+    }
+    const info = getComments(itemKey);
+    if (!Array.isArray(info.recommendUsers)) info.recommendUsers = [];
+    if (info.recommendUsers.includes(user.username)) {
+      alert('이미 추천하셨습니다.');
+      return false;
+    }
+    info.recommendUsers.push(user.username);
+    saveComments(itemKey, info);
+    return true;
+  }
+
+  function hasChildReplies(allComments, commentId) {
+    return allComments.some(c => c.parentId === commentId);
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function renderPostComments(containerId, itemKey) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const user = getCurrentUser();
+    const isAdmin = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
+    const commentData = getComments(itemKey);
+    const comments = Array.isArray(commentData.comments) ? commentData.comments : [];
+    const roots = comments.filter(c => !c.parentId);
+    const count = comments.length;
+
+    const renderComment = (comment, isReply = false) => {
+      const canDelete = !!(user && (isAdmin || comment.username === user.username));
+      const canEdit = !!(user && comment.username === user.username && !hasChildReplies(comments, comment.id));
+      const replies = comments.filter(c => c.parentId === comment.id);
+      return `
+        <div class="comment-item ${isReply ? 'comment-reply' : ''}" data-id="${comment.id}">
+          <div class="comment-author">${escapeHtml(comment.name || comment.username || '사용자')}</div>
+          <div class="comment-text">${escapeHtml(comment.text)}</div>
+          <div class="comment-time d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
+            <div class="d-flex gap-1">
+              ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">대댓글</button>` : ''}
+              ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">수정</button>` : ''}
+              ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
+            </div>
+          </div>
+          ${replies.map(r => renderComment(r, true)).join('')}
+        </div>
+      `;
+    };
+
+    wrap.innerHTML = `
+      <h6 class="fw-bold mb-3">댓글 (${count})</h6>
+      <form class="comment-form mb-3" onsubmit="submitPostComment(event, '${itemKey}', '${containerId}')">
+        <div class="input-group">
+          <input type="text" class="form-control" name="comment" placeholder="댓글을 입력하세요" required>
+          <input type="hidden" name="parentId" value="">
+          <input type="hidden" name="editId" value="">
+          <button class="btn btn-primary" type="submit">등록</button>
+        </div>
+      </form>
+      <div class="comment-list">
+        ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
+      </div>
+    `;
+  }
+
+  function submitPostComment(event, itemKey, containerId) {
+    event.preventDefault();
+    const user = getCurrentUser();
+    if (!user) {
+      alert('댓글을 작성하려면 로그인이 필요합니다.');
+      return;
+    }
+    const form = event.target;
+    const text = form.comment.value.trim();
+    if (!text) return;
+    const parentId = Number(form.parentId.value || 0);
+    const editId = Number(form.editId.value || 0);
+    const info = getComments(itemKey);
+    if (!Array.isArray(info.comments)) info.comments = [];
+
+    if (editId) {
+      const target = info.comments.find(c => c.id === editId);
+      if (target && target.username === user.username) {
+        target.text = text;
+        target.editedAt = new Date().toISOString();
+      }
+    } else {
+      const newId = Math.max(0, ...info.comments.map(c => c.id || 0)) + 1;
+      info.comments.push({
+        id: newId,
+        parentId: parentId || null,
+        username: user.username,
+        name: user.name,
+        text,
+        time: new Date().toISOString()
+      });
+    }
+
+    saveComments(itemKey, info);
+    renderPostComments(containerId, itemKey);
+  }
+
+  function startReplyComment(itemKey, parentId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const form = container.querySelector('.comment-form');
+    if (!form) return;
+    form.parentId.value = String(parentId);
+    form.editId.value = '';
+    form.comment.focus();
+  }
+
+  function startEditComment(itemKey, commentId, containerId) {
+    const info = getComments(itemKey);
+    const target = (info.comments || []).find(c => c.id === commentId);
+    if (!target) return;
+    if (hasChildReplies(info.comments || [], commentId)) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const form = container.querySelector('.comment-form');
+    if (!form) return;
+    form.comment.value = target.text || '';
+    form.parentId.value = '';
+    form.editId.value = String(commentId);
+    form.comment.focus();
+  }
+
+  function deletePostComment(itemKey, commentId, containerId) {
+    const user = getCurrentUser();
+    if (!user) return;
+    const isAdmin = !!(user.isAdmin || ADMIN_EMAILS.includes(user.email));
+    const info = getComments(itemKey);
+    const target = (info.comments || []).find(c => c.id === commentId);
+    if (!target) return;
+    if (!isAdmin && target.username !== user.username) {
+      alert('본인 댓글 또는 관리자만 삭제할 수 있습니다.');
+      return;
+    }
+    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+
+    const toDelete = new Set([commentId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      (info.comments || []).forEach(c => {
+        if (c.parentId && toDelete.has(c.parentId) && !toDelete.has(c.id)) {
+          toDelete.add(c.id);
+          changed = true;
+        }
+      });
+    }
+    info.comments = (info.comments || []).filter(c => !toDelete.has(c.id));
+    saveComments(itemKey, info);
+    renderPostComments(containerId, itemKey);
+  }
+
+  // ============ NEWS SECTION ============
+  function getFilteredNewsItems() {
+    const content = getContent();
+    return content.news
+      .filter(item => item.title.toLowerCase().includes(newsSearchKeyword.toLowerCase()))
+      .sort((a, b) => b.id - a.id);
+  }
+
+  function getFilteredFaqItems() {
+    const content = getContent();
+    return (content.faq || []).sort((a, b) => b.id - a.id);
+  }
+
+  function getFilteredQnaItems() {
+    const content = getContent();
+    return (content.qna || []).sort((a, b) => b.id - a.id);
+  }
+
+  function renderNews() {
+    const tbody = document.getElementById('news-table-body');
+    const pagination = document.getElementById('news-pagination');
+    const totalCount = document.getElementById('news-total-count');
+    if (!tbody || !pagination || !totalCount) return;
+
+    const filtered = getFilteredNewsItems();
+    totalCount.textContent = filtered.length;
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / NEWS_PAGE_SIZE));
+    if (newsCurrentPage > totalPages) newsCurrentPage = totalPages;
+
+    const start = (newsCurrentPage - 1) * NEWS_PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + NEWS_PAGE_SIZE);
+    tbody.innerHTML = '';
+
+    pageItems.forEach(item => {
+      const user = getCurrentUser();
+      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
+      const recommendCount = getRecommendCount(getPostKey('news', item.id));
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.id}</td>
+        <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a></td>
+        <td>${item.author || '관리자'}</td>
+        <td>${item.date}</td>
+        <td>${item.views || 0} / ${recommendCount}</td>
+        <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id})">수정</button>` : ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    pagination.innerHTML = '';
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${newsCurrentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+    prevLi.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (newsCurrentPage > 1) {
+        newsCurrentPage -= 1;
+        renderNews();
+      }
+    });
+    pagination.appendChild(prevLi);
+
+    for (let page = 1; page <= totalPages; page++) {
+      const li = document.createElement('li');
+      li.className = `page-item ${page === newsCurrentPage ? 'active' : ''}`;
+      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+      li.addEventListener('click', (e) => {
+        e.preventDefault();
+        newsCurrentPage = page;
+        renderNews();
+      });
+      pagination.appendChild(li);
+    }
+
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${newsCurrentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+    nextLi.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (newsCurrentPage < totalPages) {
+        newsCurrentPage += 1;
+        renderNews();
+      }
+    });
+    pagination.appendChild(nextLi);
+  }
+
+  function renderFaq() {
+    const tbody = document.getElementById('faq-table-body');
+    const pagination = document.getElementById('faq-pagination');
+    const totalCount = document.getElementById('faq-total-count');
+    if (!tbody || !pagination || !totalCount) return;
+
+    const items = getFilteredFaqItems();
+    totalCount.textContent = items.length;
+    const totalPages = Math.max(1, Math.ceil(items.length / FAQ_PAGE_SIZE));
+    if (faqCurrentPage > totalPages) faqCurrentPage = totalPages;
+    const start = (faqCurrentPage - 1) * FAQ_PAGE_SIZE;
+    const pageItems = items.slice(start, start + FAQ_PAGE_SIZE);
+    const user = getCurrentUser();
+    const admin = isAdminUser(user);
+
+    tbody.innerHTML = '';
+    pageItems.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.id}</td>
+        <td><a href="#" onclick="openFaqDetail(${item.id}); return false;">${item.title}</a></td>
+        <td>${item.author || '관리자'}</td>
+        <td>${item.date || ''}</td>
+        <td>${item.views || 0}</td>
+        <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'faq')">수정</button>` : ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    pagination.innerHTML = '';
+    for (let page = 1; page <= totalPages; page++) {
+      const li = document.createElement('li');
+      li.className = `page-item ${page === faqCurrentPage ? 'active' : ''}`;
+      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+      li.addEventListener('click', (e) => {
+        e.preventDefault();
+        faqCurrentPage = page;
+        renderFaq();
+      });
+      pagination.appendChild(li);
+    }
+  }
+
+  function renderQna() {
+    const tbody = document.getElementById('qna-table-body');
+    const pagination = document.getElementById('qna-pagination');
+    const totalCount = document.getElementById('qna-total-count');
+    if (!tbody || !pagination || !totalCount) return;
+
+    const items = getFilteredQnaItems();
+    totalCount.textContent = items.length;
+    const totalPages = Math.max(1, Math.ceil(items.length / QNA_PAGE_SIZE));
+    if (qnaCurrentPage > totalPages) qnaCurrentPage = totalPages;
+    const start = (qnaCurrentPage - 1) * QNA_PAGE_SIZE;
+    const pageItems = items.slice(start, start + QNA_PAGE_SIZE);
+    const user = getCurrentUser();
+    const admin = isAdminUser(user);
+
+    tbody.innerHTML = '';
+    pageItems.forEach(item => {
+      const canRead = !item.isSecret || admin;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.id}</td>
+        <td>${canRead ? `<a href="#" onclick="openQnaDetail(${item.id}); return false;">${item.title}${item.isSecret ? ' 🔒' : ''}</a>` : `비밀글 🔒`}</td>
+        <td>${item.author || ''}</td>
+        <td>${item.date || ''}</td>
+        <td>${item.answer ? '답변완료' : '대기'}</td>
+        <td>${user && item.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'qna')">수정</button>` : ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    pagination.innerHTML = '';
+    for (let page = 1; page <= totalPages; page++) {
+      const li = document.createElement('li');
+      li.className = `page-item ${page === qnaCurrentPage ? 'active' : ''}`;
+      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+      li.addEventListener('click', (e) => {
+        e.preventDefault();
+        qnaCurrentPage = page;
+        renderQna();
+      });
+      pagination.appendChild(li);
+    }
+  }
+
+  function setNewsWriteButtons() {
+    const user = getCurrentUser();
+    const admin = isAdminUser(user);
+    const noticeBtn = document.getElementById('news-write-btn');
+    const faqBtn = document.getElementById('faq-write-btn');
+    const qnaBtn = document.getElementById('qna-write-btn');
+    if (noticeBtn) noticeBtn.classList.toggle('d-none', !user || currentNewsTab !== 'notice');
+    if (faqBtn) faqBtn.classList.toggle('d-none', !admin || currentNewsTab !== 'faq');
+    if (qnaBtn) qnaBtn.classList.toggle('d-none', !user || currentNewsTab !== 'qna');
+  }
+
+  function openFaqDetail(id) {
+    const data = getContent();
+    const item = (data.faq || []).find(f => f.id === id);
+    if (!item) return;
+    item.views = (item.views || 0) + 1;
+    saveContent(data);
+    renderFaq();
+
+    document.getElementById('news-detail-title').textContent = item.title;
+    document.getElementById('news-detail-meta').textContent = `${item.author || '관리자'} | ${item.date || ''} | 조회수 ${item.views || 0}`;
+    document.getElementById('news-detail-content').innerHTML = item.content || '';
+    document.getElementById('news-detail-image').classList.add('d-none');
+    document.getElementById('news-recommend-btn').parentElement.classList.add('d-none');
+    document.getElementById('news-detail-delete-btn').classList.add('d-none');
+    document.getElementById('news-comments-section').innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
+
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    document.getElementById('news-detail').classList.add('panel-active');
+  }
+
+  function openQnaDetail(id) {
+    const user = getCurrentUser();
+    const admin = isAdminUser(user);
+    const data = getContent();
+    const item = (data.qna || []).find(q => q.id === id);
+    if (!item) return;
+    if (item.isSecret && !admin) {
+      alert('비밀글은 관리자만 열람할 수 있습니다.');
+      return;
+    }
+
+    document.getElementById('qna-detail-title').textContent = item.title;
+    document.getElementById('qna-detail-meta').textContent = `${item.author || ''} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
+    document.getElementById('qna-detail-question').innerHTML = item.content || '';
+    document.getElementById('qna-detail-answer').innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
+    const answerBtn = document.getElementById('qna-answer-btn');
+    answerBtn.classList.toggle('d-none', !admin);
+    answerBtn.onclick = () => {
+      const answer = prompt('답변 내용을 입력하세요.', item.answer || '');
+      if (answer === null) return;
+      const next = getContent();
+      const target = (next.qna || []).find(q => q.id === id);
+      if (!target) return;
+      target.answer = answer.trim();
+      target.answerDate = getTodayString();
+      saveContent(next);
+      renderQna();
+      openQnaDetail(id);
+    };
+
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    document.getElementById('qna-detail').classList.add('panel-active');
+  }
+
+  function openNotice(id) {
+    const data = getContent();
+    const notice = data.news.find(n => n.id === id);
+    if (!notice) return;
+    notice.views = (notice.views || 0) + 1;
+    saveContent(data);
+    renderNews();
+
+    const user = getCurrentUser();
+    const titleEl = document.getElementById('news-detail-title');
+    const metaEl = document.getElementById('news-detail-meta');
+    const contentEl = document.getElementById('news-detail-content');
+    const imageEl = document.getElementById('news-detail-image');
+    const deleteBtn = document.getElementById('news-detail-delete-btn');
+    const recommendBtn = document.getElementById('news-recommend-btn');
+    const recommendCountEl = document.getElementById('news-recommend-count');
+    const itemKey = getPostKey('news', id);
+    currentNewsDetailId = id;
+
+    titleEl.textContent = notice.title;
+    metaEl.textContent = `${notice.author || '관리자'} | ${notice.date} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    contentEl.innerHTML = notice.content || '';
+    document.getElementById('news-recommend-btn').parentElement.classList.remove('d-none');
+    if (notice.image) {
+      imageEl.src = notice.image;
+      imageEl.classList.remove('d-none');
+    } else {
+      imageEl.classList.add('d-none');
+    }
+
+    if (user && (user.isAdmin || ADMIN_EMAILS.includes(user.email))) {
+      deleteBtn.classList.remove('d-none');
+      deleteBtn.onclick = () => {
+        if (!confirm('이 공지글을 삭제하시겠습니까?')) return;
+        const next = getContent();
+        next.news = next.news.filter(n => n.id !== id);
+        saveContent(next);
+        deleteBtn.classList.add('d-none');
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('news').classList.add('panel-active');
+        renderNews();
+      };
+    } else {
+      deleteBtn.classList.add('d-none');
+      deleteBtn.onclick = null;
+    }
+
+    if (recommendBtn && recommendCountEl) {
+      recommendCountEl.textContent = String(getRecommendCount(itemKey));
+      recommendBtn.onclick = () => {
+        if (addRecommendation(itemKey)) {
+          recommendCountEl.textContent = String(getRecommendCount(itemKey));
+          openNotice(id);
+        }
+      };
+    }
+
+    renderPostComments('news-comments-section', itemKey);
+
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    document.getElementById('news-detail').classList.add('panel-active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ============ GALLERY SECTION ============
+  function renderGallery() {
+    const content = getContent();
+    const grid = document.getElementById('gallery-grid');
+    const pagination = document.getElementById('gallery-pagination');
+    grid.innerHTML = '';
+
+    const filtered = content.gallery.filter(item => {
+      const byYear = galleryCurrentFilter === '*' || item.category === galleryCurrentFilter.replace('.', '');
+      const byKeyword = !gallerySearchKeyword || item.title.toLowerCase().includes(gallerySearchKeyword.toLowerCase());
+      return byYear && byKeyword;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / GALLERY_PAGE_SIZE));
+    if (galleryCurrentPage > totalPages) galleryCurrentPage = totalPages;
+    const start = (galleryCurrentPage - 1) * GALLERY_PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + GALLERY_PAGE_SIZE);
+
+    pageItems.forEach(item => {
+      const user = getCurrentUser();
+      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
+      const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
+      const div = document.createElement('div');
+      div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
+      div.innerHTML = `
+        <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${item.id})">
+          <img src="${item.image}" alt="${item.title}">
+          <div class="gallery-caption p-3 bg-white border-top">
+            <h6 class="mb-1">${item.title}</h6>
+            <small class="text-muted">${item.date || ''} · ${item.year}</small>
+            <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
+            ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${item.id});">수정</button></div>` : ''}
+          </div>
+          <div class="gallery-overlay">
+            <i class="fas fa-search-plus"></i>
+          </div>
+        </div>
+      `;
+      grid.appendChild(div);
+    });
+
+    if (pagination) {
+      pagination.innerHTML = '';
+      const prevLi = document.createElement('li');
+      prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
+      prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+      prevLi.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (galleryCurrentPage > 1) {
+          galleryCurrentPage -= 1;
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+      pagination.appendChild(prevLi);
+
+      for (let page = 1; page <= totalPages; page++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${page === galleryCurrentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+        li.addEventListener('click', (e) => {
+          e.preventDefault();
+          galleryCurrentPage = page;
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        pagination.appendChild(li);
+      }
+
+      const nextLi = document.createElement('li');
+      nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
+      nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+      nextLi.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (galleryCurrentPage < totalPages) {
+          galleryCurrentPage += 1;
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+      pagination.appendChild(nextLi);
+    }
+  }
+
+  function openGalleryDetail(id) {
+    const content = getContent();
+    const item = content.gallery.find(x => x.id === id);
+    if (!item) return;
+
+    item.views = (item.views || 0) + 1;
+    saveContent(content);
+    renderGallery();
+
+    const user = getCurrentUser();
+    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
+    const itemKey = getPostKey('gallery', id);
+    currentGalleryDetailId = id;
+    document.getElementById('gallery-detail-image').src = item.image;
+    document.getElementById('gallery-detail-title').innerText = item.title;
+    document.getElementById('gallery-detail-meta').innerText = `${item.author || '작성자 미상'} | ${item.date || ''} | ${item.year || ''} | 조회수 ${item.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
+
+    const editBtn = document.getElementById('gallery-detail-edit-btn');
+    const deleteBtn = document.getElementById('gallery-detail-delete-btn');
+    if (canEdit) {
+      editBtn.classList.remove('d-none');
+      deleteBtn.classList.remove('d-none');
+      editBtn.onclick = () => startEditGallery(id);
+      deleteBtn.onclick = () => {
+        if (!confirm('이 글을 삭제하시겠습니까?')) return;
+        const data = getContent();
+        data.gallery = data.gallery.filter(g => g.id !== id);
+        saveContent(data);
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('gallery').classList.add('panel-active');
+        renderGallery();
+      };
+    } else {
+      editBtn.classList.add('d-none');
+      deleteBtn.classList.add('d-none');
+      editBtn.onclick = null;
+      deleteBtn.onclick = null;
+    }
+
+    const recommendBtn = document.getElementById('gallery-recommend-btn');
+    const recommendCountEl = document.getElementById('gallery-recommend-count');
+    if (recommendBtn && recommendCountEl) {
+      recommendCountEl.textContent = String(getRecommendCount(itemKey));
+      recommendBtn.onclick = () => {
+        if (addRecommendation(itemKey)) {
+          recommendCountEl.textContent = String(getRecommendCount(itemKey));
+          openGalleryDetail(id);
+        }
+      };
+    }
+
+    renderPostComments('gallery-comments-section', itemKey);
+
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    document.getElementById('gallery-detail').classList.add('panel-active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function startEditNews(id) {
+    const user = getCurrentUser();
+    if (!user) return alert('로그인이 필요합니다.');
+    const type = arguments[1] || 'notice';
+    const data = getContent();
+    const source = type === 'faq' ? (data.faq || []) : (type === 'qna' ? (data.qna || []) : data.news);
+    const item = source.find(n => n.id === id);
+    if (!item) return;
+    const form = document.getElementById('add-news-form');
+    form.editId.value = item.id;
+    form.title.value = item.title || '';
+    form.author.value = item.author || '';
+    form.postTab.value = type;
+    form.isSecret.checked = !!item.isSecret;
+    form.content.value = item.content || '';
+    setEditorHtml('news-editor', item.content || '');
+    form.imageData.value = item.image || '';
+    setImagePreview('news-image-preview', item.image || '');
+    openWritePanel('news-admin');
+  }
+
+  function startEditGallery(id) {
+    const user = getCurrentUser();
+    if (!user) return alert('로그인이 필요합니다.');
+    const data = getContent();
+    const item = data.gallery.find(g => g.id === id);
+    if (!item) return;
+    const form = document.getElementById('add-gallery-form');
+    form.editId.value = item.id;
+    form.title.value = item.title || '';
+    form.year.value = String(item.year || 2026);
+    ensureGalleryYearOptions(String(item.year || 2026));
+    form.imageData.value = item.image || '';
+    setImagePreview('gallery-image-preview', item.image || '');
+    form.content.value = item.content || '';
+    setEditorHtml('gallery-editor', item.content || '');
+    openWritePanel('gallery-admin');
+  }
+
+  function setEditorHtml(editorId, html) {
+    const editor = document.getElementById(editorId);
+    if (editor) editor.innerHTML = html || '';
+  }
+
+  function syncEditorToInput(form, editorId) {
+    const editor = document.getElementById(editorId);
+    if (!editor) return;
+    form.content.value = editor.innerHTML.trim();
+  }
+
+  function setImagePreview(previewId, src) {
+    const preview = document.getElementById(previewId);
+    if (!preview) return;
+    if (src) {
+      preview.src = src;
+      preview.classList.remove('d-none');
+    } else {
+      preview.removeAttribute('src');
+      preview.classList.add('d-none');
+    }
+  }
+
+  function readImageFileToDataUrl(file, onDone) {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onDone(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  }
+
+  function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenName }) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const input = form.elements[inputName];
+    const dropzone = document.getElementById(dropzoneId);
+    const hidden = form.elements[hiddenName];
+    const applyFile = (file) => {
+      readImageFileToDataUrl(file, (dataUrl) => {
+        hidden.value = dataUrl;
+        setImagePreview(previewId, dataUrl);
+      });
+    };
+
+    if (input) {
+      input.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) applyFile(file);
+      });
+    }
+    if (!dropzone) return;
+    dropzone.addEventListener('click', () => input && input.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) applyFile(file);
+    });
+  }
+
+  function initRichEditorToolbars() {
+    document.querySelectorAll('.editor-toolbar').forEach(toolbar => {
+      const targetId = toolbar.dataset.editorTarget;
+      const editor = document.getElementById(targetId);
+      if (!editor) return;
+      toolbar.querySelectorAll('[data-cmd]').forEach(control => {
+        control.addEventListener('click', (e) => {
+          e.preventDefault();
+          editor.focus();
+          const cmd = control.dataset.cmd;
+          const value = control.type === 'color' ? control.value : null;
+          document.execCommand(cmd, false, value);
+        });
+      });
+    });
+  }
+
+  function ensureGalleryYearOptions(selectedYear) {
+    const select = document.getElementById('gallery-year-select');
+    if (!select) return;
+    const years = [...new Set(getContent().gallery.map(g => Number(g.year)).filter(Boolean))].sort((a, b) => b - a);
+    select.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (selectedYear && years.includes(Number(selectedYear))) {
+      select.value = String(selectedYear);
+    }
+  }
+
+  function showWriteTab(tabId) {
+    const trigger = document.querySelector(`[data-bs-target="#${tabId}"]`);
+    if (trigger) {
+      const tab = new bootstrap.Tab(trigger);
+      tab.show();
+    }
+  }
+
+  function openWritePanel(tabId = 'news-admin') {
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    const writePanel = document.getElementById('write');
+    if (writePanel) writePanel.classList.add('panel-active');
+    const statsSection = document.getElementById('home-stats');
+    if (statsSection) statsSection.style.display = 'none';
+    showWriteTab(tabId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetWriteForms() {
+    const newsForm = document.getElementById('add-news-form');
+    const galleryForm = document.getElementById('add-gallery-form');
+    if (newsForm) {
+      newsForm.reset();
+      newsForm.editId.value = '';
+      newsForm.imageData.value = '';
+      setEditorHtml('news-editor', '');
+      setImagePreview('news-image-preview', '');
+    }
+    if (galleryForm) {
+      galleryForm.reset();
+      galleryForm.editId.value = '';
+      galleryForm.imageData.value = '';
+      setEditorHtml('gallery-editor', '');
+      setImagePreview('gallery-image-preview', '');
+      ensureGalleryYearOptions();
+    }
+  }
+
+  // ============ ADMIN FORMS ============
+
+  // ============ ADMIN FORMS ============
+  document.addEventListener('DOMContentLoaded', function() {
+    initRichEditorToolbars();
+    bindImageUploader({ formId: 'add-news-form', inputName: 'imageFile', dropzoneId: 'news-image-dropzone', previewId: 'news-image-preview', hiddenName: 'imageData' });
+    bindImageUploader({ formId: 'add-gallery-form', inputName: 'imageFile', dropzoneId: 'gallery-image-dropzone', previewId: 'gallery-image-preview', hiddenName: 'imageData' });
+    ensureGalleryYearOptions();
+
+    // News Form
+    const newsForm = document.getElementById('add-news-form');
+    if (newsForm) {
+      newsForm.onsubmit = (e) => {
+        e.preventDefault();
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+
+        syncEditorToInput(e.target, 'news-editor');
+        const data = getContent();
+        const editId = Number(e.target.editId.value || 0);
+        const newDate = getTodayString();
+        const imageData = e.target.imageData.value || '';
+        const tabType = e.target.postTab.value;
+        const isSecret = !!e.target.isSecret.checked;
+
+        if (tabType === 'faq' && !isAdminUser(user)) {
+          alert('FAQ 작성은 관리자만 가능합니다.');
+          return;
+        }
+
+        const source = tabType === 'faq' ? (data.faq ||= []) : (tabType === 'qna' ? (data.qna ||= []) : data.news);
+        if (editId) {
+          const target = source.find(n => n.id === editId);
+          if (target) {
+            target.title = e.target.title.value;
+            target.author = e.target.author.value || user.username || user.name;
+            target.date = target.date || newDate;
+            target.image = imageData || target.image || '';
+            target.content = e.target.content.value;
+            if (tabType === 'qna') target.isSecret = isSecret;
+          }
+        } else {
+          const newId = Math.max(...source.map(x => x.id), 0) + 1;
+          source.unshift({
+            id: newId,
+            title: e.target.title.value,
+            author: e.target.author.value || user.username || user.name,
+            date: newDate,
+            image: tabType === 'notice' ? imageData : '',
+            content: e.target.content.value,
+            views: 0,
+            isSecret: tabType === 'qna' ? isSecret : false,
+            answer: ''
+          });
+        }
+        saveContent(data);
+        renderNews();
+        renderFaq();
+        renderQna();
+        resetWriteForms();
+        alert('글이 저장되었습니다!');
+      };
+    }
+
+    // Gallery Form
+    const galleryForm = document.getElementById('add-gallery-form');
+    if (galleryForm) {
+      galleryForm.onsubmit = (e) => {
+        e.preventDefault();
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+
+        syncEditorToInput(e.target, 'gallery-editor');
+        const data = getContent();
+        const year = Number(e.target.year.value || 2026);
+        const editId = Number(e.target.editId.value || 0);
+        const newDate = getTodayString();
+        const imageData = e.target.imageData.value || '';
+        if (editId) {
+          const target = data.gallery.find(g => g.id === editId);
+          if (target) {
+            target.title = e.target.title.value;
+            target.date = target.date || newDate;
+            target.year = year;
+            target.category = `y${year}`;
+            target.image = imageData || target.image || 'logo.png';
+            target.content = e.target.content.value || '';
+          }
+        } else {
+          const newId = Math.max(...data.gallery.map(x => x.id), 0) + 1;
+          data.gallery.unshift({
+            id: newId,
+            title: e.target.title.value,
+            date: newDate,
+            year,
+            category: `y${year}`,
+            image: imageData || 'logo.png',
+            content: e.target.content.value || '',
+            author: user.username || user.name,
+            views: 0
+          });
+        }
+        saveContent(data);
+        renderGallery();
+        resetWriteForms();
+        ensureGalleryYearOptions();
+        alert('갤러리가 추가되었습니다!');
+      };
+    }
+
+    const newsWriteBtn = document.getElementById('news-write-btn');
+    if (newsWriteBtn) {
+      newsWriteBtn.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+        resetWriteForms();
+        const form = document.getElementById('add-news-form');
+        form.editId.value = '';
+        form.author.value = user.username || user.name;
+        form.postTab.value = 'notice';
+        form.isSecret.checked = false;
+        openWritePanel('news-admin');
+      });
+    }
+
+    const faqWriteBtn = document.getElementById('faq-write-btn');
+    if (faqWriteBtn) {
+      faqWriteBtn.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!isAdminUser(user)) {
+          alert('FAQ 작성은 관리자만 가능합니다.');
+          return;
+        }
+        resetWriteForms();
+        const form = document.getElementById('add-news-form');
+        form.author.value = user.username || user.name;
+        form.postTab.value = 'faq';
+        form.isSecret.checked = false;
+        openWritePanel('news-admin');
+      });
+    }
+
+    const qnaWriteBtn = document.getElementById('qna-write-btn');
+    if (qnaWriteBtn) {
+      qnaWriteBtn.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+        resetWriteForms();
+        const form = document.getElementById('add-news-form');
+        form.author.value = user.username || user.name;
+        form.postTab.value = 'qna';
+        form.isSecret.checked = false;
+        openWritePanel('news-admin');
+      });
+    }
+
+    const galleryWriteBtn = document.getElementById('gallery-write-btn');
+    if (galleryWriteBtn) {
+      galleryWriteBtn.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+        resetWriteForms();
+        const form = document.getElementById('add-gallery-form');
+        form.editId.value = '';
+        ensureGalleryYearOptions();
+        openWritePanel('gallery-admin');
+      });
+    }
+
+    const writeBackBtn = document.getElementById('write-back-btn');
+    if (writeBackBtn) {
+      writeBackBtn.addEventListener('click', () => {
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('news').classList.add('panel-active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    const galleryBackBtn = document.getElementById('gallery-back-btn');
+    if (galleryBackBtn) {
+      galleryBackBtn.addEventListener('click', () => {
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('gallery').classList.add('panel-active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    const newsSearchInput = document.getElementById('news-search');
+    const newsSearchBtn = document.getElementById('news-search-btn');
+    const gallerySearchInput = document.getElementById('gallery-search');
+    const gallerySearchBtn = document.getElementById('gallery-search-btn');
+    const noticeTabBtn = document.getElementById('notice-tab-btn');
+    const faqTabBtn = document.getElementById('faq-tab-btn');
+    const qnaTabBtn = document.getElementById('qna-tab-btn');
+    const noticeTab = document.getElementById('notice-tab');
+    const faqTab = document.getElementById('faq-tab');
+    const qnaTab = document.getElementById('qna-tab');
+    if (newsSearchInput) {
+      newsSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          newsSearchKeyword = newsSearchInput.value.trim();
+          newsCurrentPage = 1;
+          renderNews();
+        }
+      });
+    }
+
+    const newsBackBtn = document.getElementById('news-back-btn');
+    if (newsBackBtn) {
+      newsBackBtn.addEventListener('click', () => {
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('news').classList.add('panel-active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+    if (newsSearchBtn) {
+      newsSearchBtn.addEventListener('click', () => {
+        newsSearchKeyword = newsSearchInput.value.trim();
+        newsCurrentPage = 1;
+        renderNews();
+      });
+    }
+
+    if (gallerySearchBtn && gallerySearchInput) {
+      gallerySearchBtn.addEventListener('click', () => {
+        gallerySearchKeyword = gallerySearchInput.value.trim();
+        galleryCurrentPage = 1;
+        renderGallery();
+      });
+      gallerySearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          gallerySearchKeyword = gallerySearchInput.value.trim();
+          galleryCurrentPage = 1;
+          renderGallery();
+        }
+      });
+    }
+
+    if (noticeTabBtn && faqTabBtn && qnaTabBtn && noticeTab && faqTab && qnaTab) {
+      noticeTabBtn.addEventListener('click', () => {
+        currentNewsTab = 'notice';
+        noticeTabBtn.classList.add('active');
+        faqTabBtn.classList.remove('active');
+        qnaTabBtn.classList.remove('active');
+        noticeTab.classList.remove('d-none');
+        faqTab.classList.add('d-none');
+        qnaTab.classList.add('d-none');
+        setNewsWriteButtons();
+      });
+      faqTabBtn.addEventListener('click', () => {
+        currentNewsTab = 'faq';
+        faqTabBtn.classList.add('active');
+        noticeTabBtn.classList.remove('active');
+        qnaTabBtn.classList.remove('active');
+        faqTab.classList.remove('d-none');
+        noticeTab.classList.add('d-none');
+        qnaTab.classList.add('d-none');
+        renderFaq();
+        setNewsWriteButtons();
+      });
+      qnaTabBtn.addEventListener('click', () => {
+        currentNewsTab = 'qna';
+        qnaTabBtn.classList.add('active');
+        noticeTabBtn.classList.remove('active');
+        faqTabBtn.classList.remove('active');
+        qnaTab.classList.remove('d-none');
+        noticeTab.classList.add('d-none');
+        faqTab.classList.add('d-none');
+        renderQna();
+        setNewsWriteButtons();
+      });
+    }
+
+    const qnaBackBtn = document.getElementById('qna-back-btn');
+    if (qnaBackBtn) {
+      qnaBackBtn.addEventListener('click', () => {
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('news').classList.add('panel-active');
+      });
+    }
+
+    const statsForm = document.getElementById('update-stats-form');
+    if (statsForm) {
+      const stats = getStats();
+      statsForm.generation.value = stats.generation;
+      statsForm.members.value = stats.members;
+      statsForm.activities.value = stats.activities;
+      statsForm.impact.value = stats.impact;
+      statsForm.onsubmit = (e) => {
+        e.preventDefault();
+        const user = getCurrentUser();
+        if (!user || (!user.isAdmin && !ADMIN_EMAILS.includes(user.email))) {
+          alert('권한이 없습니다.');
+          return;
+        }
+        saveStats({
+          generation: e.target.generation.value,
+          members: e.target.members.value,
+          activities: e.target.activities.value,
+          impact: e.target.impact.value
+        });
+        renderStats();
+        alert('홈 통계가 저장되었습니다.');
+      };
+    }
+
+    // Initial render
+    renderNews();
+    renderFaq();
+    renderQna();
+    renderGallery();
+    renderStats();
+    setNewsWriteButtons();
+  });
+
+  // ============ MAIN NAVIGATION ============
+  document.addEventListener('DOMContentLoaded', function() {
+    const navLinks = document.querySelectorAll('[data-panel]');
+    const statsSection = document.getElementById('home-stats');
+
+    function syncHomeStats(panelId) {
+      if (!statsSection) return;
+      statsSection.style.display = panelId === 'home' ? 'block' : 'none';
+    }
+    
+    navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const panelId = link.dataset.panel;
+        
+        document.querySelectorAll('[class*="panel"]').forEach(p => {
+          p.classList.remove('panel-active');
+        });
+        const target = document.getElementById(panelId);
+        if (target) {
+          target.classList.add('panel-active');
+          if (panelId === 'about') {
+            showHistory();
+          }
+          syncHomeStats(panelId);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        navLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+      });
+    });
+
+    document.getElementById('home').classList.add('panel-active');
+    syncHomeStats('home');
+    // About sub-tab handling
+    const btnLogo = document.getElementById('btn-logo');
+    const btnAwards = document.getElementById('btn-awards');
+    const btnRules = document.getElementById('btn-rules');
+    const btnHistory = document.getElementById('btn-history');
+    const btnFees = document.getElementById('btn-fees');
+    const logoPanel = document.getElementById('logo-panel');
+    const awardsPanel = document.getElementById('awards-panel');
+    const rulesPanel = document.getElementById('rules-panel');
+    const historyPanel = document.getElementById('history-panel');
+    const feesPanel = document.getElementById('fees-panel');
+
+    function hideAllAbout() {
+      [logoPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
+      [btnLogo, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
+    }
+
+    function showLogo() {
+      hideAllAbout();
+      logoPanel.classList.remove('d-none');
+      btnLogo.classList.add('active');
+    }
+
+    function showAwards() {
+      hideAllAbout();
+      awardsPanel.classList.remove('d-none');
+      btnAwards.classList.add('active');
+    }
+
+    function showRules() {
+      hideAllAbout();
+      rulesPanel.classList.remove('d-none');
+      btnRules.classList.add('active');
+    }
+
+    function showHistory() {
+      hideAllAbout();
+      historyPanel.classList.remove('d-none');
+      btnHistory.classList.add('active');
+    }
+
+    function showFees() {
+      hideAllAbout();
+      feesPanel.classList.remove('d-none');
+      btnFees.classList.add('active');
+    }
+
+    if (btnLogo && btnAwards && btnRules && btnHistory && btnFees) {
+      btnLogo.addEventListener('click', showLogo);
+      btnAwards.addEventListener('click', showAwards);
+      btnRules.addEventListener('click', showRules);
+      btnHistory.addEventListener('click', showHistory);
+      btnFees.addEventListener('click', showFees);
+      // default
+      showHistory();
+    }
+
+    document.querySelectorAll('[data-about-tab]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tab = item.dataset.aboutTab;
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('about').classList.add('panel-active');
+        syncHomeStats('about');
+        if (tab === 'logo') showLogo();
+        if (tab === 'awards') showAwards();
+        if (tab === 'rules') showRules();
+        if (tab === 'history') showHistory();
+        if (tab === 'fees') showFees();
+      });
+    });
+
+    document.querySelectorAll('[data-gallery-filter]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('gallery').classList.add('panel-active');
+        syncHomeStats('gallery');
+        galleryCurrentFilter = item.dataset.galleryFilter;
+        galleryCurrentPage = 1;
+        renderGallery();
+      });
+    });
+
+    document.querySelectorAll('[data-news-tab]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('news').classList.add('panel-active');
+        syncHomeStats('news');
+        if (item.dataset.newsTab === 'faq') {
+          document.getElementById('faq-tab-btn').click();
+        } else if (item.dataset.newsTab === 'qna') {
+          const qnaTabBtn = document.getElementById('qna-tab-btn');
+          if (qnaTabBtn) qnaTabBtn.click();
+        } else {
+          document.getElementById('notice-tab-btn').click();
+        }
+      });
+    });
+  });
+
+  // ============ GALLERY FILTERING ============
+  document.addEventListener('DOMContentLoaded', function() {
+    const filterBtns = document.querySelectorAll('.gallery-filter button');
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        galleryCurrentFilter = btn.dataset.filter;
+        galleryCurrentPage = 1;
+        renderGallery();
+      });
+    });
+  });
+
+  // ============ SCROLL EFFECT ============
+  window.addEventListener('scroll', () => {
+    const header = document.querySelector('.site-header');
+    header.classList.toggle('scrolled', window.scrollY > 50);
+  });
+</script>
+
+</body>
+</html>

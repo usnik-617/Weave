@@ -1,0 +1,13 @@
+{
+  "name": "weave-site",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:load": "powershell -ExecutionPolicy Bypass -File scripts/verify_load.ps1",
+    "ops:check": "D:/Blog/Weave/venv/Scripts/python.exe scripts/preflight_ops_check.py --start-local"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0"
+  }
+}

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+
+# Local database / runtime artifacts
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+
+# Test artifacts
+test-results/
+playwright-report/
+loadtests/results/
+
+# Env / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Local backup files
+*.bak_corrupt
