@@ -215,6 +215,99 @@ a:hover {
   background: white !important;
 }
 
+.weave-calendar-table {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weave-calendar-cell {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  min-height: 70px;
+  background: #fff;
+  padding: 8px;
+}
+
+.weave-calendar-cell.header {
+  min-height: auto;
+  text-align: center;
+  font-weight: 700;
+  background: var(--primary-light);
+}
+
+.weave-calendar-cell.day {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-direction: column;
+  text-align: left;
+}
+
+.weave-calendar-cell.day .day-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.weave-calendar-cell.day .day-num {
+  font-weight: 700;
+}
+
+.weave-calendar-cell.day .day-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weave-calendar-cell.day .day-count {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.weave-calendar-cell.day.has-activity {
+  background: var(--primary-light);
+  border-color: rgba(49, 183, 255, 0.35);
+}
+
+.weave-calendar-cell.day.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(49, 183, 255, 0.2);
+}
+
+.weave-calendar-cell.empty {
+  background: transparent;
+  border: none;
+}
+
+#home-calendar-mini-grid .weave-calendar-cell {
+  min-height: 52px;
+  padding: 6px;
+}
+
+#home-calendar-mini-grid .weave-calendar-cell.header {
+  min-height: auto;
+  padding: 4px;
+  font-size: 12px;
+}
+
+.activity-focus-highlight {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(49, 183, 255, 0.2), var(--shadow-sm);
+  animation: activityPulse 2.4s ease-out;
+}
+
+@keyframes activityPulse {
+  0% { transform: scale(1.00); }
+  15% { transform: scale(1.01); }
+  100% { transform: scale(1.00); }
+}
+
 .profile-avatar {
   width: 100px;
   height: 100px;

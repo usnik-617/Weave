@@ -64,6 +64,7 @@
               <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#signupModal">회원가입</button>
             </div>
             <div id="user-profile" class="d-flex align-items-center gap-2" style="display:none !important;">
+              <button class="btn btn-sm btn-outline-light d-none" id="ops-dashboard-btn" data-panel="ops-dashboard">운영 대시보드</button>
               <button class="btn btn-sm btn-light" id="my-info-btn" data-panel="myinfo">내 정보</button>
             </div>
           </li>
@@ -98,6 +99,30 @@
   </div>
   <div class="hero-scroll-hint mt-5 text-center animate__animated animate__bounce animate__infinite">
     <i class="fas fa-chevron-down"></i>
+  </div>
+</section>
+
+<section id="home-calendar-preview" class="py-5 bg-white">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div>
+        <h4 class="fw-bold mb-1">이번 달 활동 캘린더</h4>
+        <p class="small text-muted mb-0">다가오는 활동 일정을 한눈에 확인하세요.</p>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+        <strong id="home-calendar-current-label">-</strong>
+        <button class="btn btn-sm btn-outline-secondary" id="home-calendar-prev-btn" aria-label="이전 달">&lt;</button>
+        <button class="btn btn-sm btn-outline-secondary" id="home-calendar-next-btn" aria-label="다음 달">&gt;</button>
+        <button class="btn btn-sm btn-outline-primary" id="home-calendar-go-btn" data-panel="activities">활동 탭에서 보기</button>
+      </div>
+    </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div id="home-calendar-mini-grid" class="mb-3"></div>
+        <div id="home-calendar-summary" class="small text-muted mb-2">불러오는 중...</div>
+        <div id="home-calendar-list" class="d-flex flex-column gap-2"></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -346,6 +371,15 @@
       <p class="lead text-muted">다양한 봉사 프로그램으로 지역사회에 기여합니다</p>
     </div>
 
+    <div class="d-flex justify-content-end mb-3">
+      <div class="btn-group" role="group" aria-label="활동 탭 전환">
+        <button type="button" class="btn btn-outline-primary active" id="activities-overview-tab-btn">활동 소개</button>
+        <button type="button" class="btn btn-outline-primary" id="activities-calendar-tab-btn">캘린더</button>
+      </div>
+    </div>
+
+    <div id="activities-overview-pane">
+
     <div class="row g-4">
       <div class="col-md-6 col-lg-4">
         <div class="activity-card h-100">
@@ -413,6 +447,118 @@
           <li><strong>2023:</strong> 새해 회의, 발대식, 플로깅, 유기견 봉사, 점프벼룩시장, V패스티벌, 지역아동센터 봉사, 양성평등주간행사, 광릉숲 축제, 평가회</li>
           <li><strong>2022:</strong> 발대식, 수제간식/노즈워크 전달, 플로깅, 유기견 봉사, 마을안전학교, 이그나이트, 광릉숲 축제, 중간평가회/평가회, 자원봉사대축제</li>
         </ul>
+      </div>
+    </div>
+
+    </div>
+
+    <div id="activities-calendar-pane" class="d-none">
+      <div class="card border-0 shadow-sm mb-3 d-none" id="calendar-create-card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0">일정 등록 (운영진/관리자)</h6>
+            <small class="text-muted">등록 후 아래 일정 목록에서 바로 신청 가능합니다.</small>
+          </div>
+          <form id="calendar-create-form" class="row g-2">
+            <div class="col-md-4">
+              <input class="form-control form-control-sm" name="title" placeholder="활동 제목" required>
+            </div>
+            <div class="col-md-4">
+              <input type="datetime-local" class="form-control form-control-sm" name="startAt" required>
+            </div>
+            <div class="col-md-4">
+              <input type="datetime-local" class="form-control form-control-sm" name="endAt" required>
+            </div>
+            <div class="col-md-3">
+              <input class="form-control form-control-sm" name="place" placeholder="장소">
+            </div>
+            <div class="col-md-3">
+              <input class="form-control form-control-sm" name="gatherTime" placeholder="집결시간 (예: 09:30)">
+            </div>
+            <div class="col-md-3">
+              <input class="form-control form-control-sm" name="supplies" placeholder="준비물">
+            </div>
+            <div class="col-md-2">
+              <input class="form-control form-control-sm" name="manager" placeholder="담당자" readonly>
+            </div>
+            <div class="col-md-2">
+              <input type="number" min="0" class="form-control form-control-sm" name="recruitmentLimit" placeholder="모집인원">
+            </div>
+            <div class="col-md-2">
+              <input type="number" min="0" max="12" class="form-control form-control-sm" name="repeatWeeks" placeholder="반복주(0~12)">
+            </div>
+            <div class="col-md-1 d-grid">
+              <button class="btn btn-sm btn-primary" type="submit">등록</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <strong id="calendar-current-label">-</strong>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-outline-secondary" id="calendar-prev-btn" aria-label="이전 달">&lt;</button>
+              <button class="btn btn-sm btn-outline-secondary" id="calendar-next-btn" aria-label="다음 달">&gt;</button>
+            </div>
+          </div>
+          <div id="calendar-grid" class="weave-calendar-grid"></div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">선택한 날짜 활동</h6>
+          <div id="calendar-day-detail" class="small text-muted mb-2">날짜를 선택하세요.</div>
+          <div id="calendar-day-list" class="d-flex flex-column gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ops-dashboard" class="py-6 bg-light panel">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="h3 fw-bold mb-1">운영진 승인 대시보드</h2>
+        <p class="text-muted mb-0">오늘 일정, 승인 대기, Q&A 미답변 등을 빠르게 확인하세요.</p>
+      </div>
+      <button class="btn btn-sm btn-outline-primary" id="ops-dashboard-refresh-btn">새로고침</button>
+    </div>
+
+    <div class="row g-3 mb-4" id="ops-dashboard-cards">
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">오늘 일정</div><div class="h4 mb-0" id="ops-card-today">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">가입 승인 대기</div><div class="h4 mb-0" id="ops-card-pending">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">신청 대기</div><div class="h4 mb-0" id="ops-card-waiting">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">노쇼</div><div class="h4 mb-0" id="ops-card-noshow">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">공지 예약</div><div class="h4 mb-0" id="ops-card-notices">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Q&A 미답변</div><div class="h4 mb-0" id="ops-card-qna">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">지출 입력 알림</div><div class="h4 mb-0" id="ops-card-expense">-</div></div></div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">가입 신청 승인</h5>
+          <small class="text-muted" id="ops-pending-count">0건</small>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>이름</th>
+                <th>아이디</th>
+                <th>기수</th>
+                <th>관심분야</th>
+                <th>신청상태</th>
+                <th style="width: 220px;">처리</th>
+              </tr>
+            </thead>
+            <tbody id="ops-pending-users-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -829,6 +975,18 @@
                       <option value="qna">Q&A</option>
                     </select>
                   </div>
+                  <div class="mb-3" id="news-volunteer-date-wrap">
+                    <label class="form-label">봉사 기간 (선택)</label>
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" name="volunteerStartDate" placeholder="시작일">
+                      </div>
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" name="volunteerEndDate" placeholder="종료일">
+                      </div>
+                    </div>
+                    <small class="text-muted">시작일만 입력하면 1일 일정으로 처리됩니다.</small>
+                  </div>
                   <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" name="isSecret" id="post-secret">
                     <label class="form-check-label" for="post-secret">비밀글</label>
@@ -974,6 +1132,22 @@
             <input type="text" class="form-control" name="phone" placeholder="010-1234-5678" required>
           </div>
           <div class="mb-3">
+            <label class="form-label">활동 기수</label>
+            <input type="text" class="form-control" name="generation" placeholder="예: 5기">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">관심 봉사 분야</label>
+            <input type="text" class="form-control" name="interests" placeholder="예: 환경, 유기견, 취약계층">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">보유 자격</label>
+            <input type="text" class="form-control" name="certificates" placeholder="예: CPR, 운전면허">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">봉사 가능 요일/시간대</label>
+            <input type="text" class="form-control" name="availability" placeholder="예: 토요일 오전, 평일 저녁">
+          </div>
+          <div class="mb-3">
             <label class="form-label">이메일 확인</label>
             <input type="email" class="form-control" name="emailConfirm" required>
           </div>
@@ -983,11 +1157,12 @@
           </div>
           <div class="mb-3">
             <label class="form-label">비밀번호</label>
-            <input type="password" class="form-control" name="password" placeholder="6자 이상" minlength="6" required>
+            <input type="password" class="form-control" name="password" placeholder="8자 이상 / 대문자+특수문자 포함" minlength="8" required>
+            <small class="text-muted">최소 8자, 대문자 1개 이상, 특수문자 1개 이상</small>
           </div>
           <div class="mb-3">
             <label class="form-label">비밀번호 확인</label>
-            <input type="password" class="form-control" name="confirm-password" minlength="6" required>
+            <input type="password" class="form-control" name="confirm-password" minlength="8" required>
           </div>
           <div class="mb-3 border rounded p-2" style="max-height:140px; overflow-y:auto; font-size:12px;">
             <strong>이용약관(필수)</strong>
@@ -1011,6 +1186,69 @@
             <small class="text-muted">이미 계정이 있나요? <a href="#" onclick="document.querySelector('#signupModal .btn-close').click(); new bootstrap.Modal(document.getElementById('loginModal')).show(); return false;">로그인하기</a></small>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="modal fade" id="recurrenceCancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">반복 일정 일괄취소 확인</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2" id="recurrence-cancel-summary">영향도를 불러오는 중입니다...</p>
+        <div class="small mb-2" id="recurrence-cancel-preview-wrap">
+          <div class="fw-semibold mb-1">영향 일정 상위 5개</div>
+          <ul class="mb-0 ps-3" id="recurrence-cancel-preview-list">
+            <li class="text-muted">불러오는 중...</li>
+          </ul>
+        </div>
+        <ul class="small text-muted mb-0">
+          <li>해당 반복 그룹의 아직 취소되지 않은 일정이 대상입니다.</li>
+          <li>해당 일정의 대기/확정 신청은 일괄 취소 처리됩니다.</li>
+        </ul>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-danger" id="recurrence-cancel-confirm-btn" disabled>일괄 취소 실행</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="calendarActivityDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">봉사 일정 상세</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="calendar-activity-detail-body">
+        <div class="text-muted small">일정 정보를 불러오는 중입니다...</div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="calendarActivityListModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title" id="calendar-activity-list-title">일정 목록</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-column gap-2" id="calendar-activity-list"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
       </div>
     </div>
   </div>
@@ -1110,6 +1348,10 @@
     return !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
   }
 
+  function isStaffUser(user) {
+    return !!(user && (user.role === 'staff' || isAdminUser(user)));
+  }
+
   function normalizeContact(value) {
     return String(value || '').trim().replaceAll('-', '').toLowerCase();
   }
@@ -1133,9 +1375,9 @@
     if (!username) return;
     const contact = prompt('이메일 또는 연락처를 입력하세요.');
     if (!contact) return;
-    const newPassword = prompt('새 비밀번호를 입력하세요. (6자 이상)');
-    if (!newPassword || newPassword.length < 6) {
-      alert('새 비밀번호는 6자 이상이어야 합니다.');
+    const newPassword = prompt('새 비밀번호를 입력하세요. (8자 이상, 대문자/특수문자 포함)');
+    if (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      alert('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
       return;
     }
     try {
@@ -1188,25 +1430,36 @@
     const faqWriteBtn = document.getElementById('faq-write-btn');
     const qnaWriteBtn = document.getElementById('qna-write-btn');
     const galleryWriteBtn = document.getElementById('gallery-write-btn');
+    const opsDashboardBtn = document.getElementById('ops-dashboard-btn');
 
     if (user) {
       authButtons.style.display = 'none';
       userProfile.classList.add('show');
       document.getElementById('profile-name').innerText = `${user.name} (${user.username})`;
       document.getElementById('profile-email').innerText = user.email;
+      const roleLabelMap = { member: '일반 단원', staff: '운영진', admin: '관리자' };
+      const statusLabelMap = { pending: '승인대기', active: '정식단원', locked: '잠금', withdrawn: '탈퇴' };
       document.getElementById('profile-details').innerHTML = `
         <div>이름: ${user.name || '-'}</div>
         <div>아이디: ${user.username || '-'}</div>
         <div>이메일: ${user.email || '-'}</div>
+        <div>권한: ${roleLabelMap[user.role] || user.role || '-'}</div>
+        <div>상태: ${statusLabelMap[user.status] || user.status || '-'}</div>
         <div>생년월일: ${user.birthDate || '-'}</div>
         <div>연락처: ${user.phone || '-'}</div>
+        <div>활동 기수: ${user.generation || '-'}</div>
+        <div>관심 분야: ${user.interests || '-'}</div>
+        <div>보유 자격: ${user.certificates || '-'}</div>
+        <div>가능 시간대: ${user.availability || '-'}</div>
       `;
       const joinDate = new Date(user.joinDate || new Date()).toLocaleDateString('ko-KR');
       document.getElementById('profile-joindate').innerText = `가입일: ${joinDate} | 생년월일: ${user.birthDate || '-'}`;
-      if (newsWriteBtn) newsWriteBtn.classList.remove('d-none');
-      if (faqWriteBtn) faqWriteBtn.classList.toggle('d-none', !isAdminUser(user));
-      if (qnaWriteBtn) qnaWriteBtn.classList.remove('d-none');
-      if (galleryWriteBtn) galleryWriteBtn.classList.remove('d-none');
+      const activeMember = user.status === 'active';
+      if (opsDashboardBtn) opsDashboardBtn.classList.toggle('d-none', !isStaffUser(user));
+      if (newsWriteBtn) newsWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
+      if (faqWriteBtn) faqWriteBtn.classList.toggle('d-none', !(activeMember && isAdminUser(user)));
+      if (qnaWriteBtn) qnaWriteBtn.classList.toggle('d-none', !activeMember);
+      if (galleryWriteBtn) galleryWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
     } else {
       authButtons.style.display = 'flex';
       userProfile.classList.remove('show');
@@ -1214,8 +1467,10 @@
       if (faqWriteBtn) faqWriteBtn.classList.add('d-none');
       if (qnaWriteBtn) qnaWriteBtn.classList.add('d-none');
       if (galleryWriteBtn) galleryWriteBtn.classList.add('d-none');
+      if (opsDashboardBtn) opsDashboardBtn.classList.add('d-none');
     }
     if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
+    if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
   }
 
   function isValidBirthDate(value) {
@@ -1242,7 +1497,7 @@
           const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
           if (loginModal) loginModal.hide();
           e.target.reset();
-          alert(`${data.user.name}님 환영합니다!`);
+          alert(data.pending ? (data.message || '가입 승인 대기 중입니다.') : `${data.user.name}님 환영합니다!`);
         } catch (error) {
           alert(error.message || '아이디 또는 비밀번호가 틀렸습니다.');
         }
@@ -1256,6 +1511,7 @@
 
       function updateSignupSubmitState() {
         const requiredFilled = Array.from(signupInputs).every(input => {
+          if (!input.required) return true;
           if (input.type === 'checkbox') return input.checked;
           return String(input.value || '').trim().length > 0;
         });
@@ -1282,9 +1538,17 @@
         const username = e.target.username.value.trim();
         const password = e.target.password.value;
         const confirmPassword = e.target['confirm-password'].value;
+        const generation = e.target.generation.value.trim();
+        const interests = e.target.interests.value.trim();
+        const certificates = e.target.certificates.value.trim();
+        const availability = e.target.availability.value.trim();
 
         if (password !== confirmPassword) {
           alert('비밀번호가 일치하지 않습니다.');
+          return;
+        }
+        if (password.length < 8 || !/[A-Z]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+          alert('비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
           return;
         }
         if (!isValidBirthDate(birthDate)) {
@@ -1306,14 +1570,25 @@
         try {
           const data = await apiRequest('/auth/signup', {
             method: 'POST',
-            body: JSON.stringify({ name, username, email, phone, birthDate, password })
+            body: JSON.stringify({
+              name,
+              username,
+              email,
+              phone,
+              birthDate,
+              password,
+              generation,
+              interests,
+              certificates,
+              availability
+            })
           });
 
           setCurrentUser(data.user);
           const signupModal = bootstrap.Modal.getInstance(document.getElementById('signupModal'));
           if (signupModal) signupModal.hide();
           e.target.reset();
-          alert(`${name}님, 위브에 오신 것을 환영합니다!`);
+          alert(data.message || `${name}님, 가입 신청이 완료되었습니다.`);
           updateSignupSubmitState();
         } catch (error) {
           alert(error.message || '회원가입 중 오류가 발생했습니다.');
@@ -1437,6 +1712,11 @@
   const NEWS_PAGE_SIZE = 10;
   const FAQ_PAGE_SIZE = 10;
   const QNA_PAGE_SIZE = 10;
+  let calendarBaseDate = new Date();
+  let calendarSelectedDate = null;
+  let calendarActivities = [];
+  let focusedActivityDateKey = '';
+  let pendingRecurrenceCancelGroupId = '';
   let newsCurrentPage = 1;
   let faqCurrentPage = 1;
   let qnaCurrentPage = 1;
@@ -1460,6 +1740,704 @@
 
   function getTodayString() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  function formatDateOnly(value) {
+    const date = value ? new Date(value) : new Date();
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function formatKoreanDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function expandDateRange(startDate, endDate) {
+    const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
+    const end = endDate ? new Date(`${endDate}T00:00:00`) : null;
+    if (!start || Number.isNaN(start.getTime())) return [];
+    const safeEnd = !end || Number.isNaN(end.getTime()) ? start : end;
+    if (safeEnd.getTime() < start.getTime()) return [];
+    const days = [];
+    const cursor = new Date(start);
+    while (cursor.getTime() <= safeEnd.getTime()) {
+      days.push(formatDateOnly(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }
+
+  function getCalendarMonthLabel(baseDate = calendarBaseDate) {
+    return `${baseDate.getFullYear()}년 ${baseDate.getMonth() + 1}월`;
+  }
+
+  function movePanel(panelId) {
+    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+    const target = document.getElementById(panelId);
+    if (target) target.classList.add('panel-active');
+    const statsSection = document.getElementById('home-stats');
+    const homeCalendarPreview = document.getElementById('home-calendar-preview');
+    if (statsSection) statsSection.style.display = panelId === 'home' ? 'block' : 'none';
+    if (homeCalendarPreview) homeCalendarPreview.style.display = panelId === 'home' ? 'block' : 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openActivitiesCalendarTab() {
+    const overviewPane = document.getElementById('activities-overview-pane');
+    const calendarPane = document.getElementById('activities-calendar-pane');
+    const overviewBtn = document.getElementById('activities-overview-tab-btn');
+    const calendarBtn = document.getElementById('activities-calendar-tab-btn');
+    if (overviewPane) overviewPane.classList.add('d-none');
+    if (calendarPane) calendarPane.classList.remove('d-none');
+    if (overviewBtn) {
+      overviewBtn.classList.remove('active', 'btn-primary');
+      overviewBtn.classList.add('btn-outline-primary');
+    }
+    if (calendarBtn) {
+      calendarBtn.classList.add('active', 'btn-primary');
+      calendarBtn.classList.remove('btn-outline-primary');
+    }
+    updateCalendarCreateVisibility();
+  }
+
+  function openActivitiesOverviewTab() {
+    const overviewPane = document.getElementById('activities-overview-pane');
+    const calendarPane = document.getElementById('activities-calendar-pane');
+    const overviewBtn = document.getElementById('activities-overview-tab-btn');
+    const calendarBtn = document.getElementById('activities-calendar-tab-btn');
+    if (overviewPane) overviewPane.classList.remove('d-none');
+    if (calendarPane) calendarPane.classList.add('d-none');
+    if (overviewBtn) {
+      overviewBtn.classList.add('active', 'btn-primary');
+      overviewBtn.classList.remove('btn-outline-primary');
+    }
+    if (calendarBtn) {
+      calendarBtn.classList.remove('active', 'btn-primary');
+      calendarBtn.classList.add('btn-outline-primary');
+    }
+  }
+
+  function updateCalendarModeButtons() {
+    return;
+  }
+
+  function toIsoFromDatetimeLocal(value) {
+    if (!value) return '';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toISOString();
+  }
+
+  function updateCalendarCreateVisibility() {
+    const card = document.getElementById('calendar-create-card');
+    const user = getCurrentUser();
+    if (!card) return;
+    card.classList.toggle('d-none', !(user && user.status === 'active' && isStaffUser(user)));
+    const form = document.getElementById('calendar-create-form');
+    if (form && user) {
+      form.manager.value = user.name || user.username || '';
+    }
+  }
+
+  async function loadActivitiesCalendar() {
+    const dateParam = formatDateOnly(calendarBaseDate);
+    let data = null;
+    try {
+      data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
+      const baseItems = Array.isArray(data.items) ? data.items : [];
+      const content = getContent();
+      const noticeItems = (content.news || [])
+        .flatMap(item => {
+          const startDate = item.volunteerStartDate || item.volunteerDate || '';
+          const endDate = item.volunteerEndDate || item.volunteerDate || '';
+          const dateKeys = expandDateRange(startDate, endDate || startDate);
+          return dateKeys.map(dateKey => ({
+            id: `notice-${item.id}-${dateKey}`,
+            title: item.title,
+            description: item.content || '',
+            startAt: `${dateKey}T09:00:00`,
+            endAt: `${dateKey}T10:00:00`,
+            place: '공지사항',
+            supplies: '-',
+            gatherTime: '-',
+            manager: item.author || '관리자',
+            recruitmentLimit: 0,
+            recurrenceGroupId: '',
+            isCancelled: false,
+            sourceType: 'notice',
+            sourceNoticeId: item.id,
+            sourceNoticeStartDate: startDate,
+            sourceNoticeEndDate: endDate || startDate,
+          }));
+        });
+      calendarActivities = [...baseItems, ...noticeItems]
+        .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+    } catch (_) {
+      calendarActivities = [];
+      data = { range: null };
+    }
+    renderActivitiesCalendarGrid(data.range || null);
+    if (!calendarSelectedDate) {
+      calendarSelectedDate = dateParam;
+    }
+    await renderActivitiesDayList(calendarSelectedDate);
+    renderHomeCalendarPreview();
+  }
+
+  function renderActivitiesCalendarGrid(range) {
+    const grid = document.getElementById('calendar-grid');
+    const label = document.getElementById('calendar-current-label');
+    if (!grid || !label) return;
+
+    const monthLabel = getCalendarMonthLabel(calendarBaseDate);
+    label.innerText = monthLabel;
+
+    const mapByDate = {};
+    calendarActivities.forEach(item => {
+      const key = formatDateOnly(item.startAt);
+      if (!mapByDate[key]) mapByDate[key] = [];
+      mapByDate[key].push(item);
+    });
+
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const headers = dayNames.map(name => `<div class="weave-calendar-cell header">${name}</div>`).join('');
+
+    const buildDayCell = (dayNumber, key, items) => {
+      const selected = calendarSelectedDate === key ? 'selected' : '';
+      const hasActivity = items.length > 0 ? 'has-activity' : '';
+      const title = items.length > 0
+        ? (items.length > 1 ? `${items[0].title || '제목 없음'} 외 ${items.length - 1}건` : (items[0].title || '제목 없음'))
+        : '';
+      return `<button class="weave-calendar-cell day ${selected} ${hasActivity}" data-date="${key}"><span class="day-main"><span class="day-num">${dayNumber}</span><span class="day-title">${escapeHtml(title)}</span></span><span class="day-count">${items.length ? `${items.length}건` : ''}</span></button>`;
+    };
+
+    let cells = '';
+    const first = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
+    const last = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 0);
+    const firstDay = first.getDay();
+    const totalDays = last.getDate();
+    for (let i = 0; i < firstDay; i++) {
+      cells += '<div class="weave-calendar-cell empty"></div>';
+    }
+    for (let day = 1; day <= totalDays; day++) {
+      const current = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), day);
+      const key = formatDateOnly(current);
+      const items = mapByDate[key] || [];
+      cells += buildDayCell(day, key, items);
+    }
+
+    grid.innerHTML = `<div class="weave-calendar-table">${headers}${cells}</div>`;
+    grid.querySelectorAll('[data-date]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const dateKey = btn.dataset.date;
+        calendarSelectedDate = dateKey;
+        const dateItems = mapByDate[dateKey] || [];
+        renderActivitiesCalendarGrid(range);
+        await renderActivitiesDayList(calendarSelectedDate);
+        await openCalendarDatePopup(dateKey, dateItems);
+      });
+    });
+  }
+
+  function getModalInstanceById(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) return null;
+    return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+  }
+
+  function buildActivityActionButtons(item, user, currentStatus) {
+    if (item && item.sourceType === 'notice') return '';
+    if (!user || user.status !== 'active') return '';
+    const canApply = !currentStatus || ['cancelled', 'noshow'].includes(currentStatus);
+    const canCancel = ['waiting', 'confirmed'].includes(currentStatus || '');
+    const canBulkCancel = isStaffUser(user) && !!item.recurrenceGroupId;
+    return `
+      <div class="d-flex gap-2 mt-2">
+        ${canApply ? `<button class="btn btn-sm btn-primary" onclick="applyActivity(${item.id})">신청</button>` : ''}
+        ${canCancel ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelActivity(${item.id})">취소</button>` : ''}
+        ${canBulkCancel ? `<button class="btn btn-sm btn-outline-warning" onclick="openRecurrenceCancelModal('${item.recurrenceGroupId}')">반복 일괄취소</button>` : ''}
+      </div>
+    `;
+  }
+
+  async function getMyActivityHistoryMap(user = getCurrentUser()) {
+    const map = {};
+    if (!user || user.status !== 'active') return map;
+    try {
+      const my = await apiRequest('/me/history', { method: 'GET' });
+      (my.items || []).forEach(entry => {
+        map[String(entry.activityId)] = entry.status;
+      });
+    } catch (_) {}
+    return map;
+  }
+
+  function buildActivityDetailMarkup(item, user, status = '', extraClass = '') {
+    const statusLabel = status ? `<span class="badge text-bg-light border">${status}</span>` : '';
+    const isNoticeSource = item && item.sourceType === 'notice';
+    const noticeLink = isNoticeSource
+      ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="openNotice(${Number(item.sourceNoticeId || 0)}); return false;">공지 상세 보기</button>`
+      : '';
+    return `
+      <div class="border rounded p-3 bg-white${extraClass}">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-bold">${escapeHtml(item.title || '제목 없음')}</div>
+            <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
+          </div>
+          ${statusLabel}
+        </div>
+        ${item.recurrenceGroupId ? `<div class="small mt-1"><span class="badge text-bg-light border">반복그룹: ${escapeHtml(item.recurrenceGroupId)}</span></div>` : ''}
+        <div class="small mt-2">장소: ${escapeHtml(item.place || '-')} / 집결: ${escapeHtml(item.gatherTime || '-')} / 담당자: ${escapeHtml(item.manager || '-')} / 모집: ${item.recruitmentLimit || 0}명</div>
+        <div class="small text-muted">준비물: ${escapeHtml(item.supplies || '-')}</div>
+        ${isNoticeSource ? `<div class="small mt-2" style="white-space: pre-wrap;">${escapeHtml(item.description || '')}</div>` : ''}
+        ${noticeLink}
+        ${buildActivityActionButtons(item, user, status)}
+      </div>
+    `;
+  }
+
+  function openCalendarActivityDetailModal(item, user, status = '') {
+    const body = document.getElementById('calendar-activity-detail-body');
+    if (!body || !item) return;
+    body.innerHTML = buildActivityDetailMarkup(item, user, status);
+    const detailModal = getModalInstanceById('calendarActivityDetailModal');
+    if (detailModal) detailModal.show();
+  }
+
+  function openCalendarActivityListModal(dateKey, items, user, historyMap) {
+    const titleEl = document.getElementById('calendar-activity-list-title');
+    const listEl = document.getElementById('calendar-activity-list');
+    if (!titleEl || !listEl) return;
+
+    titleEl.innerText = `${dateKey} 일정 목록 (${items.length}건)`;
+    listEl.innerHTML = items.map(item => `
+      <button class="btn btn-outline-primary text-start" data-calendar-activity-id="${item.id}">
+        <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+        <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
+      </button>
+    `).join('');
+
+    const listModal = getModalInstanceById('calendarActivityListModal');
+    if (listModal) listModal.show();
+
+    const itemMap = {};
+    items.forEach(item => {
+      itemMap[String(item.id)] = item;
+    });
+
+    listEl.querySelectorAll('[data-calendar-activity-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const selected = itemMap[String(btn.dataset.calendarActivityId)];
+        if (!selected) return;
+        const status = historyMap[String(selected.id)] || '';
+        if (listModal) listModal.hide();
+        setTimeout(() => {
+          openCalendarActivityDetailModal(selected, user, status);
+        }, 160);
+      });
+    });
+  }
+
+  async function openCalendarDatePopup(dateKey, items) {
+    if (!Array.isArray(items) || !items.length) return;
+    const user = getCurrentUser();
+    const historyMap = await getMyActivityHistoryMap(user);
+    if (items.length === 1) {
+      const onlyItem = items[0];
+      openCalendarActivityDetailModal(onlyItem, user, historyMap[String(onlyItem.id)] || '');
+      return;
+    }
+    openCalendarActivityListModal(dateKey, items, user, historyMap);
+  }
+
+  async function renderActivitiesDayList(dateKey) {
+    const dayDetail = document.getElementById('calendar-day-detail');
+    const dayList = document.getElementById('calendar-day-list');
+    if (!dayDetail || !dayList) return;
+
+    dayDetail.innerText = `${dateKey} 일정`;
+    const user = getCurrentUser();
+    const items = calendarActivities.filter(item => formatDateOnly(item.startAt) === dateKey);
+    if (!items.length) {
+      dayList.innerHTML = '<div class="text-muted small">등록된 활동이 없습니다.</div>';
+      return;
+    }
+
+    const myHistoryMap = await getMyActivityHistoryMap(user);
+
+    dayList.innerHTML = items.map(item => {
+      const status = myHistoryMap[String(item.id)] || '';
+      const highlightClass = focusedActivityDateKey && formatDateOnly(item.startAt) === focusedActivityDateKey
+        ? ' activity-focus-highlight'
+        : '';
+      return buildActivityDetailMarkup(item, user, status, highlightClass);
+    }).join('');
+
+    if (focusedActivityDateKey === dateKey) {
+      setTimeout(() => {
+        dayList.querySelectorAll('.activity-focus-highlight').forEach(el => {
+          el.classList.remove('activity-focus-highlight');
+        });
+        focusedActivityDateKey = '';
+      }, 2500);
+    }
+  }
+
+  async function applyActivity(activityId) {
+    try {
+      const data = await apiRequest(`/activities/${activityId}/apply`, { method: 'POST' });
+      alert(`신청 완료 (${data.status})`);
+      await loadActivitiesCalendar();
+    } catch (error) {
+      alert(error.message || '신청에 실패했습니다.');
+    }
+  }
+
+  async function cancelActivity(activityId) {
+    try {
+      await apiRequest(`/activities/${activityId}/cancel`, { method: 'POST' });
+      alert('신청을 취소했습니다.');
+      await loadActivitiesCalendar();
+    } catch (error) {
+      alert(error.message || '취소에 실패했습니다.');
+    }
+  }
+
+  function renderHomeCalendarPreview() {
+    const monthLabelEl = document.getElementById('home-calendar-current-label');
+    const summaryEl = document.getElementById('home-calendar-summary');
+    const listEl = document.getElementById('home-calendar-list');
+    const miniGrid = document.getElementById('home-calendar-mini-grid');
+    if (!summaryEl || !listEl) return;
+
+    if (monthLabelEl) {
+      monthLabelEl.innerText = getCalendarMonthLabel(calendarBaseDate);
+    }
+
+    if (miniGrid) {
+      const mapByDate = {};
+      calendarActivities.forEach(item => {
+        const key = formatDateOnly(item.startAt);
+        if (!mapByDate[key]) mapByDate[key] = [];
+        mapByDate[key].push(item);
+      });
+      const base = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
+      const firstDay = base.getDay();
+      const totalDays = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+      let cells = '';
+      for (let i = 0; i < firstDay; i++) {
+        cells += '<div class="weave-calendar-cell empty"></div>';
+      }
+      for (let day = 1; day <= totalDays; day++) {
+        const current = new Date(base.getFullYear(), base.getMonth(), day);
+        const key = formatDateOnly(current);
+        const items = mapByDate[key] || [];
+        const title = items.length > 0
+          ? (items.length > 1 ? `${items[0].title || '제목 없음'} 외 ${items.length - 1}건` : (items[0].title || '제목 없음'))
+          : '';
+        const hasActivity = items.length > 0 ? 'has-activity' : '';
+        if (items.length > 0) {
+          cells += `<button class="weave-calendar-cell day ${hasActivity}" data-home-calendar-date="${key}"><span class="day-main"><span class="day-num">${day}</span><span class="day-title">${escapeHtml(title)}</span></span><span class="day-count">${items.length}건</span></button>`;
+        } else {
+          cells += `<div class="weave-calendar-cell day"><span class="day-main"><span class="day-num">${day}</span><span class="day-title"></span></span><span class="day-count"></span></div>`;
+        }
+      }
+      miniGrid.innerHTML = `<div class="weave-calendar-table">${['일','월','화','수','목','금','토'].map(name => `<div class="weave-calendar-cell header">${name}</div>`).join('')}${cells}</div>`;
+      miniGrid.querySelectorAll('[data-home-calendar-date]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const dateKey = btn.dataset.homeCalendarDate;
+          const items = mapByDate[dateKey] || [];
+          calendarSelectedDate = dateKey;
+          await openCalendarDatePopup(dateKey, items);
+        });
+      });
+    }
+
+    const upcoming = [...calendarActivities]
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+      .slice(0, 5);
+
+    summaryEl.innerText = `이번 기간 활동 ${calendarActivities.length}건`;
+    if (!upcoming.length) {
+      listEl.innerHTML = '<div class="text-muted small">예정된 활동이 없습니다.</div>';
+      return;
+    }
+
+    listEl.innerHTML = upcoming.map(item => `
+      <button class="btn btn-light text-start border" data-home-activity-date="${formatDateOnly(item.startAt)}">
+        <div class="fw-semibold">${item.title}</div>
+        <div class="small text-muted">${formatKoreanDate(item.startAt)} · ${item.place || '-'}</div>
+      </button>
+    `).join('');
+
+    listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        movePanel('activities');
+        openActivitiesCalendarTab();
+        calendarSelectedDate = btn.dataset.homeActivityDate;
+        await loadActivitiesCalendar();
+      });
+    });
+  }
+
+  async function focusCalendarDate(dateValue) {
+    if (!dateValue) return;
+    const target = new Date(dateValue);
+    if (Number.isNaN(target.getTime())) return;
+
+    calendarBaseDate = new Date(target.getFullYear(), target.getMonth(), 1);
+    calendarSelectedDate = formatDateOnly(target);
+    focusedActivityDateKey = calendarSelectedDate;
+    movePanel('activities');
+    openActivitiesCalendarTab();
+    await loadActivitiesCalendar();
+  }
+
+  async function loadOpsDashboard() {
+    try {
+      const [dash, pending] = await Promise.all([
+        apiRequest('/admin/dashboard', { method: 'GET' }),
+        apiRequest('/admin/pending-users', { method: 'GET' })
+      ]);
+      const info = dash.dashboard || {};
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = String(value ?? 0);
+      };
+      setText('ops-card-today', info.todaySchedule);
+      setText('ops-card-pending', info.pendingApprovals);
+      setText('ops-card-waiting', info.waitingApplications);
+      setText('ops-card-noshow', info.noshowCount);
+      setText('ops-card-notices', info.scheduledNotices);
+      setText('ops-card-qna', info.qnaUnanswered);
+      setText('ops-card-expense', info.expenseAlerts);
+
+      const rows = pending.items || [];
+      const tbody = document.getElementById('ops-pending-users-body');
+      const count = document.getElementById('ops-pending-count');
+      if (count) count.innerText = `${rows.length}건`;
+      if (tbody) {
+        tbody.innerHTML = rows.length ? rows.map(user => `
+          <tr>
+            <td>${user.name || '-'}</td>
+            <td>${user.username || '-'}</td>
+            <td>${user.generation || '-'}</td>
+            <td>${user.interests || '-'}</td>
+            <td>${user.status || '-'}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-success" onclick="approvePendingUser(${user.id}, 'member')">단원 승인</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="approvePendingUser(${user.id}, 'staff')">운영진 승인</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="rejectPendingUser(${user.id})">반려</button>
+              </div>
+            </td>
+          </tr>
+        `).join('') : '<tr><td colspan="6" class="text-center text-muted">승인 대기 사용자가 없습니다.</td></tr>';
+      }
+    } catch (error) {
+      const tbody = document.getElementById('ops-pending-users-body');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${error.message || '대시보드를 불러오지 못했습니다.'}</td></tr>`;
+    }
+  }
+
+  async function approvePendingUser(userId, role = 'member') {
+    if (!confirm('해당 사용자를 승인하시겠습니까?')) return;
+    try {
+      await apiRequest(`/admin/users/${userId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ role })
+      });
+      await loadOpsDashboard();
+    } catch (error) {
+      alert(error.message || '승인에 실패했습니다.');
+    }
+  }
+
+  async function rejectPendingUser(userId) {
+    if (!confirm('해당 가입 신청을 반려하시겠습니까?')) return;
+    try {
+      await apiRequest(`/admin/users/${userId}/reject`, { method: 'POST' });
+      await loadOpsDashboard();
+    } catch (error) {
+      alert(error.message || '반려에 실패했습니다.');
+    }
+  }
+
+  async function createActivityFromCalendar(event) {
+    event.preventDefault();
+    const user = getCurrentUser();
+    if (!user || user.status !== 'active' || !isStaffUser(user)) {
+      alert('운영진/관리자 권한이 필요합니다.');
+      return;
+    }
+
+    const form = event.target;
+    const payload = {
+      title: form.title.value.trim(),
+      startAt: toIsoFromDatetimeLocal(form.startAt.value),
+      endAt: toIsoFromDatetimeLocal(form.endAt.value),
+      place: form.place.value.trim(),
+      gatherTime: form.gatherTime.value.trim(),
+      supplies: form.supplies.value.trim(),
+      manager: form.manager.value.trim() || (user.name || user.username || ''),
+      recruitmentLimit: Number(form.recruitmentLimit.value || 0)
+    };
+    const repeatWeeks = Number(form.repeatWeeks.value || 0);
+    const recurrenceGroupId = repeatWeeks > 0
+      ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      : '';
+
+    if (!payload.title || !payload.startAt || !payload.endAt) {
+      alert('제목/시작/종료 시간을 입력해주세요.');
+      return;
+    }
+    if (payload.title.length > 120) {
+      alert('활동 제목은 120자 이하여야 합니다.');
+      return;
+    }
+    if (new Date(payload.endAt).getTime() <= new Date(payload.startAt).getTime()) {
+      alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+      return;
+    }
+    if (payload.recruitmentLimit < 0 || payload.recruitmentLimit > 1000) {
+      alert('모집 인원은 0~1000 범위여야 합니다.');
+      return;
+    }
+    if (repeatWeeks < 0 || repeatWeeks > 12) {
+      alert('반복 주 수는 0~12 사이로 입력해주세요.');
+      return;
+    }
+
+    try {
+      const startDate = new Date(payload.startAt);
+      const endDate = new Date(payload.endAt);
+      const requests = [];
+      for (let week = 0; week <= repeatWeeks; week++) {
+        const shiftedStart = new Date(startDate);
+        const shiftedEnd = new Date(endDate);
+        shiftedStart.setDate(shiftedStart.getDate() + week * 7);
+        shiftedEnd.setDate(shiftedEnd.getDate() + week * 7);
+        requests.push(
+          apiRequest('/activities', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...payload,
+              recurrenceGroupId,
+              startAt: shiftedStart.toISOString(),
+              endAt: shiftedEnd.toISOString()
+            })
+          })
+        );
+      }
+      await Promise.all(requests);
+      calendarBaseDate = new Date(payload.startAt);
+      calendarSelectedDate = formatDateOnly(payload.startAt);
+      form.reset();
+      form.manager.value = user.name || user.username || '';
+      await loadActivitiesCalendar();
+      alert(`일정이 등록되었습니다. (총 ${repeatWeeks + 1}건) 같은 화면에서 바로 신청할 수 있습니다.`);
+    } catch (error) {
+      alert(error.message || '일정 등록에 실패했습니다.');
+    }
+  }
+
+  async function openRecurrenceCancelModal(groupId) {
+    const user = getCurrentUser();
+    if (!user || user.status !== 'active' || !isStaffUser(user)) {
+      alert('운영진/관리자만 일괄 취소할 수 있습니다.');
+      return;
+    }
+    if (!groupId) return;
+    pendingRecurrenceCancelGroupId = groupId;
+
+    const summary = document.getElementById('recurrence-cancel-summary');
+    const confirmBtn = document.getElementById('recurrence-cancel-confirm-btn');
+    const previewList = document.getElementById('recurrence-cancel-preview-list');
+    if (summary) summary.innerText = '영향도를 불러오는 중입니다...';
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (previewList) previewList.innerHTML = '<li class="text-muted">불러오는 중...</li>';
+
+    try {
+      const impact = await apiRequest(`/activities/recurrence/${groupId}/impact`, { method: 'GET' });
+      const activityCount = impact?.impact?.activityCount ?? 0;
+      const applicationCount = impact?.impact?.applicationCount ?? 0;
+      const previewItems = impact?.impact?.previewItems || [];
+      if (summary) {
+        summary.innerText = `반복 그룹 ${groupId} 취소 시, 일정 ${activityCount}건 / 신청 ${applicationCount}건이 함께 취소됩니다.`;
+      }
+      if (confirmBtn) confirmBtn.disabled = activityCount <= 0;
+      if (previewList) {
+        if (!previewItems.length) {
+          previewList.innerHTML = '<li class="text-muted">표시할 일정이 없습니다.</li>';
+        } else {
+          previewList.innerHTML = previewItems.map(item => {
+            const startAt = formatKoreanDate(item.startAt);
+            const dateKey = formatDateOnly(item.startAt);
+            return `
+              <li>
+                <button type="button" class="btn btn-link btn-sm p-0 text-start" data-impact-date="${dateKey}">
+                  ${item.title} · ${startAt} · 신청 ${item.applicationCount}건
+                </button>
+              </li>
+            `;
+          }).join('');
+
+          previewList.querySelectorAll('[data-impact-date]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const dateKey = btn.dataset.impactDate;
+              const modalEl = document.getElementById('recurrenceCancelModal');
+              if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+              }
+              await focusCalendarDate(dateKey);
+            });
+          });
+        }
+      }
+    } catch (error) {
+      if (summary) {
+        summary.innerText = error.message || '영향도를 확인하지 못했습니다.';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
+      if (previewList) previewList.innerHTML = '<li class="text-danger">목록을 불러오지 못했습니다.</li>';
+    }
+
+    const modalEl = document.getElementById('recurrenceCancelModal');
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  }
+
+  async function executeRecurrenceCancel() {
+    if (!pendingRecurrenceCancelGroupId) return;
+    try {
+      const data = await apiRequest(`/activities/recurrence/${pendingRecurrenceCancelGroupId}/cancel`, { method: 'POST' });
+      const modalEl = document.getElementById('recurrenceCancelModal');
+      if (modalEl) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+      }
+      pendingRecurrenceCancelGroupId = '';
+      await loadActivitiesCalendar();
+      alert(data.message || '반복 그룹이 취소되었습니다.');
+    } catch (error) {
+      alert(error.message || '일괄 취소에 실패했습니다.');
+    }
   }
 
   function getPostKey(type, id) {
@@ -1827,13 +2805,15 @@
 
   function setNewsWriteButtons() {
     const user = getCurrentUser();
-    const admin = isAdminUser(user);
+    const activeMember = !!(user && user.status === 'active');
+    const admin = activeMember && isAdminUser(user);
+    const staff = activeMember && isStaffUser(user);
     const noticeBtn = document.getElementById('news-write-btn');
     const faqBtn = document.getElementById('faq-write-btn');
     const qnaBtn = document.getElementById('qna-write-btn');
-    if (noticeBtn) noticeBtn.classList.toggle('d-none', !user || currentNewsTab !== 'notice');
+    if (noticeBtn) noticeBtn.classList.toggle('d-none', !staff || currentNewsTab !== 'notice');
     if (faqBtn) faqBtn.classList.toggle('d-none', !admin || currentNewsTab !== 'faq');
-    if (qnaBtn) qnaBtn.classList.toggle('d-none', !user || currentNewsTab !== 'qna');
+    if (qnaBtn) qnaBtn.classList.toggle('d-none', !activeMember || currentNewsTab !== 'qna');
   }
 
   function openFaqDetail(id) {
@@ -1910,7 +2890,12 @@
     currentNewsDetailId = id;
 
     titleEl.textContent = notice.title;
-    metaEl.textContent = `${notice.author || '관리자'} | ${notice.date} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
+    const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
+    const volunteerMeta = volunteerStart
+      ? ` | 봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? `~${volunteerEnd}` : ''}`
+      : '';
+    metaEl.textContent = `${notice.author || '관리자'} | ${notice.date}${volunteerMeta} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
     contentEl.innerHTML = notice.content || '';
     document.getElementById('news-recommend-btn').parentElement.classList.remove('d-none');
     if (notice.image) {
@@ -2110,6 +3095,12 @@
     form.title.value = item.title || '';
     form.author.value = item.author || '';
     form.postTab.value = type;
+    if (form.volunteerStartDate) {
+      form.volunteerStartDate.value = type === 'notice' ? (item.volunteerStartDate || item.volunteerDate || '') : '';
+    }
+    if (form.volunteerEndDate) {
+      form.volunteerEndDate.value = type === 'notice' ? (item.volunteerEndDate || item.volunteerDate || '') : '';
+    }
     form.isSecret.checked = !!item.isSecret;
     form.content.value = item.content || '';
     setEditorHtml('news-editor', item.content || '');
@@ -2255,6 +3246,8 @@
       newsForm.reset();
       newsForm.editId.value = '';
       newsForm.imageData.value = '';
+      if (newsForm.volunteerStartDate) newsForm.volunteerStartDate.value = '';
+      if (newsForm.volunteerEndDate) newsForm.volunteerEndDate.value = '';
       setEditorHtml('news-editor', '');
       setImagePreview('news-image-preview', '');
     }
@@ -2270,6 +3263,18 @@
 
   // ============ ADMIN FORMS ============
 
+  function updateVolunteerDateFieldVisibility(form) {
+    if (!form || !form.postTab) return;
+    const wrap = document.getElementById('news-volunteer-date-wrap');
+    if (!wrap) return;
+    const isNotice = form.postTab.value === 'notice';
+    wrap.classList.toggle('d-none', !isNotice);
+    if (!isNotice) {
+      if (form.volunteerStartDate) form.volunteerStartDate.value = '';
+      if (form.volunteerEndDate) form.volunteerEndDate.value = '';
+    }
+  }
+
   // ============ ADMIN FORMS ============
   document.addEventListener('DOMContentLoaded', function() {
     initRichEditorToolbars();
@@ -2280,6 +3285,10 @@
     // News Form
     const newsForm = document.getElementById('add-news-form');
     if (newsForm) {
+      if (newsForm.postTab) {
+        newsForm.postTab.addEventListener('change', () => updateVolunteerDateFieldVisibility(newsForm));
+      }
+      updateVolunteerDateFieldVisibility(newsForm);
       newsForm.onsubmit = (e) => {
         e.preventDefault();
         const user = getCurrentUser();
@@ -2295,6 +3304,14 @@
         const imageData = e.target.imageData.value || '';
         const tabType = e.target.postTab.value;
         const isSecret = !!e.target.isSecret.checked;
+        const volunteerStartDate = (e.target.volunteerStartDate?.value || '').trim();
+        const volunteerEndDateRaw = (e.target.volunteerEndDate?.value || '').trim();
+        const volunteerEndDate = volunteerEndDateRaw || volunteerStartDate;
+
+        if (tabType === 'notice' && volunteerStartDate && volunteerEndDate && volunteerEndDate < volunteerStartDate) {
+          alert('봉사 종료일은 시작일보다 빠를 수 없습니다.');
+          return;
+        }
 
         if (tabType === 'faq' && !isAdminUser(user)) {
           alert('FAQ 작성은 관리자만 가능합니다.');
@@ -2311,10 +3328,23 @@
             target.image = imageData || target.image || '';
             target.content = e.target.content.value;
             if (tabType === 'qna') target.isSecret = isSecret;
+            if (tabType === 'notice') {
+              target.volunteerStartDate = volunteerStartDate || '';
+              target.volunteerEndDate = volunteerStartDate ? volunteerEndDate : '';
+              if (!target.volunteerStartDate) {
+                delete target.volunteerStartDate;
+                delete target.volunteerEndDate;
+              }
+              delete target.volunteerDate;
+            } else {
+              delete target.volunteerDate;
+              delete target.volunteerStartDate;
+              delete target.volunteerEndDate;
+            }
           }
         } else {
           const newId = Math.max(...source.map(x => x.id), 0) + 1;
-          source.unshift({
+          const newItem = {
             id: newId,
             title: e.target.title.value,
             author: e.target.author.value || user.username || user.name,
@@ -2324,7 +3354,14 @@
             views: 0,
             isSecret: tabType === 'qna' ? isSecret : false,
             answer: ''
-          });
+          };
+          if (tabType === 'notice') {
+            if (volunteerStartDate) {
+              newItem.volunteerStartDate = volunteerStartDate;
+              newItem.volunteerEndDate = volunteerEndDate;
+            }
+          }
+          source.unshift(newItem);
         }
         saveContent(data);
         renderNews();
@@ -2388,8 +3425,8 @@
     if (newsWriteBtn) {
       newsWriteBtn.addEventListener('click', () => {
         const user = getCurrentUser();
-        if (!user) {
-          alert('로그인이 필요합니다.');
+        if (!user || user.status !== 'active' || !isStaffUser(user)) {
+          alert('운영진/관리자(정식 단원)만 공지 작성이 가능합니다.');
           return;
         }
         resetWriteForms();
@@ -2398,6 +3435,7 @@
         form.author.value = user.username || user.name;
         form.postTab.value = 'notice';
         form.isSecret.checked = false;
+        updateVolunteerDateFieldVisibility(form);
         openWritePanel('news-admin');
       });
     }
@@ -2415,6 +3453,7 @@
         form.author.value = user.username || user.name;
         form.postTab.value = 'faq';
         form.isSecret.checked = false;
+        updateVolunteerDateFieldVisibility(form);
         openWritePanel('news-admin');
       });
     }
@@ -2423,8 +3462,8 @@
     if (qnaWriteBtn) {
       qnaWriteBtn.addEventListener('click', () => {
         const user = getCurrentUser();
-        if (!user) {
-          alert('로그인이 필요합니다.');
+        if (!user || user.status !== 'active') {
+          alert('정식 단원 승인 후 Q&A 작성이 가능합니다.');
           return;
         }
         resetWriteForms();
@@ -2432,6 +3471,7 @@
         form.author.value = user.username || user.name;
         form.postTab.value = 'qna';
         form.isSecret.checked = false;
+        updateVolunteerDateFieldVisibility(form);
         openWritePanel('news-admin');
       });
     }
@@ -2440,8 +3480,8 @@
     if (galleryWriteBtn) {
       galleryWriteBtn.addEventListener('click', () => {
         const user = getCurrentUser();
-        if (!user) {
-          alert('로그인이 필요합니다.');
+        if (!user || user.status !== 'active' || !isStaffUser(user)) {
+          alert('운영진/관리자(정식 단원)만 갤러리 업로드가 가능합니다.');
           return;
         }
         resetWriteForms();
@@ -2596,6 +3636,87 @@
     renderGallery();
     renderStats();
     setNewsWriteButtons();
+
+    const activitiesOverviewTabBtn = document.getElementById('activities-overview-tab-btn');
+    const activitiesCalendarTabBtn = document.getElementById('activities-calendar-tab-btn');
+    if (activitiesOverviewTabBtn) {
+      activitiesOverviewTabBtn.addEventListener('click', () => {
+        openActivitiesOverviewTab();
+      });
+    }
+    if (activitiesCalendarTabBtn) {
+      activitiesCalendarTabBtn.addEventListener('click', async () => {
+        openActivitiesCalendarTab();
+        await loadActivitiesCalendar();
+      });
+    }
+
+    const prevBtn = document.getElementById('calendar-prev-btn');
+    const nextBtn = document.getElementById('calendar-next-btn');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', async () => {
+        calendarBaseDate = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
+        await loadActivitiesCalendar();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', async () => {
+        calendarBaseDate = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
+        await loadActivitiesCalendar();
+      });
+    }
+
+    const homeCalendarGoBtn = document.getElementById('home-calendar-go-btn');
+    const homeCalendarPrevBtn = document.getElementById('home-calendar-prev-btn');
+    const homeCalendarNextBtn = document.getElementById('home-calendar-next-btn');
+    if (homeCalendarPrevBtn) {
+      homeCalendarPrevBtn.addEventListener('click', async () => {
+        calendarBaseDate = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
+        await loadActivitiesCalendar();
+      });
+    }
+    if (homeCalendarNextBtn) {
+      homeCalendarNextBtn.addEventListener('click', async () => {
+        calendarBaseDate = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
+        await loadActivitiesCalendar();
+      });
+    }
+    if (homeCalendarGoBtn) {
+      homeCalendarGoBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        movePanel('activities');
+        openActivitiesCalendarTab();
+        await loadActivitiesCalendar();
+      });
+    }
+
+    const opsRefreshBtn = document.getElementById('ops-dashboard-refresh-btn');
+    if (opsRefreshBtn) {
+      opsRefreshBtn.addEventListener('click', async () => {
+        await loadOpsDashboard();
+      });
+    }
+
+    const opsBtn = document.getElementById('ops-dashboard-btn');
+    if (opsBtn) {
+      opsBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        movePanel('ops-dashboard');
+        await loadOpsDashboard();
+      });
+    }
+
+    const calendarCreateForm = document.getElementById('calendar-create-form');
+    if (calendarCreateForm) {
+      calendarCreateForm.addEventListener('submit', createActivityFromCalendar);
+    }
+
+    const recurrenceConfirmBtn = document.getElementById('recurrence-cancel-confirm-btn');
+    if (recurrenceConfirmBtn) {
+      recurrenceConfirmBtn.addEventListener('click', executeRecurrenceCancel);
+    }
+
+    loadActivitiesCalendar().catch(() => {});
   });
 
   // ============ MAIN NAVIGATION ============
@@ -2606,6 +3727,10 @@
     function syncHomeStats(panelId) {
       if (!statsSection) return;
       statsSection.style.display = panelId === 'home' ? 'block' : 'none';
+      const homeCalendarPreview = document.getElementById('home-calendar-preview');
+      if (homeCalendarPreview) {
+        homeCalendarPreview.style.display = panelId === 'home' ? 'block' : 'none';
+      }
     }
     
     navLinks.forEach(link => {
@@ -2621,6 +3746,12 @@
           target.classList.add('panel-active');
           if (panelId === 'about') {
             showHistory();
+          }
+          if (panelId === 'activities') {
+            openActivitiesOverviewTab();
+          }
+          if (panelId === 'ops-dashboard') {
+            loadOpsDashboard().catch(() => {});
           }
           syncHomeStats(panelId);
           window.scrollTo({ top: 0, behavior: 'smooth' });
