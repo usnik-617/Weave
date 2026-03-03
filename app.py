@@ -953,12 +953,36 @@ def auth_withdraw():
 @app.route("/api/admin/pending-users", methods=["GET"])
 @role_required("staff")
 def admin_pending_users():
+    page = int(request.args.get("page", "1") or 1)
+    page_size = int(request.args.get("pageSize", "10") or 10)
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 100)
+    offset = (page - 1) * page_size
+
     conn = get_db_connection()
+    total = conn.execute(
+        "SELECT COUNT(*) AS c FROM users WHERE status = 'pending'"
+    ).fetchone()["c"]
     rows = conn.execute(
-        "SELECT * FROM users WHERE status = 'pending' ORDER BY id DESC"
+        "SELECT * FROM users WHERE status = 'pending' ORDER BY id DESC LIMIT ? OFFSET ?",
+        (page_size, offset),
     ).fetchall()
     conn.close()
-    return jsonify({"ok": True, "items": [user_row_to_dict(row) for row in rows]})
+    total_pages = max((int(total or 0) + page_size - 1) // page_size, 1)
+    return jsonify(
+        {
+            "ok": True,
+            "items": [user_row_to_dict(row) for row in rows],
+            "pagination": {
+                "total": int(total or 0),
+                "page": page,
+                "pageSize": page_size,
+                "totalPages": total_pages,
+                "hasPrev": page > 1,
+                "hasNext": page < total_pages,
+            },
+        }
+    )
 
 
 @app.route("/api/admin/users/<int:user_id>/approve", methods=["POST"])
@@ -976,6 +1000,9 @@ def admin_approve_user(user_id):
         return jsonify({"ok": False, "message": "대상을 찾을 수 없습니다."}), 404
 
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     if role == "admin" and not role_at_least(me["role"], "admin"):
         conn.close()
         return jsonify({"ok": False, "message": "관리자 승격 권한이 없습니다."}), 403
@@ -1101,6 +1128,9 @@ def create_activity():
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     cur = conn.cursor()
     cur.execute(
         """
@@ -1137,6 +1167,9 @@ def create_activity():
 def apply_activity(activity_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     activity = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
     if not activity:
         conn.close()
@@ -1298,6 +1331,9 @@ def recurrence_group_impact(group_id):
 def cancel_activity(activity_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     target = conn.execute(
         "SELECT * FROM activity_applications WHERE activity_id = ? AND user_id = ?",
         (activity_id, me["id"]),
@@ -1320,6 +1356,9 @@ def cancel_activity(activity_id):
 def create_attendance_qr_token(activity_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     activity = conn.execute("SELECT id FROM activities WHERE id = ?", (activity_id,)).fetchone()
     if not activity:
         conn.close()
@@ -1354,6 +1393,9 @@ def qr_check_attendance(activity_id):
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     qr = conn.execute(
         "SELECT * FROM attendance_qr_tokens WHERE activity_id = ? AND token = ?",
         (activity_id, token),
@@ -1450,6 +1492,9 @@ def bulk_attendance(activity_id):
 def my_activity_history():
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     rows = conn.execute(
         """
         SELECT a.id AS activity_id, a.title, a.start_at, a.end_at, a.place,
@@ -1498,6 +1543,9 @@ def my_activity_history():
 def my_certificate_csv():
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     rows = conn.execute(
         """
         SELECT a.title, a.start_at, a.end_at, a.place, ap.hours, ap.attendance_status
@@ -1579,6 +1627,9 @@ def create_gallery_album():
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO gallery_albums (title, activity_id, visibility, portrait_consent, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
