@@ -6,3 +6,4 @@ locust>=2.37
 SQLAlchemy>=2.0
 alembic>=1.13
 psycopg2-binary>=2.9
+Pillow>=10.0

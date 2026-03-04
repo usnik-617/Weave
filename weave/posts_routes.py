@@ -228,10 +228,11 @@ def list_posts():
     offset = (page - 1) * page_size
     category = str(request.args.get("type", request.args.get("category", ""))).strip().lower()
     keyword = str(request.args.get("query", request.args.get("q", ""))).strip()
+    include_scheduled = str(request.args.get("include_scheduled", "")).strip().lower() in {"1", "true", "yes"}
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
-    is_staff = role_at_least(me["role"], "EXECUTIVE") if me else False
+    can_include_scheduled = bool(me and role_at_least(me["role"], "VICE_LEADER") and include_scheduled)
 
     where = ["1=1"]
     params = []
@@ -242,13 +243,13 @@ def list_posts():
     if keyword:
         where.append("(p.title LIKE ? OR p.content LIKE ?)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
-    if not is_staff:
+    if not can_include_scheduled:
         where.append("(p.publish_at IS NULL OR p.publish_at <= ?)")
         params.append(now_iso())
 
     where_sql = " AND ".join(where)
     should_cache = category in ("notice", "gallery") and not keyword
-    cache_key = f"posts:list:{category}:{page}:{page_size}:{int(bool(is_staff))}"
+    cache_key = f"posts:list:{category}:{page}:{page_size}:{int(bool(can_include_scheduled))}"
     if should_cache:
         cached = get_cache(cache_key)
         if cached is not None:
@@ -283,7 +284,9 @@ def list_posts():
             "is_pinned": bool(row["is_pinned"]),
             "is_important": bool(row["is_important"]),
             "publish_at": row["publish_at"],
+            "status": row["status"],
             "image_url": row["image_url"],
+            "thumb_url": row["thumb_url"],
             "volunteerStartDate": row["volunteer_start_date"],
             "volunteerEndDate": row["volunteer_end_date"],
             "author_id": row["author_id"],
@@ -325,6 +328,7 @@ def create_post():
     publish_at = str(payload.get("publish_at", "")).strip() or None
     if publish_at and not parse_iso_datetime(publish_at):
         return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+    status = post_visibility_status(publish_at)
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -350,10 +354,10 @@ def create_post():
     cur.execute(
         """
         INSERT INTO posts (
-            category, title, content, is_pinned, is_important, publish_at, image_url,
+            category, title, content, is_pinned, is_important, publish_at, status, image_url, thumb_url,
             volunteer_start_date, volunteer_end_date, author_id, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             category,
@@ -362,7 +366,9 @@ def create_post():
             1 if bool(payload.get("is_pinned", False)) else 0,
             1 if bool(payload.get("is_important", False)) else 0,
             publish_at,
+            status,
             str(payload.get("image_url", "")).strip(),
+            str(payload.get("thumb_url", "")).strip(),
             volunteer_start,
             volunteer_end,
             me["id"],
@@ -422,9 +428,9 @@ def get_post(post_id):
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
 
-    is_staff = role_at_least(me["role"], "EXECUTIVE") if me else False
+    can_view_scheduled = role_at_least(me["role"], "VICE_LEADER") if me else False
     publish_at_dt = parse_iso_datetime(row["publish_at"]) if row["publish_at"] else None
-    if not is_staff and publish_at_dt and publish_at_dt > datetime.now():
+    if not can_view_scheduled and publish_at_dt and publish_at_dt > datetime.now():
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
 
@@ -440,10 +446,30 @@ def get_post(post_id):
     ).fetchall()
     recommend_count = conn.execute("SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)).fetchone()["c"]
     files = conn.execute(
-        "SELECT id, original_name, mime_type, size, uploaded_at FROM post_files WHERE post_id = ? ORDER BY id DESC",
-        (post_id,),
+        """
+        SELECT id, original_name, mime_type, size, uploaded_at, stored_path
+        FROM post_files
+        WHERE post_id = ? AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)
+        ORDER BY id DESC
+        """,
+        (post_id, now_iso()),
     ).fetchall()
     conn.close()
+
+    file_items = []
+    for f in files:
+        relative_path = os.path.relpath(f["stored_path"], UPLOAD_DIR).replace("\\", "/")
+        file_url = f"/uploads/{relative_path}"
+        file_items.append(
+            {
+                "id": f["id"],
+                "original_name": f["original_name"],
+                "mime_type": f["mime_type"],
+                "size": f["size"],
+                "uploaded_at": f["uploaded_at"],
+                "file_url": file_url,
+            }
+        )
 
     return success_response(
         {
@@ -454,7 +480,9 @@ def get_post(post_id):
             "is_pinned": bool(row["is_pinned"]),
             "is_important": bool(row["is_important"]),
             "publish_at": row["publish_at"],
+            "status": row["status"],
             "image_url": row["image_url"],
+            "thumb_url": row["thumb_url"],
             "volunteerStartDate": row["volunteer_start_date"],
             "volunteerEndDate": row["volunteer_end_date"],
             "author": {
@@ -479,7 +507,7 @@ def get_post(post_id):
                 }
                 for c in comments
             ],
-            "files": [dict(f) for f in files],
+            "files": file_items,
         }
     )
 
@@ -496,18 +524,19 @@ def update_post(post_id):
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
     category = str(payload.get("category", post["category"]))
-    if category not in ("notice", "review", "recruit"):
+    if not category:
         conn.close()
-        return error_response("category는 notice|review|recruit만 허용됩니다.", 400)
+        return error_response("category는 필수입니다.", 400)
     publish_at = str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
     if publish_at and not parse_iso_datetime(publish_at):
         conn.close()
         return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+    status = post_visibility_status(publish_at)
 
     conn.execute(
         """
         UPDATE posts
-        SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, updated_at = ?
+        SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, status = ?, updated_at = ?
         WHERE id = ?
         """,
         (
@@ -516,6 +545,7 @@ def update_post(post_id):
             str(payload.get("content", post["content"])),
             1 if bool(payload.get("is_pinned", bool(post["is_pinned"]))) else 0,
             publish_at,
+            status,
             now_iso(),
             post_id,
         ),
@@ -543,8 +573,9 @@ def delete_post(post_id):
         return error_response("작성자 또는 운영권한이 필요합니다.", 403)
     files = conn.execute("SELECT * FROM post_files WHERE post_id = ?", (post_id,)).fetchall()
     for file_row in files:
-        remove_file_safely(file_row["stored_path"])
-    conn.execute("DELETE FROM post_files WHERE post_id = ?", (post_id,))
+        conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
+        delete_file_if_unreferenced(conn, file_row["stored_path"])
+    remove_file_safely(upload_url_to_path(post["thumb_url"]))
     conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     log_audit(conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]})
     conn.commit()

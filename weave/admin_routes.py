@@ -2,6 +2,12 @@ from weave.core import *
 
 
 def admin_pending_users():
+    me = get_current_user_row()
+    if not me:
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+
     page = int(request.args.get("page", "1") or 1)
     page_size = int(request.args.get("pageSize", "10") or 10)
     page = max(page, 1)
@@ -79,6 +85,12 @@ def admin_approve_user(user_id):
 def admin_reject_user(user_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
@@ -98,6 +110,9 @@ def admin_suspend_user(user_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
@@ -115,6 +130,9 @@ def admin_activate_user(user_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
@@ -127,6 +145,12 @@ def admin_activate_user(user_id):
 
 
 def admin_stats():
+    me = get_current_user_row()
+    if not me:
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
     total_events = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
@@ -151,6 +175,12 @@ def admin_stats():
 
 
 def get_audit_logs():
+    me = get_current_user_row()
+    if not me:
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+
     page = max(1, int(request.args.get("page", "1") or 1))
     page_size = min(100, max(1, int(request.args.get("pageSize", "20") or 20)))
     offset = (page - 1) * page_size

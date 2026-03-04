@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 import uuid
+import hashlib
 import csv
 import io
 import json
@@ -183,10 +184,8 @@ def author_payload_from_user(user_row):
 
 def validate_nickname(nickname):
     text = str(nickname or "").strip()
-    if not (2 <= len(text) <= 12):
-        return False, "닉네임은 2~12자여야 합니다."
-    if not re.fullmatch(r"[가-힣A-Za-z0-9]+", text):
-        return False, "닉네임은 한글/영문/숫자만 사용할 수 있습니다."
+    if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", text):
+        return False, "닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)"
     return True, ""
 
 
@@ -576,8 +575,9 @@ def user_row_to_dict(row):
 
 def log_audit(*args, **kwargs):
     conn = None
+    owns_connection = False
     if args and isinstance(args[0], sqlite3.Connection):
-        _, action, target_type, target_id, actor_user_id, metadata = (list(args) + [None] * 6)[0:6]
+        conn, action, target_type, target_id, actor_user_id, metadata = (list(args) + [None] * 6)[0:6]
     else:
         actor_user_id = args[0] if len(args) > 0 else kwargs.get("actor_user_id")
         action = args[1] if len(args) > 1 else kwargs.get("action")
@@ -600,13 +600,16 @@ def log_audit(*args, **kwargs):
     )
 
     try:
-        conn = get_db_connection()
+        if conn is None:
+            conn = get_db_connection()
+            owns_connection = True
         conn.execute(sql, values)
-        conn.commit()
+        if owns_connection:
+            conn.commit()
     except Exception as exc:
         logger.error(json.dumps({"action": "audit_log_failed", "error": str(exc)}, ensure_ascii=False))
     finally:
-        if conn:
+        if conn and owns_connection:
             conn.close()
 
 
@@ -676,12 +679,26 @@ def ensure_posts_migration(cur):
     migrations = [
         ("is_important", "INTEGER NOT NULL DEFAULT 0"),
         ("image_url", "TEXT DEFAULT ''"),
+        ("thumb_url", "TEXT DEFAULT ''"),
+        ("status", "TEXT NOT NULL DEFAULT 'published'"),
         ("volunteer_start_date", "TEXT"),
         ("volunteer_end_date", "TEXT"),
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
             cur.execute(f"ALTER TABLE posts ADD COLUMN {column_name} {column_type}")
+
+    now_text = now_iso()
+    cur.execute(
+        """
+        UPDATE posts
+        SET status = CASE
+            WHEN publish_at IS NOT NULL AND publish_at > ? THEN 'scheduled'
+            ELSE 'published'
+        END
+        """,
+        (now_text,),
+    )
 
 
 def ensure_table_indexes(cur):
@@ -724,6 +741,49 @@ def ensure_events_migration(cur):
     cur.execute("UPDATE events SET start_datetime = COALESCE(start_datetime, event_date) WHERE start_datetime IS NULL OR TRIM(start_datetime) = ''")
     cur.execute("UPDATE events SET end_datetime = COALESCE(end_datetime, start_datetime, event_date) WHERE end_datetime IS NULL OR TRIM(end_datetime) = ''")
     cur.execute("UPDATE events SET capacity = COALESCE(capacity, max_participants, 0) WHERE capacity IS NULL")
+
+
+def ensure_post_files_migration(cur):
+    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(post_files)").fetchall()}
+    migrations = [
+        ("hash_sha256", "TEXT DEFAULT ''"),
+        ("created_at", "TEXT"),
+        ("expires_at", "TEXT"),
+    ]
+    for column_name, column_type in migrations:
+        if column_name not in existing_cols:
+            cur.execute(f"ALTER TABLE post_files ADD COLUMN {column_name} {column_type}")
+
+    cur.execute("UPDATE post_files SET created_at = COALESCE(created_at, uploaded_at, datetime('now'))")
+
+
+def ensure_attendance_migration(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS event_attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'registered',
+            attended_at TEXT,
+            duration_minutes INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(event_id, user_id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS volunteer_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_id INTEGER NOT NULL,
+            minutes INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_attendance_event_user ON event_attendance(event_id, user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_volunteer_activity_user ON volunteer_activity(user_id)")
 
 
 def init_db():
@@ -969,7 +1029,9 @@ def init_db():
             is_pinned INTEGER NOT NULL DEFAULT 0,
             is_important INTEGER NOT NULL DEFAULT 0,
             publish_at TEXT,
+            status TEXT NOT NULL DEFAULT 'published',
             image_url TEXT DEFAULT '',
+            thumb_url TEXT DEFAULT '',
             volunteer_start_date TEXT,
             volunteer_end_date TEXT,
             author_id INTEGER,
@@ -1044,10 +1106,15 @@ def init_db():
             stored_path TEXT NOT NULL,
             mime_type TEXT NOT NULL,
             size INTEGER NOT NULL,
-            uploaded_at TEXT NOT NULL
+            uploaded_at TEXT NOT NULL,
+            hash_sha256 TEXT DEFAULT '',
+            created_at TEXT,
+            expires_at TEXT
         )
         """
     )
+    ensure_post_files_migration(cur)
+    ensure_attendance_migration(cur)
 
     cur.execute(
         """
@@ -1109,7 +1176,9 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_event_participants_user ON event_participants(user_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish_at ON posts(publish_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_status_publish ON posts(status, publish_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_important ON posts(is_important)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_post_files_hash ON post_files(hash_sha256)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_recommends_post ON recommends(post_id)")
@@ -1614,10 +1683,53 @@ def _update_nickname_common(conn, me, nickname, bypass_window=False):
             if next_allowed > datetime.now():
                 return None, error_response("닉네임은 180일에 1회만 변경할 수 있습니다.", 403, {"next_allowed_at": next_allowed.isoformat()})
 
-    conn.execute(
-        "UPDATE users SET nickname = ?, nickname_updated_at = ? WHERE id = ?",
-        (nickname, now_iso(), me["id"]),
-    )
+    try:
+        conn.execute(
+            "UPDATE users SET nickname = ?, nickname_updated_at = ? WHERE id = ?",
+            (nickname, now_iso(), me["id"]),
+        )
+    except sqlite3.IntegrityError:
+        return None, error_response("이미 사용 중인 닉네임입니다.", 409)
     return conn.execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone(), None
+
+
+def post_visibility_status(publish_at):
+    publish_dt = parse_iso_datetime(publish_at)
+    now_dt = datetime.now(publish_dt.tzinfo) if publish_dt and publish_dt.tzinfo else datetime.now()
+    if publish_dt and publish_dt > now_dt:
+        return "scheduled"
+    return "published"
+
+
+def should_expose_post(publish_at):
+    publish_dt = parse_iso_datetime(publish_at)
+    now_dt = datetime.now(publish_dt.tzinfo) if publish_dt and publish_dt.tzinfo else datetime.now()
+    return not publish_dt or publish_dt <= now_dt
+
+
+def compute_file_sha256_from_filestorage(file_storage):
+    if not file_storage:
+        return ""
+    sha = hashlib.sha256()
+    stream = file_storage.stream
+    stream.seek(0)
+    while True:
+        chunk = stream.read(1024 * 1024)
+        if not chunk:
+            break
+        sha.update(chunk)
+    stream.seek(0)
+    return sha.hexdigest()
+
+
+def delete_file_if_unreferenced(conn, stored_path):
+    if not stored_path:
+        return
+    ref = conn.execute(
+        "SELECT id FROM post_files WHERE stored_path = ? LIMIT 1",
+        (stored_path,),
+    ).fetchone()
+    if not ref:
+        remove_file_safely(stored_path)
 
 

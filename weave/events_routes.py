@@ -1,6 +1,14 @@
 from weave.core import *
 
 
+def _event_duration_minutes(event_row):
+    start_dt = parse_iso_datetime(event_row["start_datetime"] or event_row["event_date"])
+    end_dt = parse_iso_datetime(event_row["end_datetime"] or event_row["start_datetime"] or event_row["event_date"])
+    if not start_dt or not end_dt or end_dt <= start_dt:
+        return 0
+    return int((end_dt - start_dt).total_seconds() // 60)
+
+
 def list_activities():
     date_value = str(request.args.get("date", "")).strip()
     view = str(request.args.get("view", "month")).strip().lower()
@@ -370,6 +378,13 @@ def bulk_attendance(activity_id):
         return jsonify({"ok": False, "message": "entries 배열이 필요합니다."}), 400
 
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 출결 일괄처리를 할 수 있습니다.", 403)
     activity = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
     if not activity:
         conn.close()
@@ -415,10 +430,17 @@ def bulk_attendance(activity_id):
 
 
 def admin_dashboard():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+
     today = datetime.now().date().isoformat()
     month_prefix = datetime.now().strftime("%Y-%m")
-
-    conn = get_db_connection()
     today_schedule = conn.execute(
         "SELECT COUNT(*) AS c FROM activities WHERE date(start_at) = ?", (today,)
     ).fetchone()["c"]
@@ -461,6 +483,13 @@ def admin_dashboard():
 
 def export_participants_csv():
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     rows = conn.execute(
         "SELECT id, name, username, email, phone, role, status, generation FROM users ORDER BY id ASC"
     ).fetchall()
@@ -474,6 +503,13 @@ def export_participants_csv():
 
 def export_attendance_csv():
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     rows = conn.execute(
         """
         SELECT a.title, a.start_at, u.name, u.username, ap.status, ap.attendance_status, ap.hours
@@ -493,6 +529,13 @@ def export_attendance_csv():
 
 def export_hours_csv():
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     rows = conn.execute(
         """
         SELECT u.name, u.username,
@@ -593,6 +636,9 @@ def create_event():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 이벤트를 생성할 수 있습니다.", 403)
     cur = conn.cursor()
     cur.execute(
         """
@@ -635,6 +681,9 @@ def update_event(event_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 이벤트를 수정할 수 있습니다.", 403)
     target = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not target:
         conn.close()
@@ -935,5 +984,66 @@ def vote_event(event_id):
     conn.commit()
     conn.close()
     return success_response({"event_id": event_id, "status": status})
+
+
+def mark_event_attendance(event_id):
+    payload = request.get_json(silent=True) or {}
+    user_id = int(payload.get("user_id", 0) or 0)
+    status = str(payload.get("status", "")).strip().lower()
+    if user_id <= 0:
+        return error_response("user_id는 필수입니다.", 400)
+    if status not in ("registered", "attended", "absent"):
+        return error_response("status는 registered|attended|absent 중 하나여야 합니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 출결을 처리할 수 있습니다.", 403)
+
+    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        conn.close()
+        return error_response("이벤트를 찾을 수 없습니다.", 404)
+
+    participant = conn.execute(
+        "SELECT id FROM event_participants WHERE event_id = ? AND user_id = ? AND status = 'registered'",
+        (event_id, user_id),
+    ).fetchone()
+    if not participant:
+        conn.close()
+        return error_response("등록된 참여자를 찾을 수 없습니다.", 404)
+
+    duration_minutes = _event_duration_minutes(event) if status == "attended" else 0
+    attended_at = now_iso() if status == "attended" else None
+
+    existing = conn.execute(
+        "SELECT id FROM event_attendance WHERE event_id = ? AND user_id = ?",
+        (event_id, user_id),
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE event_attendance SET status = ?, attended_at = ?, duration_minutes = ? WHERE id = ?",
+            (status, attended_at, duration_minutes, existing["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO event_attendance (event_id, user_id, status, attended_at, duration_minutes) VALUES (?, ?, ?, ?, ?)",
+            (event_id, user_id, status, attended_at, duration_minutes),
+        )
+
+    if status == "attended":
+        conn.execute(
+            "INSERT INTO volunteer_activity (user_id, event_id, minutes, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, event_id, duration_minutes, now_iso()),
+        )
+
+    log_audit(conn, "mark_event_attendance", "event", event_id, me["id"], {"user_id": user_id, "status": status})
+    conn.commit()
+    conn.close()
+    return success_response({"event_id": event_id, "user_id": user_id, "status": status, "duration_minutes": duration_minutes})
 
 

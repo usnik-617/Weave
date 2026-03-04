@@ -8,6 +8,86 @@ GALLERY_IMAGE_MIME_TYPES = {
     "image/webp",
     "image/gif",
 }
+NOTICE_ALLOWED_EXTENSIONS = GALLERY_IMAGE_EXTENSIONS | {".pdf"}
+NOTICE_ALLOWED_MIME_TYPES = GALLERY_IMAGE_MIME_TYPES | {"application/pdf"}
+
+
+def _stored_path_to_upload_url(stored_path):
+    rel_path = os.path.relpath(stored_path, UPLOAD_DIR).replace("\\", "/")
+    return f"/uploads/{rel_path}"
+
+
+def _thumbnail_save_format(ext):
+    lowered = str(ext or "").lower()
+    if lowered in (".jpg", ".jpeg"):
+        return ".jpg", "JPEG"
+    if lowered == ".png":
+        return ".png", "PNG"
+    if lowered == ".webp":
+        return ".webp", "WEBP"
+    if lowered == ".gif":
+        return ".gif", "GIF"
+    return ".jpg", "JPEG"
+
+
+def _generate_gallery_thumbnail(original_file_info):
+    original_path = str(original_file_info["stored_path"])
+    original_ext = Path(original_path).suffix.lower()
+    thumb_ext, save_format = _thumbnail_save_format(original_ext)
+    original_stem = Path(original_path).stem
+    thumb_name = f"{original_stem}_thumb{thumb_ext}"
+    thumb_path = str(Path(original_path).with_name(thumb_name))
+
+    try:
+        from PIL import Image
+    except Exception:
+        try:
+            shutil.copyfile(original_path, thumb_path)
+        except Exception:
+            remove_file_safely(thumb_path)
+            return None, "갤러리 썸네일 생성에 실패했습니다."
+        mime_map = {
+            ".jpg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+        }
+        return {
+            "stored_path": thumb_path,
+            "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
+            "size": int(os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0),
+            "url": _stored_path_to_upload_url(thumb_path),
+        }, None
+
+    try:
+        with Image.open(original_path) as image:
+            image.thumbnail((400, 400))
+            if save_format == "JPEG" and image.mode in ("RGBA", "LA", "P"):
+                image = image.convert("RGB")
+            save_kwargs = {}
+            if save_format in ("JPEG", "WEBP"):
+                save_kwargs["quality"] = 85
+            image.save(thumb_path, format=save_format, **save_kwargs)
+    except Exception:
+        remove_file_safely(thumb_path)
+        try:
+            shutil.copyfile(original_path, thumb_path)
+        except Exception:
+            remove_file_safely(thumb_path)
+            return None, "갤러리 썸네일 생성에 실패했습니다."
+
+    mime_map = {
+        ".jpg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+    return {
+        "stored_path": thumb_path,
+        "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
+        "size": int(os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0),
+        "url": _stored_path_to_upload_url(thumb_path),
+    }, None
 
 
 def upload_post_file(post_id):
@@ -16,33 +96,78 @@ def upload_post_file(post_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 파일을 업로드할 수 있습니다.", 403)
     post = conn.execute("SELECT id, category FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
 
     file_storage = request.files.get("file")
-    if str(post["category"] or "").lower() == "gallery":
-        filename = secure_filename(str(file_storage.filename or "")) if file_storage else ""
-        extension = Path(filename).suffix.lower()
-        mime_type = str(file_storage.mimetype or "").lower() if file_storage else ""
+    post_category = str(post["category"] or "").lower()
+    filename = secure_filename(str(file_storage.filename or "")) if file_storage else ""
+    extension = Path(filename).suffix.lower()
+    mime_type = str(file_storage.mimetype or "").lower() if file_storage else ""
+
+    if post_category == "gallery":
         if extension not in GALLERY_IMAGE_EXTENSIONS or mime_type not in GALLERY_IMAGE_MIME_TYPES:
             conn.close()
             return error_response("갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)", 400)
+    elif post_category == "notice":
+        if extension not in NOTICE_ALLOWED_EXTENSIONS or mime_type not in NOTICE_ALLOWED_MIME_TYPES:
+            conn.close()
+            return error_response("공지사항에는 이미지 또는 PDF만 첨부할 수 있습니다.", 400)
 
-    file_info, err = save_uploaded_file(file_storage)
-    if err:
+    expires_at = str(request.form.get("expires_at", "")).strip() if request.form else ""
+    expires_at = expires_at or None
+    if expires_at and not parse_iso_datetime(expires_at):
         conn.close()
-        return error_response(err, 400)
-    if not file_info:
-        conn.close()
-        return error_response("파일 처리에 실패했습니다.", 400)
+        return error_response("expires_at은 ISO 형식이어야 합니다.", 400)
+
+    file_hash = compute_file_sha256_from_filestorage(file_storage)
+    existing = conn.execute(
+        """
+        SELECT stored_path, mime_type, size
+        FROM post_files
+        WHERE hash_sha256 = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (file_hash,),
+    ).fetchone()
+
+    if existing and os.path.exists(existing["stored_path"]):
+        file_info = {
+            "original_name": filename,
+            "stored_path": existing["stored_path"],
+            "mime_type": existing["mime_type"],
+            "size": int(existing["size"] or 0),
+        }
+        created_at = now_iso()
+    else:
+        file_info, err = save_uploaded_file(file_storage)
+        if err:
+            conn.close()
+            return error_response(err, 400)
+        if not file_info:
+            conn.close()
+            return error_response("파일 처리에 실패했습니다.", 400)
+        created_at = now_iso()
+
+    thumb_info = None
+    if post_category == "gallery":
+        thumb_info, thumb_err = _generate_gallery_thumbnail(file_info)
+        if thumb_err:
+            remove_file_safely(file_info["stored_path"])
+            conn.close()
+            return error_response(thumb_err, 500)
 
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO post_files (post_id, original_name, stored_path, mime_type, size, uploaded_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO post_files (post_id, original_name, stored_path, mime_type, size, hash_sha256, uploaded_at, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             post_id,
@@ -50,13 +175,18 @@ def upload_post_file(post_id):
             file_info["stored_path"],
             file_info["mime_type"],
             int(file_info["size"]),
-            now_iso(),
+            file_hash,
+            created_at,
+            created_at,
+            expires_at,
         ),
     )
     file_id = cur.lastrowid
-    if post["category"] == "gallery":
-        relative_path = os.path.relpath(file_info["stored_path"], UPLOAD_DIR).replace("\\", "/")
-        conn.execute("UPDATE posts SET image_url = ? WHERE id = ?", (f"/uploads/{relative_path}", post_id))
+    if post_category == "gallery":
+        conn.execute(
+            "UPDATE posts SET image_url = ?, thumb_url = ? WHERE id = ?",
+            (_stored_path_to_upload_url(file_info["stored_path"]), thumb_info["url"], post_id),
+        )
     log_audit(conn, "upload_post_file", "post", post_id, me["id"])
     conn.commit()
     conn.close()
@@ -65,22 +195,58 @@ def upload_post_file(post_id):
 
 def list_post_files(post_id):
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
     rows = conn.execute(
-        "SELECT id, original_name, mime_type, size, uploaded_at FROM post_files WHERE post_id = ? ORDER BY id DESC",
-        (post_id,),
+        """
+        SELECT id, original_name, mime_type, size, uploaded_at, stored_path
+        FROM post_files
+        WHERE post_id = ? AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)
+        ORDER BY id DESC
+        """,
+        (post_id, now_iso()),
     ).fetchall()
     conn.close()
-    return success_response({"items": [dict(row) for row in rows]})
+
+    items = []
+    for row in rows:
+        item = {
+            "id": row["id"],
+            "original_name": row["original_name"],
+            "mime_type": row["mime_type"],
+            "size": row["size"],
+            "uploaded_at": row["uploaded_at"],
+            "file_url": _stored_path_to_upload_url(row["stored_path"]),
+        }
+        items.append(item)
+    return success_response({"items": items})
 
 
 def download_post_file(file_id):
     conn = get_db_connection()
-    row = conn.execute("SELECT * FROM post_files WHERE id = ?", (file_id,)).fetchone()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    row = conn.execute(
+        "SELECT * FROM post_files WHERE id = ? AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)",
+        (file_id, now_iso()),
+    ).fetchone()
     conn.close()
     if not row:
         return error_response("파일을 찾을 수 없습니다.", 404)
     if not os.path.exists(row["stored_path"]):
         return error_response("저장된 파일이 없습니다.", 404)
+    inline = str(request.args.get("inline", "")).strip().lower() in {"1", "true", "yes"}
+    if inline and str(row["mime_type"] or "").lower() == "application/pdf":
+        response = send_file(row["stored_path"], mimetype="application/pdf", as_attachment=False)
+        original_name = secure_filename(str(row["original_name"] or "document.pdf")) or "document.pdf"
+        if not original_name.lower().endswith(".pdf"):
+            original_name = f"{original_name}.pdf"
+        response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
+        return response
     return send_file(row["stored_path"], as_attachment=True, download_name=row["original_name"])
 
 
@@ -96,12 +262,27 @@ def serve_uploaded_file(filename):
     if not os.path.exists(full_path):
         return error_response("파일을 찾을 수 없습니다.", 404)
 
+    upload_url = f"/uploads/{safe_rel}"
     conn = get_db_connection()
-    row = conn.execute("SELECT pf.id, p.category FROM post_files pf LEFT JOIN posts p ON p.id = pf.post_id WHERE pf.stored_path = ?", (full_path,)).fetchone()
+    row = conn.execute(
+        """
+        SELECT pf.id, pf.original_name, pf.mime_type, p.category
+        FROM post_files pf
+        LEFT JOIN posts p ON p.id = pf.post_id
+        WHERE pf.stored_path = ? AND (pf.expires_at IS NULL OR pf.expires_at = '' OR pf.expires_at > ?)
+        """,
+        (full_path, now_iso()),
+    ).fetchone()
+    post_match = row
+    if not post_match:
+        post_match = conn.execute(
+            "SELECT id, category FROM posts WHERE image_url = ? OR thumb_url = ? LIMIT 1",
+            (upload_url, upload_url),
+        ).fetchone()
 
-    if row and row["category"] == "gallery":
+    if post_match and post_match["category"] == "gallery":
         conn.close()
-        return send_file(full_path)
+        return send_file(full_path, conditional=True)
 
     me = get_current_user_row(conn)
     if not me:
@@ -111,6 +292,38 @@ def serve_uploaded_file(filename):
         conn.close()
         return error_response("단원 이상만 접근할 수 있습니다.", 403)
     conn.close()
-    return send_file(full_path)
+
+    if row and str(row["mime_type"] or "").lower() == "application/pdf":
+        response = send_file(full_path, mimetype="application/pdf", conditional=True)
+        original_name = secure_filename(str(row["original_name"] or "document.pdf")) or "document.pdf"
+        if not original_name.lower().endswith(".pdf"):
+            original_name = f"{original_name}.pdf"
+        response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
+        return response
+
+    return send_file(full_path, conditional=True)
+
+
+def cleanup_orphan_files():
+    conn = get_db_connection()
+    db_rows = conn.execute("SELECT DISTINCT stored_path FROM post_files").fetchall()
+    conn.close()
+    referenced = {os.path.abspath(str(row["stored_path"])) for row in db_rows if row["stored_path"]}
+
+    removed = 0
+    kept = 0
+    uploads_root = os.path.abspath(UPLOAD_DIR)
+    for root, _, files in os.walk(uploads_root):
+        for name in files:
+            full_path = os.path.abspath(os.path.join(root, name))
+            if full_path in referenced:
+                kept += 1
+                continue
+            try:
+                os.remove(full_path)
+                removed += 1
+            except Exception:
+                pass
+    return {"removed": removed, "kept": kept}
 
 

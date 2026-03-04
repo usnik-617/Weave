@@ -1,6 +1,67 @@
 from weave.core import *
 
 
+CSRF_EXEMPT_PATHS = {"/healthz", "/metrics"}
+REQUEST_LIMIT_BUCKETS = {}
+REQUEST_LIMIT_LOCK = threading.Lock()
+
+
+def _allow_rate_limit(bucket_key, limit_count, window_seconds):
+    now_ts = time.time()
+    with REQUEST_LIMIT_LOCK:
+        values = [v for v in REQUEST_LIMIT_BUCKETS.get(bucket_key, []) if (now_ts - v) <= window_seconds]
+        if len(values) >= int(limit_count):
+            REQUEST_LIMIT_BUCKETS[bucket_key] = values
+            return False
+        values.append(now_ts)
+        REQUEST_LIMIT_BUCKETS[bucket_key] = values
+    return True
+
+
+def _ensure_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = uuid.uuid4().hex
+        session["csrf_token"] = token
+    return token
+
+
+def _validate_csrf_if_needed():
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    if request.path in CSRF_EXEMPT_PATHS:
+        return None
+    token = session.get("csrf_token")
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not supplied and request.form:
+        supplied = str(request.form.get("csrf_token", ""))
+    if not token or not supplied or token != supplied:
+        return error_response("CSRF token mismatch", 403)
+    return None
+
+
+def _validate_endpoint_rate_limit():
+    path = request.path
+    method = request.method.upper()
+    if method == "POST" and path == "/api/auth/login":
+        key = f"rl:login:{get_client_ip()}"
+        if not _allow_rate_limit(key, 5, 60):
+            return error_response("로그인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429)
+    if method == "POST" and path == "/api/auth/signup":
+        key = f"rl:signup:{get_client_ip()}"
+        if not _allow_rate_limit(key, 3, 60):
+            return error_response("회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429)
+    if method == "POST" and re.fullmatch(r"/api/posts/\d+/files", path or ""):
+        user_id = session.get("user_id")
+        if user_id:
+            key = f"rl:upload:{user_id}"
+        else:
+            key = f"rl:upload-ip:{get_client_ip()}"
+        if not _allow_rate_limit(key, 10, 60):
+            return error_response("업로드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429)
+    return None
+
+
 def metrics():
     active_users_last_hour = 0
     total_posts = 0
@@ -60,6 +121,13 @@ def healthz():
 def begin_request_context():
     g.request_started = time.time()
     g.request_id = uuid.uuid4().hex
+    _ensure_csrf_token()
+    limited = _validate_endpoint_rate_limit()
+    if limited:
+        return limited
+    csrf_error = _validate_csrf_if_needed()
+    if csrf_error:
+        return csrf_error
 
 
 def set_security_headers(response):
@@ -73,6 +141,10 @@ def set_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'",
+    )
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     response.headers.setdefault("Cache-Control", "no-store")
 

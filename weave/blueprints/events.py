@@ -12,6 +12,7 @@ bp.add_url_rule("/api/events/<int:event_id>/join", view_func=er.join_event, meth
 bp.add_url_rule("/api/events/<int:event_id>/cancel", view_func=er.cancel_event_participation, methods=["POST"])
 bp.add_url_rule("/api/events/<int:event_id>", view_func=er.event_detail, methods=["GET"])
 bp.add_url_rule("/api/events/<int:event_id>/vote", view_func=er.vote_event, methods=["POST"])
+bp.add_url_rule("/api/events/<int:event_id>/attendance", view_func=er.mark_event_attendance, methods=["POST"])
 
 bp.add_url_rule("/api/activities", view_func=er.list_activities, methods=["GET"])
 bp.add_url_rule("/api/activities", view_func=er.create_activity, methods=["POST"])

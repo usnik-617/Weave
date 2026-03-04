@@ -4,9 +4,17 @@ from weave.core import *
 def auth_me():
     row = get_current_user_row()
     if not row:
-        return success_response({"user": None})
-    data = {"user": user_row_to_dict(row)}
+        return success_response({"user": None, "csrfToken": session.get("csrf_token")})
+    data = {"user": user_row_to_dict(row), "csrfToken": session.get("csrf_token")}
     return jsonify({"success": True, "data": data, "user": data["user"]})
+
+
+def auth_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = uuid.uuid4().hex
+        session["csrf_token"] = token
+    return success_response({"csrfToken": token})
 
 
 def auth_signup():
@@ -22,9 +30,10 @@ def auth_signup():
         return error_response(message, 400)
 
     nickname = str(payload.get("nickname", "")).strip()
-    if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", nickname):
+    nickname_ok, nickname_message = validate_nickname(nickname)
+    if not nickname_ok:
         mark_rate_limit_failure("signup", payload.get("username", ""))
-        return error_response("닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)", 400)
+        return error_response(nickname_message, 400)
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -45,35 +54,45 @@ def auth_signup():
         mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response("이미 사용 중인 닉네임입니다.", 409)
 
-    cur.execute(
-        """
-        INSERT INTO users (
-            name, username, email, phone, birth_date, password_hash, join_date,
-            role, status, generation, interests, certificates, availability, nickname, nickname_updated_at
+    try:
+        cur.execute(
+            """
+            INSERT INTO users (
+                name, username, email, phone, birth_date, password_hash, join_date,
+                role, status, generation, interests, certificates, availability, nickname, nickname_updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload["name"].strip(),
+                payload["username"].strip(),
+                payload["email"].strip(),
+                payload["phone"].strip(),
+                payload["birthDate"].strip(),
+                generate_password_hash(payload["password"]),
+                now_iso(),
+                "GENERAL",
+                "active",
+                str(payload.get("generation", "")).strip(),
+                to_list_text(payload.get("interests", "")),
+                to_list_text(payload.get("certificates", "")),
+                str(payload.get("availability", "")).strip(),
+                nickname,
+                now_iso(),
+            ),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            payload["name"].strip(),
-            payload["username"].strip(),
-            payload["email"].strip(),
-            payload["phone"].strip(),
-            payload["birthDate"].strip(),
-            generate_password_hash(payload["password"]),
-            now_iso(),
-            "GENERAL",
-            "active",
-            str(payload.get("generation", "")).strip(),
-            to_list_text(payload.get("interests", "")),
-            to_list_text(payload.get("certificates", "")),
-            str(payload.get("availability", "")).strip(),
-            nickname,
-            now_iso(),
-        ),
-    )
+    except sqlite3.IntegrityError:
+        conn.close()
+        mark_rate_limit_failure("signup", payload.get("username", ""))
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
     user_id = cur.lastrowid
     log_audit(conn, "signup", "user", user_id, user_id)
-    conn.commit()
+    try:
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        mark_rate_limit_failure("signup", payload.get("username", ""))
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
     row = cur.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
 

@@ -1,4 +1,5 @@
 from weave.core import *
+from weave import core as weave_core
 
 
 def delete_my_account():
@@ -120,8 +121,30 @@ def my_certificate_csv():
 
 
 def user_profile():
-    row = get_current_user_row()
-    return success_response({"user": user_row_to_dict(row)})
+    conn = get_db_connection()
+    row = get_current_user_row(conn)
+    if not row:
+        conn.close()
+        return success_response({"user": None})
+    summary = conn.execute(
+        """
+        SELECT COALESCE(SUM(minutes), 0) AS total_minutes,
+               COUNT(DISTINCT event_id) AS attended_events
+        FROM volunteer_activity
+        WHERE user_id = ?
+        """,
+        (row["id"],),
+    ).fetchone()
+    conn.close()
+    return success_response(
+        {
+            "user": user_row_to_dict(row),
+            "volunteerSummary": {
+                "totalVolunteerHours": round(float(summary["total_minutes"] or 0) / 60.0, 2),
+                "totalEventsAttended": int(summary["attended_events"] or 0),
+            },
+        }
+    )
 
 
 def update_my_nickname():
@@ -137,13 +160,17 @@ def update_my_nickname():
         conn.close()
         return error_response("Unauthorized", 401)
 
-    updated, err = _update_nickname_common(conn, me, nickname, bypass_window=False)
+    updated, err = weave_core._update_nickname_common(conn, me, nickname, bypass_window=False)
     if err:
         conn.close()
         return err
     log_audit(conn, "change_nickname", "user", me["id"], me["id"], {"nickname": nickname})
     record_user_activity(conn, me["id"], "nickname_change", "user", me["id"], {"nickname": nickname})
-    conn.commit()
+    try:
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
     conn.close()
     return success_response({"message": "닉네임이 변경되었습니다.", "user": user_row_to_dict(updated)})
 
@@ -193,17 +220,24 @@ def admin_update_user_nickname(user_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
         return error_response("사용자를 찾을 수 없습니다.", 404)
 
-    updated, err = _update_nickname_common(conn, target, nickname, bypass_window=True)
+    updated, err = weave_core._update_nickname_common(conn, target, nickname, bypass_window=True)
     if err:
         conn.close()
         return err
     log_audit(conn, "admin_change_nickname", "user", user_id, me["id"], {"nickname": nickname})
-    conn.commit()
+    try:
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
     conn.close()
     return success_response({"message": "닉네임이 변경되었습니다.", "user": user_row_to_dict(updated)})
 
@@ -288,6 +322,13 @@ def list_role_requests():
     offset = (page - 1) * page_size
 
     conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     total = conn.execute("SELECT COUNT(*) AS c FROM role_requests WHERE status = ?", (status,)).fetchone()["c"]
     rows = conn.execute(
         """
@@ -320,6 +361,9 @@ def _decide_role_request(request_id, approve=True):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     req = conn.execute("SELECT * FROM role_requests WHERE id = ?", (request_id,)).fetchone()
     if not req:
         conn.close()
