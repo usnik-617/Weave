@@ -793,6 +793,18 @@
       <nav class="mt-3">
         <ul class="pagination justify-content-center" id="news-pagination"></ul>
       </nav>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">봉사 일정</h5>
+            <button class="btn btn-sm btn-outline-primary" id="events-refresh-btn" type="button">새로고침</button>
+          </div>
+          <div id="events-list" class="d-flex flex-column gap-2">
+            <div class="small text-muted">일정을 불러오는 중입니다...</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="faq-tab" class="news-tab-pane d-none">
@@ -1550,7 +1562,7 @@
 
   function isStaffUser(user) {
     const role = String(user?.role || '').toUpperCase();
-    return !!(user && (['EXECUTIVE', 'LEADER', 'VICE_LEADER', 'OPERATOR'].includes(role) || isAdminUser(user)));
+    return !!(user && (['EXECUTIVE', 'LEADER', 'VICE_LEADER', 'ADMIN'].includes(role) || isAdminUser(user)));
   }
 
   function validateNickname(nickname) {
@@ -1568,7 +1580,7 @@
       EXECUTIVE: { label: '임원', icon: '' },
       LEADER: { label: '단장', icon: '👑' },
       VICE_LEADER: { label: '부단장', icon: '⭐' },
-      OPERATOR: { label: '운영자', icon: '🛡️' }
+      ADMIN: { label: '운영자', icon: '🛡️' }
     };
     return map[upper] || map.GENERAL;
   }
@@ -1880,8 +1892,8 @@
           return;
         }
         try {
-          const data = await apiRequest('/user/nickname', {
-            method: 'POST',
+          const data = await apiRequest('/me/nickname', {
+            method: 'PATCH',
             body: JSON.stringify({ nickname })
           });
           if (data.user) setCurrentUser(data.user);
@@ -2005,6 +2017,7 @@
   let currentQnaAnswerId = null;
   let opsPendingPage = 1;
   const OPS_PENDING_PAGE_SIZE = 10;
+  let volunteerEvents = [];
 
   function getContent() {
     const data = localStorage.getItem(DATA_KEY);
@@ -2065,7 +2078,7 @@
   function updateAboutPhotoAdminControls() {
     const tools = document.getElementById('about-photo-admin-tools');
     const user = getCurrentUser();
-    const canManage = !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'OPERATOR' || isAdminUser(user)));
+    const canManage = !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
     if (tools) tools.classList.toggle('d-none', !canManage);
   }
 
@@ -3150,6 +3163,93 @@
     pagination.appendChild(nextLi);
   }
 
+  function formatEventDateRange(startDatetime, endDatetime) {
+    const start = formatKoreanDate(startDatetime || '');
+    const end = formatKoreanDate(endDatetime || startDatetime || '');
+    if (!startDatetime) return '-';
+    if (!endDatetime || endDatetime === startDatetime) return start;
+    return `${start} ~ ${end}`;
+  }
+
+  function canJoinEvent(user) {
+    const role = String(user?.role || '').toUpperCase();
+    return !!(user && user.status === 'active' && ['MEMBER', 'EXECUTIVE', 'LEADER', 'VICE_LEADER', 'ADMIN'].includes(role));
+  }
+
+  async function loadVolunteerEvents() {
+    const listEl = document.getElementById('events-list');
+    if (!listEl) return;
+    try {
+      const data = await apiRequest('/events?page=1&pageSize=10', { method: 'GET' });
+      volunteerEvents = Array.isArray(data.items) ? data.items : [];
+      renderVolunteerEvents();
+    } catch (error) {
+      volunteerEvents = [];
+      listEl.innerHTML = `<div class="small text-danger">봉사 일정 로딩 실패: ${escapeHtml(error.message || '알 수 없는 오류')}</div>`;
+    }
+  }
+
+  function renderVolunteerEvents() {
+    const listEl = document.getElementById('events-list');
+    if (!listEl) return;
+    if (!volunteerEvents.length) {
+      listEl.innerHTML = '<div class="small text-muted">등록된 봉사 일정이 없습니다.</div>';
+      return;
+    }
+    const user = getCurrentUser();
+    listEl.innerHTML = '';
+    volunteerEvents.forEach((eventItem) => {
+      const card = document.createElement('div');
+      card.className = 'border rounded p-3';
+      const capacity = Number(eventItem.capacity || eventItem.maxParticipants || 0);
+      const participantCount = Number(eventItem.participantCount || 0);
+      const isRegistered = String(eventItem.myStatus || '').toLowerCase() === 'registered';
+      const isFull = capacity > 0 && participantCount >= capacity;
+      const canAct = canJoinEvent(user);
+      const dateText = formatEventDateRange(eventItem.startDatetime || eventItem.eventDate, eventItem.endDatetime || eventItem.eventDate);
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+          <div>
+            <div class="fw-semibold">${escapeHtml(eventItem.title || '제목 없음')}</div>
+            <div class="small text-muted mt-1">${escapeHtml(dateText)}</div>
+            <div class="small text-muted">장소: ${escapeHtml(eventItem.location || '-')}</div>
+            <div class="small text-muted">참여 인원: ${participantCount}${capacity > 0 ? ` / ${capacity}` : ''}</div>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            ${isRegistered
+              ? `<button class="btn btn-sm btn-outline-secondary" data-event-action="cancel" data-event-id="${eventItem.id}" ${canAct ? '' : 'disabled'}>참여 취소</button>`
+              : `<button class="btn btn-sm btn-primary" data-event-action="join" data-event-id="${eventItem.id}" ${(canAct && !isFull) ? '' : 'disabled'}>참여 신청</button>`}
+          </div>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+
+    listEl.querySelectorAll('[data-event-action]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const eventId = Number(btn.dataset.eventId || 0);
+        if (!eventId) return;
+        const action = btn.dataset.eventAction;
+        await submitVolunteerEventAction(eventId, action);
+      });
+    });
+  }
+
+  async function submitVolunteerEventAction(eventId, action) {
+    const user = getCurrentUser();
+    if (!canJoinEvent(user)) {
+      alert('단원 이상만 참여 신청/취소할 수 있습니다.');
+      return;
+    }
+    const path = action === 'cancel' ? `/events/${eventId}/cancel` : `/events/${eventId}/join`;
+    try {
+      await apiRequest(path, { method: 'POST' });
+      await loadVolunteerEvents();
+    } catch (error) {
+      alert(error.message || '요청 처리 중 오류가 발생했습니다.');
+    }
+  }
+
   function renderFaq() {
     const tbody = document.getElementById('faq-table-body');
     const pagination = document.getElementById('faq-pagination');
@@ -3807,7 +3907,7 @@
 
     const hasPermission = () => {
       const user = getCurrentUser();
-      return !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'OPERATOR' || isAdminUser(user)));
+      return !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
     };
 
     const ensurePermission = () => {
@@ -4345,6 +4445,7 @@
     const qnaSearchBtn = document.getElementById('qna-search-btn');
     const gallerySearchInput = document.getElementById('gallery-search');
     const gallerySearchBtn = document.getElementById('gallery-search-btn');
+    const eventsRefreshBtn = document.getElementById('events-refresh-btn');
     const noticeTabBtn = document.getElementById('notice-tab-btn');
     const faqTabBtn = document.getElementById('faq-tab-btn');
     const qnaTabBtn = document.getElementById('qna-tab-btn');
@@ -4422,6 +4523,12 @@
       });
     }
 
+    if (eventsRefreshBtn) {
+      eventsRefreshBtn.addEventListener('click', async () => {
+        await loadVolunteerEvents();
+      });
+    }
+
     if (noticeTabBtn && faqTabBtn && qnaTabBtn && noticeTab && faqTab && qnaTab) {
       noticeTabBtn.addEventListener('click', () => {
         currentNewsTab = 'notice';
@@ -4431,6 +4538,7 @@
         noticeTab.classList.remove('d-none');
         faqTab.classList.add('d-none');
         qnaTab.classList.add('d-none');
+        loadVolunteerEvents().catch(() => {});
         setNewsWriteButtons();
       });
       faqTabBtn.addEventListener('click', () => {
@@ -4497,6 +4605,7 @@
     renderGallery();
     renderStats();
     setNewsWriteButtons();
+    loadVolunteerEvents().catch(() => {});
 
     const activitiesOverviewTabBtn = document.getElementById('activities-overview-tab-btn');
     const activitiesCalendarTabBtn = document.getElementById('activities-calendar-tab-btn');
