@@ -30,6 +30,7 @@
             <div class="nav-submenu">
               <a href="#" data-panel="about" data-about-tab="history">연혁</a>
               <a href="#" data-panel="about" data-about-tab="logo">로고</a>
+              <a href="#" data-panel="about" data-about-tab="relatedsites">관련사이트</a>
               <a href="#" data-panel="about" data-about-tab="rules">규칙및규약</a>
               <a href="#" data-panel="about" data-about-tab="awards">상장수여기준</a>
               <a href="#" data-panel="about" data-about-tab="fees">회비</a>
@@ -168,7 +169,12 @@
     
     <div class="row g-5 align-items-center mb-5">
       <div class="col-lg-6">
-        <img src="https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="봉사 활동 모습" class="img-fluid rounded-3 shadow-lg animate__animated animate__fadeInLeft">
+        <img id="about-volunteer-image" src="https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="봉사 활동 모습" class="img-fluid rounded-3 shadow-lg animate__animated animate__fadeInLeft">
+        <div id="about-photo-admin-tools" class="d-none mt-3 text-center">
+          <button type="button" id="about-photo-btn" class="btn btn-sm btn-outline-primary text-nowrap">봉사 활동 사진 변경</button>
+          <div id="about-photo-dropzone" class="image-dropzone about-photo-dropzone mt-2">여기에 사진을 드래그&드롭해도 변경됩니다</div>
+          <input id="about-photo-input" type="file" accept="image/*" class="d-none">
+        </div>
       </div>
       <div class="col-lg-6 animate__animated animate__fadeInRight">
         <h3 class="fs-4 fw-bold mb-3 text-primary">우리의 가치</h3>
@@ -198,9 +204,10 @@
     <!-- About sub-tabs -->
     <div class="row mt-5">
       <div class="col-12 text-center mb-3">
-        <div class="btn-group" role="group" aria-label="About tabs">
+        <div class="d-flex flex-wrap justify-content-center gap-2 about-tab-nav" role="tablist" aria-label="About tabs">
           <button type="button" class="btn btn-outline-primary" id="btn-history">연혁</button>
           <button type="button" class="btn btn-outline-primary" id="btn-logo">로고</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-relatedsites">관련사이트</button>
           <button type="button" class="btn btn-outline-primary" id="btn-rules">규칙및규약</button>
           <button type="button" class="btn btn-outline-primary" id="btn-awards">상장수여기준</button>
           <button type="button" class="btn btn-outline-primary" id="btn-fees">회비</button>
@@ -219,6 +226,26 @@
               <li>봉사 성격에 따라 산타버전, 동물 버전 등으로 응용해 꾸밀 수 있는 장점 보유</li>
               <li>로고 아래쪽의 점들은 점자를 표현</li>
             </ul>
+          </div>
+        </div>
+
+        <div id="relatedsites-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold mb-3">관련사이트</h4>
+            <div class="list-group">
+              <a href="https://blog.naver.com/nyjvcyouth" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-blog text-primary me-2"></i>위브 블로그</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.instagram.com/nyjvcyouth?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fab fa-instagram text-primary me-2"></i>위브 인스타그램</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.nyjvc.or.kr/" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-link text-primary me-2"></i>남양주시자원봉사센터</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -666,12 +693,13 @@
       <button class="btn btn-sm btn-outline-primary" data-filter=".y2022">2022</button>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 list-toolbar">
+      <div class="small text-muted">총 <span id="gallery-total-count">0</span>건</div>
       <div class="d-flex gap-2 align-items-center">
         <input id="gallery-search" type="text" class="form-control form-control-sm" placeholder="제목 검색" style="min-width:220px;">
         <button id="gallery-search-btn" class="btn btn-sm btn-primary text-nowrap">검색</button>
+        <button class="btn btn-primary btn-sm d-none text-nowrap" id="gallery-write-btn">글쓰기</button>
       </div>
-      <button class="btn btn-primary btn-sm d-none text-nowrap" id="gallery-write-btn">글쓰기</button>
     </div>
 
     <div class="gallery-grid row g-3" id="gallery-grid">
@@ -701,11 +729,20 @@
       <img id="gallery-detail-image" src="" alt="갤러리 이미지" class="img-fluid rounded-top">
       <div class="card-body p-4 p-lg-5">
         <h2 class="h4 fw-bold mb-2" id="gallery-detail-title"></h2>
-        <p class="small text-muted mb-4" id="gallery-detail-meta"></p>
+        <div class="detail-meta-card mb-4" id="gallery-detail-meta-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+            <div class="detail-meta-author" id="gallery-detail-author"></div>
+            <div class="detail-meta-date text-end" id="gallery-detail-date"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div class="detail-meta-volunteer" id="gallery-detail-volunteer"></div>
+            <div class="detail-meta-stats text-end" id="gallery-detail-stats"></div>
+          </div>
+        </div>
         <div id="gallery-detail-content" style="white-space: pre-wrap;"></div>
         <hr>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">👍 엄지척</button>
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-3 mt-4">
+          <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">👍 추천하기</button>
           <span class="small text-muted">추천수 <span id="gallery-recommend-count">0</span></span>
         </div>
         <div id="gallery-comments-section"></div>
@@ -744,7 +781,8 @@
             <th>글제목</th>
             <th style="width:15%">작성자</th>
             <th style="width:15%">날짜</th>
-            <th style="width:12%">조회/추천</th>
+            <th style="width:9%">조회</th>
+            <th style="width:9%">추천</th>
             <th style="width:10%">관리</th>
           </tr>
         </thead>
@@ -848,13 +886,22 @@
     <article class="card border-0 shadow-sm">
       <div class="card-body p-4 p-lg-5">
         <h2 class="h4 fw-bold mb-2" id="news-detail-title"></h2>
-        <p class="small text-muted mb-4" id="news-detail-meta"></p>
+        <div class="detail-meta-card mb-4" id="news-detail-meta-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+            <div class="detail-meta-author" id="news-detail-author"></div>
+            <div class="detail-meta-date text-end" id="news-detail-date"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div class="detail-meta-volunteer" id="news-detail-volunteer"></div>
+            <div class="detail-meta-stats text-end" id="news-detail-stats"></div>
+          </div>
+        </div>
         <img id="news-detail-image" src="" alt="소식 이미지" class="img-fluid rounded mb-4 d-none">
         <div id="news-detail-content" style="white-space: pre-wrap;"></div>
         <div id="news-detail-actions" class="mt-3"></div>
         <hr>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <button class="btn btn-sm btn-outline-primary" id="news-recommend-btn">👍 엄지척</button>
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-3 mt-4">
+          <button class="btn btn-sm btn-outline-primary" id="news-recommend-btn">👍 추천하기</button>
           <span class="small text-muted">추천수 <span id="news-recommend-count">0</span></span>
         </div>
         <div id="news-comments-section"></div>
@@ -1449,6 +1496,8 @@
   const COMMENTS_KEY = 'weave_comments';
   const CURRENT_USER_KEY = 'weave_current_user';
   const STATS_KEY = 'weave_stats';
+  const ABOUT_VOLUNTEER_PHOTO_KEY = 'weave_about_volunteer_photo';
+  const DEFAULT_ABOUT_VOLUNTEER_PHOTO = 'https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
   const ADMIN_EMAILS = ['admin@weave.com', 'weave@youth.gg.kr'];
   const API_BASE = '/api';
 
@@ -1656,6 +1705,7 @@
     }
     if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
     if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
+    updateAboutPhotoAdminControls();
   }
 
   function isValidBirthDate(value) {
@@ -1667,6 +1717,9 @@
 
   // ============ LOGIN / SIGNUP ============
   document.addEventListener('DOMContentLoaded', async function() {
+    renderAboutVolunteerPhoto();
+    bindAboutPhotoUploader();
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
       loginForm.onsubmit = async (e) => {
@@ -1985,6 +2038,46 @@
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function formatDetailDateTime(value) {
+    const raw = String(value || '').trim();
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw;
+    const date = normalized ? new Date(normalized) : new Date();
+    if (Number.isNaN(date.getTime())) return '-';
+    const y = date.getFullYear();
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${y}/${d}/${m} ${hh}:${mm}`;
+  }
+
+  function getAboutVolunteerPhoto() {
+    return localStorage.getItem(ABOUT_VOLUNTEER_PHOTO_KEY) || DEFAULT_ABOUT_VOLUNTEER_PHOTO;
+  }
+
+  function renderAboutVolunteerPhoto() {
+    const img = document.getElementById('about-volunteer-image');
+    if (img) img.src = getAboutVolunteerPhoto();
+  }
+
+  function updateAboutPhotoAdminControls() {
+    const tools = document.getElementById('about-photo-admin-tools');
+    const user = getCurrentUser();
+    const canManage = !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'OPERATOR' || isAdminUser(user)));
+    if (tools) tools.classList.toggle('d-none', !canManage);
+  }
+
+  function updateDetailMeta(prefix, payload = {}) {
+    const authorEl = document.getElementById(`${prefix}-detail-author`);
+    const dateEl = document.getElementById(`${prefix}-detail-date`);
+    const volunteerEl = document.getElementById(`${prefix}-detail-volunteer`);
+    const statsEl = document.getElementById(`${prefix}-detail-stats`);
+    if (authorEl) authorEl.textContent = payload.author || '-';
+    if (dateEl) dateEl.textContent = payload.date || '-';
+    if (volunteerEl) volunteerEl.textContent = payload.volunteer || '';
+    if (statsEl) statsEl.textContent = `[조회수 ${payload.views || 0} 추천 수 ${payload.recommends || 0} 댓글 ${payload.comments || 0}]`;
   }
 
   function expandDateRange(startDate, endDate) {
@@ -2734,6 +2827,11 @@
     return (info.recommendUsers || []).length;
   }
 
+  function getCommentCount(itemKey) {
+    const info = getComments(itemKey);
+    return Array.isArray(info.comments) ? info.comments.length : 0;
+  }
+
   function addRecommendation(itemKey) {
     const user = getCurrentUser();
     if (!user) {
@@ -2749,6 +2847,26 @@
     info.recommendUsers.push(user.username);
     saveComments(itemKey, info);
     return true;
+  }
+
+  function recommendPostComment(itemKey, commentId, containerId) {
+    const user = getCurrentUser();
+    if (!user) {
+      alert('추천하려면 로그인이 필요합니다.');
+      return;
+    }
+    const info = getComments(itemKey);
+    if (!Array.isArray(info.comments)) info.comments = [];
+    const target = info.comments.find(c => c.id === commentId);
+    if (!target) return;
+    if (!Array.isArray(target.recommendUsers)) target.recommendUsers = [];
+    if (target.recommendUsers.includes(user.username)) {
+      alert('이미 추천하셨습니다.');
+      return;
+    }
+    target.recommendUsers.push(user.username);
+    saveComments(itemKey, info);
+    renderPostComments(containerId, itemKey);
   }
 
   function hasChildReplies(allComments, commentId) {
@@ -2778,6 +2896,7 @@
       const canDelete = !!(user && (isAdmin || comment.username === user.username));
       const canEdit = !!(user && comment.username === user.username && !hasChildReplies(comments, comment.id));
       const replies = comments.filter(c => c.parentId === comment.id);
+      const recommendCount = Array.isArray(comment.recommendUsers) ? comment.recommendUsers.length : 0;
       return `
         <div class="comment-item ${isReply ? 'comment-reply' : ''}" data-id="${comment.id}">
           <div class="comment-author">${escapeHtml(formatAuthorDisplay({ nickname: comment.nickname || comment.name || comment.username, role: comment.role || 'GENERAL' }))}</div>
@@ -2785,6 +2904,7 @@
           <div class="comment-time d-flex justify-content-between align-items-center gap-2 flex-wrap">
             <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
             <div class="d-flex gap-1">
+              ${user ? `<button class="btn btn-sm btn-outline-primary" onclick="recommendPostComment('${itemKey}', ${comment.id}, '${containerId}')">추천하기 ${recommendCount}</button>` : `<span class="small text-muted">추천 ${recommendCount}</span>`}
               ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">대댓글</button>` : ''}
               ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">수정</button>` : ''}
               ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
@@ -2809,6 +2929,38 @@
         ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
       </div>
     `;
+
+    const [postType, rawId] = String(itemKey || '').split('-');
+    const postId = Number(rawId || 0);
+    const data = getContent();
+    if (postType === 'news' && postId) {
+      const item = (data.news || []).find(n => n.id === postId);
+      if (item) {
+        const volunteerStart = item.volunteerStartDate || item.volunteerDate || '';
+        const volunteerEnd = item.volunteerEndDate || item.volunteerDate || '';
+        updateDetailMeta('news', {
+          author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
+          date: formatDetailDateTime(item.date),
+          volunteer: volunteerStart ? `봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}` : '',
+          views: item.views || 0,
+          recommends: getRecommendCount(itemKey),
+          comments: getCommentCount(itemKey)
+        });
+      }
+    }
+    if (postType === 'gallery' && postId) {
+      const item = (data.gallery || []).find(g => g.id === postId);
+      if (item) {
+        updateDetailMeta('gallery', {
+          author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
+          date: formatDetailDateTime(item.date),
+          volunteer: item.year ? `${item.year}년 활동` : '',
+          views: item.views || 0,
+          recommends: getRecommendCount(itemKey),
+          comments: getCommentCount(itemKey)
+        });
+      }
+    }
   }
 
   function submitPostComment(event, itemKey, containerId) {
@@ -2842,7 +2994,8 @@
         role: user.role || 'GENERAL',
         name: user.name,
         text,
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
+        recommendUsers: []
       });
     }
 
@@ -2952,7 +3105,8 @@
         <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a></td>
         <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
         <td>${item.date}</td>
-        <td>${item.views || 0} / ${recommendCount}</td>
+        <td>${item.views || 0}</td>
+        <td>${recommendCount}</td>
         <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id})">수정</button>` : ''}</td>
       `;
       tbody.appendChild(tr);
@@ -3153,7 +3307,14 @@
     renderFaq();
 
     document.getElementById('news-detail-title').textContent = item.title;
-    document.getElementById('news-detail-meta').textContent = `${formatAuthorDisplay(item.author || '관리자', getCurrentUser())} | ${item.date || ''} | 조회수 ${item.views || 0}`;
+    updateDetailMeta('news', {
+      author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
+      date: formatDetailDateTime(item.date),
+      volunteer: '',
+      views: item.views || 0,
+      recommends: 0,
+      comments: 0
+    });
     document.getElementById('news-detail-content').innerHTML = item.content || '';
     document.getElementById('news-detail-image').classList.add('d-none');
     document.getElementById('news-recommend-btn').parentElement.classList.add('d-none');
@@ -3199,7 +3360,6 @@
 
     const user = getCurrentUser();
     const titleEl = document.getElementById('news-detail-title');
-    const metaEl = document.getElementById('news-detail-meta');
     const contentEl = document.getElementById('news-detail-content');
     const imageEl = document.getElementById('news-detail-image');
     const actionsEl = document.getElementById('news-detail-actions');
@@ -3213,9 +3373,16 @@
     const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
     const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
     const volunteerMeta = volunteerStart
-      ? ` | 봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? `~${volunteerEnd}` : ''}`
+      ? `봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}`
       : '';
-    metaEl.textContent = `${formatAuthorDisplay(notice.author || '관리자', getCurrentUser())} | ${notice.date}${volunteerMeta} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    updateDetailMeta('news', {
+      author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
+      date: formatDetailDateTime(notice.date),
+      volunteer: volunteerMeta,
+      views: notice.views || 0,
+      recommends: getRecommendCount(itemKey),
+      comments: getCommentCount(itemKey)
+    });
     contentEl.innerHTML = notice.content || '';
     if (actionsEl) {
       if (volunteerStart) {
@@ -3277,6 +3444,8 @@
     const content = getContent();
     const grid = document.getElementById('gallery-grid');
     const pagination = document.getElementById('gallery-pagination');
+    const totalCount = document.getElementById('gallery-total-count');
+    if (!grid || !pagination || !totalCount) return;
     grid.innerHTML = '';
 
     const filtered = content.gallery.filter(item => {
@@ -3284,6 +3453,7 @@
       const byKeyword = !gallerySearchKeyword || item.title.toLowerCase().includes(gallerySearchKeyword.toLowerCase());
       return byYear && byKeyword;
     });
+    totalCount.textContent = String(filtered.length);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / GALLERY_PAGE_SIZE));
     if (galleryCurrentPage > totalPages) galleryCurrentPage = totalPages;
@@ -3371,7 +3541,14 @@
     currentGalleryDetailId = id;
     document.getElementById('gallery-detail-image').src = item.image;
     document.getElementById('gallery-detail-title').innerText = item.title;
-    document.getElementById('gallery-detail-meta').innerText = `${formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser())} | ${item.date || ''} | ${item.year || ''} | 조회수 ${item.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    updateDetailMeta('gallery', {
+      author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
+      date: formatDetailDateTime(item.date),
+      volunteer: item.year ? `${item.year}년 활동` : '',
+      views: item.views || 0,
+      recommends: getRecommendCount(itemKey),
+      comments: getCommentCount(itemKey)
+    });
     document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
 
     const editBtn = document.getElementById('gallery-detail-edit-btn');
@@ -3483,13 +3660,107 @@
     }
   }
 
+  const IMAGE_UPLOAD_DEFAULT_MAX_BYTES = 420 * 1024;
+  const IMAGE_UPLOAD_MIN_MAX_BYTES = 140 * 1024;
+  const IMAGE_UPLOAD_HARD_MAX_BYTES = 820 * 1024;
+  const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
+  const IMAGE_UPLOAD_MIN_QUALITY = 0.45;
+
+  function getDataUrlByteSize(dataUrl) {
+    const text = String(dataUrl || '');
+    const base64 = text.includes(',') ? text.split(',')[1] : text;
+    if (!base64) return 0;
+    const padding = (base64.match(/=+$/) || [''])[0].length;
+    return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+  }
+
+  function estimateLocalStorageUsageBytes() {
+    let total = 0;
+    try {
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index) || '';
+        const value = localStorage.getItem(key) || '';
+        total += (key.length + value.length) * 2;
+      }
+    } catch (_) {}
+    return total;
+  }
+
+  function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('이미지를 불러오지 못했습니다.'));
+      img.src = dataUrl;
+    });
+  }
+
+  async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEFAULT_MAX_BYTES) {
+    const safeLimit = Math.max(IMAGE_UPLOAD_MIN_MAX_BYTES, Math.min(IMAGE_UPLOAD_HARD_MAX_BYTES, Number(maxBytes) || IMAGE_UPLOAD_DEFAULT_MAX_BYTES));
+    if (getDataUrlByteSize(dataUrl) <= safeLimit) return String(dataUrl || '');
+
+    const img = await loadImageFromDataUrl(dataUrl);
+    let width = img.naturalWidth || img.width;
+    let height = img.naturalHeight || img.height;
+    const longest = Math.max(width, height);
+    if (longest > IMAGE_UPLOAD_MAX_DIMENSION) {
+      const ratio = IMAGE_UPLOAD_MAX_DIMENSION / longest;
+      width = Math.max(1, Math.round(width * ratio));
+      height = Math.max(1, Math.round(height * ratio));
+    }
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return String(dataUrl || '');
+
+    let scale = 1;
+    let quality = 0.9;
+    let best = String(dataUrl || '');
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const candidate = canvas.toDataURL('image/jpeg', quality);
+      if (getDataUrlByteSize(candidate) < getDataUrlByteSize(best)) {
+        best = candidate;
+      }
+      if (getDataUrlByteSize(candidate) <= safeLimit) {
+        return candidate;
+      }
+
+      if (quality > IMAGE_UPLOAD_MIN_QUALITY) {
+        quality = Math.max(IMAGE_UPLOAD_MIN_QUALITY, quality - 0.08);
+      } else {
+        scale *= 0.85;
+      }
+    }
+    return best;
+  }
+
+  function getAdaptiveImageMaxBytes() {
+    const storageLimit = 5 * 1024 * 1024;
+    const used = estimateLocalStorageUsageBytes();
+    const free = Math.max(0, storageLimit - used);
+    const adaptive = Math.floor(free * 0.45);
+    return Math.max(IMAGE_UPLOAD_MIN_MAX_BYTES, Math.min(IMAGE_UPLOAD_HARD_MAX_BYTES, adaptive || IMAGE_UPLOAD_DEFAULT_MAX_BYTES));
+  }
+
   function readImageFileToDataUrl(file, onDone) {
     if (!file || !file.type.startsWith('image/')) {
       alert('이미지 파일만 업로드할 수 있습니다.');
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => onDone(String(reader.result || ''));
+    reader.onload = async () => {
+      let result = String(reader.result || '');
+      try {
+        result = await resizeImageDataUrlToMaxBytes(result, getAdaptiveImageMaxBytes());
+      } catch (_) {}
+      onDone(result);
+    };
     reader.readAsDataURL(file);
   }
 
@@ -3503,6 +3774,7 @@
       readImageFileToDataUrl(file, (dataUrl) => {
         hidden.value = dataUrl;
         setImagePreview(previewId, dataUrl);
+        if (input) input.value = '';
       });
     };
 
@@ -3514,6 +3786,80 @@
     }
     if (!dropzone) return;
     dropzone.addEventListener('click', () => input && input.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) applyFile(file);
+    });
+  }
+
+  function bindAboutPhotoUploader() {
+    const input = document.getElementById('about-photo-input');
+    const button = document.getElementById('about-photo-btn');
+    const dropzone = document.getElementById('about-photo-dropzone');
+    if (!input) return;
+
+    const hasPermission = () => {
+      const user = getCurrentUser();
+      return !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'OPERATOR' || isAdminUser(user)));
+    };
+
+    const ensurePermission = () => {
+      if (hasPermission()) return true;
+      alert('운영자 권한이 필요합니다.');
+      return false;
+    };
+
+    const applyFile = (file) => {
+      if (!ensurePermission()) return;
+      readImageFileToDataUrl(file, async (dataUrl) => {
+        const img = document.getElementById('about-volunteer-image');
+        if (img) img.src = dataUrl;
+        try {
+          localStorage.setItem(ABOUT_VOLUNTEER_PHOTO_KEY, dataUrl);
+          alert('소개 사진이 변경되었습니다.');
+        } catch (error) {
+          const quotaExceeded = error && (error.name === 'QuotaExceededError' || error.code === 22);
+          if (quotaExceeded) {
+            try {
+              const tightened = await resizeImageDataUrlToMaxBytes(dataUrl, IMAGE_UPLOAD_MIN_MAX_BYTES);
+              localStorage.setItem(ABOUT_VOLUNTEER_PHOTO_KEY, tightened);
+              if (img) img.src = tightened;
+              alert('소개 사진이 자동으로 용량 조정되어 저장되었습니다.');
+            } catch (_) {
+              alert('사진 용량이 커서 저장소 한도를 초과했습니다. 이미지 용량을 줄이거나 기존 업로드 이미지를 정리한 뒤 다시 시도해주세요.');
+            }
+          } else {
+            alert('사진 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+          }
+        }
+        input.value = '';
+      });
+    };
+
+    input.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) applyFile(file);
+    });
+
+    if (button) {
+      button.addEventListener('click', () => {
+        if (!ensurePermission()) return;
+        input.click();
+      });
+    }
+
+    if (!dropzone) return;
+    dropzone.addEventListener('click', () => {
+      if (!ensurePermission()) return;
+      input.click();
+    });
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropzone.classList.add('dragover');
@@ -4299,16 +4645,18 @@
     const btnAwards = document.getElementById('btn-awards');
     const btnRules = document.getElementById('btn-rules');
     const btnHistory = document.getElementById('btn-history');
+    const btnRelatedSites = document.getElementById('btn-relatedsites');
     const btnFees = document.getElementById('btn-fees');
     const logoPanel = document.getElementById('logo-panel');
+    const relatedSitesPanel = document.getElementById('relatedsites-panel');
     const awardsPanel = document.getElementById('awards-panel');
     const rulesPanel = document.getElementById('rules-panel');
     const historyPanel = document.getElementById('history-panel');
     const feesPanel = document.getElementById('fees-panel');
 
     function hideAllAbout() {
-      [logoPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
-      [btnLogo, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
+      [logoPanel, relatedSitesPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
+      [btnLogo, btnRelatedSites, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
     }
 
     function showLogo() {
@@ -4321,6 +4669,12 @@
       hideAllAbout();
       awardsPanel.classList.remove('d-none');
       btnAwards.classList.add('active');
+    }
+
+    function showRelatedSites() {
+      hideAllAbout();
+      relatedSitesPanel.classList.remove('d-none');
+      btnRelatedSites.classList.add('active');
     }
 
     function showRules() {
@@ -4341,8 +4695,9 @@
       btnFees.classList.add('active');
     }
 
-    if (btnLogo && btnAwards && btnRules && btnHistory && btnFees) {
+    if (btnLogo && btnRelatedSites && btnAwards && btnRules && btnHistory && btnFees) {
       btnLogo.addEventListener('click', showLogo);
+      btnRelatedSites.addEventListener('click', showRelatedSites);
       btnAwards.addEventListener('click', showAwards);
       btnRules.addEventListener('click', showRules);
       btnHistory.addEventListener('click', showHistory);
@@ -4359,6 +4714,7 @@
         document.getElementById('about').classList.add('panel-active');
         syncHomeStats('about');
         if (tab === 'logo') showLogo();
+        if (tab === 'relatedsites') showRelatedSites();
         if (tab === 'awards') showAwards();
         if (tab === 'rules') showRules();
         if (tab === 'history') showHistory();

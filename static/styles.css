@@ -497,6 +497,33 @@ a:hover {
   margin: 0;
 }
 
+.about-tab-nav .btn {
+  min-width: 130px;
+}
+
+.list-toolbar {
+  margin-top: 0.25rem;
+}
+
+.detail-meta-card {
+  background: var(--primary-light);
+  border: 1px solid rgba(49, 183, 255, 0.35);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+.detail-meta-author,
+.detail-meta-stats {
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.detail-meta-date,
+.detail-meta-volunteer {
+  font-size: 0.92rem;
+  color: var(--text-light);
+}
+
 /* ============ ACTIVITY CARDS ============ */
 .activity-card {
   padding: 2rem;
@@ -761,6 +788,10 @@ a:hover {
   margin-left: 1.25rem;
   padding-left: 0.8rem;
   border-left: 2px solid var(--border-color);
+}
+
+.comment-time .btn {
+  line-height: 1.1;
 }
 
 .editor-toolbar {
@@ -1083,6 +1114,10 @@ hr {
 
   .section-header h2 {
     font-size: 1.8rem;
+  }
+
+  .about-tab-nav .btn {
+    min-width: 48%;
   }
 
   .panel {
