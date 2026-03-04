@@ -21,6 +21,11 @@ def auth_signup():
         mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response(message, 400)
 
+    nickname = str(payload.get("nickname", "")).strip()
+    if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", nickname):
+        mark_rate_limit_failure("signup", payload.get("username", ""))
+        return error_response("닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)", 400)
+
     conn = get_db_connection()
     cur = conn.cursor()
     exists_email = cur.execute("SELECT id FROM users WHERE email = ?", (payload["email"],)).fetchone()
@@ -34,7 +39,7 @@ def auth_signup():
         mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response("이미 사용 중인 아이디입니다.", 409)
 
-    exists_nickname = cur.execute("SELECT id FROM users WHERE nickname = ?", (payload["nickname"],)).fetchone()
+    exists_nickname = cur.execute("SELECT id FROM users WHERE nickname = ?", (nickname,)).fetchone()
     if exists_nickname:
         conn.close()
         mark_rate_limit_failure("signup", payload.get("username", ""))
@@ -62,7 +67,7 @@ def auth_signup():
             to_list_text(payload.get("interests", "")),
             to_list_text(payload.get("certificates", "")),
             str(payload.get("availability", "")).strip(),
-            str(payload.get("nickname", "")).strip(),
+            nickname,
             now_iso(),
         ),
     )

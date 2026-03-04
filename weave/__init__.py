@@ -15,7 +15,7 @@ def create_app():
     project_root = Path(__file__).resolve().parent.parent
     static_dir = project_root / "static"
 
-    app = Flask(__name__, static_folder=str(static_dir), static_url_path="")
+    app = Flask(__name__, static_folder=None)
     load_config(app)
 
     proxy_hops = int(os.environ.get("WEAVE_PROXY_HOPS", "1"))

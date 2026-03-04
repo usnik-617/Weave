@@ -1,6 +1,15 @@
 from weave.core import *
 
 
+GALLERY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+GALLERY_IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
+
 def upload_post_file(post_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -13,6 +22,14 @@ def upload_post_file(post_id):
         return error_response("게시글을 찾을 수 없습니다.", 404)
 
     file_storage = request.files.get("file")
+    if str(post["category"] or "").lower() == "gallery":
+        filename = secure_filename(str(file_storage.filename or "")) if file_storage else ""
+        extension = Path(filename).suffix.lower()
+        mime_type = str(file_storage.mimetype or "").lower() if file_storage else ""
+        if extension not in GALLERY_IMAGE_EXTENSIONS or mime_type not in GALLERY_IMAGE_MIME_TYPES:
+            conn.close()
+            return error_response("갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)", 400)
+
     file_info, err = save_uploaded_file(file_storage)
     if err:
         conn.close()
