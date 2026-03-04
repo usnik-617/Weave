@@ -929,6 +929,14 @@
             <h3 id="profile-name" class="fw-bold mb-2"></h3>
             <p id="profile-email" class="text-muted mb-4"></p>
             <div class="text-start small text-muted mb-4" id="profile-details"></div>
+            <div class="border rounded p-3 mb-3 text-start">
+              <div class="fw-semibold mb-2">닉네임 변경 (180일 1회)</div>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="nickname-change-input" placeholder="새 닉네임">
+                <button class="btn btn-outline-primary" id="nickname-change-btn" type="button">변경</button>
+              </div>
+              <div class="small text-muted mt-2" id="nickname-change-help"></div>
+            </div>
             <p id="profile-joindate" class="small text-muted mb-4"></p>
             <hr>
             <div class="d-flex justify-content-end gap-2 mt-3">
@@ -1256,6 +1264,10 @@
             <input type="text" class="form-control" name="name" required>
           </div>
           <div class="mb-3">
+            <label class="form-label">닉네임</label>
+            <input type="text" class="form-control" name="nickname" minlength="2" maxlength="12" placeholder="한글/영문/숫자 2~12자" required>
+          </div>
+          <div class="mb-3">
             <label class="form-label">이메일</label>
             <input type="email" class="form-control" name="email" required>
           </div>
@@ -1466,7 +1478,10 @@
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.message || '요청 처리 중 오류가 발생했습니다.');
+      throw new Error(data.error || data.message || '요청 처리 중 오류가 발생했습니다.');
+    }
+    if (data && data.success === true && data.data && typeof data.data === 'object') {
+      return { ...data.data, success: true };
     }
     return data;
   }
@@ -1485,7 +1500,38 @@
   }
 
   function isStaffUser(user) {
-    return !!(user && (user.role === 'staff' || isAdminUser(user)));
+    const role = String(user?.role || '').toUpperCase();
+    return !!(user && (['EXECUTIVE', 'LEADER', 'VICE_LEADER', 'OPERATOR'].includes(role) || isAdminUser(user)));
+  }
+
+  function validateNickname(nickname) {
+    const text = String(nickname || '').trim();
+    if (text.length < 2 || text.length > 12) return { ok: false, message: '닉네임은 2~12자여야 합니다.' };
+    if (!/^[가-힣A-Za-z0-9]+$/.test(text)) return { ok: false, message: '닉네임은 한글/영문/숫자만 가능합니다.' };
+    return { ok: true, value: text };
+  }
+
+  function roleMeta(role) {
+    const upper = String(role || '').toUpperCase();
+    const map = {
+      GENERAL: { label: '일반', icon: '' },
+      MEMBER: { label: '단원', icon: '🙋' },
+      EXECUTIVE: { label: '임원', icon: '' },
+      LEADER: { label: '단장', icon: '👑' },
+      VICE_LEADER: { label: '부단장', icon: '⭐' },
+      OPERATOR: { label: '운영자', icon: '🛡️' }
+    };
+    return map[upper] || map.GENERAL;
+  }
+
+  function formatAuthorDisplay(author, fallbackUser = null) {
+    const source = author && typeof author === 'object' ? author : {
+      nickname: String(author || fallbackUser?.nickname || fallbackUser?.username || '사용자'),
+      role: fallbackUser?.role || 'GENERAL'
+    };
+    const meta = roleMeta(source.role);
+    const nickname = source.nickname || source.name || source.username || '사용자';
+    return `${meta.icon ? `${meta.icon} ` : ''}[${meta.label}] ${nickname}`;
   }
 
   function normalizeContact(value) {
@@ -1572,15 +1618,16 @@
       authButtons.style.display = 'none';
       authButtons.classList.add('d-none');
       userProfile.classList.add('show');
-      document.getElementById('profile-name').innerText = `${user.name} (${user.username})`;
+      document.getElementById('profile-name').innerText = `${user.name} (${user.nickname || user.username})`;
       document.getElementById('profile-email').innerText = user.email;
-      const roleLabelMap = { member: '일반 단원', staff: '운영진', admin: '관리자' };
       const statusLabelMap = { pending: '승인대기', active: '정식단원', locked: '잠금', withdrawn: '탈퇴' };
+      const role = roleMeta(user.role);
       document.getElementById('profile-details').innerHTML = `
         <div>이름: ${user.name || '-'}</div>
+        <div>닉네임: ${user.nickname || '-'}</div>
         <div>아이디: ${user.username || '-'}</div>
         <div>이메일: ${user.email || '-'}</div>
-        <div>권한: ${roleLabelMap[user.role] || user.role || '-'}</div>
+        <div>권한: ${role.icon ? `${role.icon} ` : ''}${role.label}</div>
         <div>상태: ${statusLabelMap[user.status] || user.status || '-'}</div>
         <div>생년월일: ${user.birthDate || '-'}</div>
         <div>연락처: ${user.phone || '-'}</div>
@@ -1669,6 +1716,7 @@
       signupForm.onsubmit = async (e) => {
         e.preventDefault();
         const name = e.target.name.value.trim();
+        const nickname = e.target.nickname.value.trim();
         const email = e.target.email.value.trim();
         const birthDate = e.target.birthdate.value.trim();
         const phone = e.target.phone.value.trim();
@@ -1680,6 +1728,12 @@
         const interests = e.target.interests.value.trim();
         const certificates = e.target.certificates.value.trim();
         const availability = e.target.availability.value.trim();
+
+        const nicknameCheck = validateNickname(nickname);
+        if (!nicknameCheck.ok) {
+          alert(nicknameCheck.message);
+          return;
+        }
 
         if (password !== confirmPassword) {
           alert('비밀번호가 일치하지 않습니다.');
@@ -1710,6 +1764,7 @@
             method: 'POST',
             body: JSON.stringify({
               name,
+              nickname,
               username,
               email,
               phone,
@@ -1752,6 +1807,38 @@
       myInfoBtn.addEventListener('click', (e) => {
         e.preventDefault();
         movePanel('myinfo');
+      });
+    }
+
+    const nicknameChangeBtn = document.getElementById('nickname-change-btn');
+    if (nicknameChangeBtn) {
+      nicknameChangeBtn.addEventListener('click', async () => {
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+        const input = document.getElementById('nickname-change-input');
+        const help = document.getElementById('nickname-change-help');
+        const nickname = input?.value?.trim() || '';
+        const check = validateNickname(nickname);
+        if (!check.ok) {
+          alert(check.message);
+          return;
+        }
+        try {
+          const data = await apiRequest('/user/nickname', {
+            method: 'POST',
+            body: JSON.stringify({ nickname })
+          });
+          if (data.user) setCurrentUser(data.user);
+          if (help) help.textContent = '닉네임이 변경되었습니다.';
+          if (input) input.value = '';
+        } catch (error) {
+          const detail = /next_allowed_at/.test(String(error.message || '')) ? ` (${error.message})` : '';
+          if (help) help.textContent = `변경 실패: ${error.message || '알 수 없는 오류'}${detail}`;
+          alert(error.message || '닉네임 변경에 실패했습니다.');
+        }
       });
     }
 
@@ -2693,7 +2780,7 @@
       const replies = comments.filter(c => c.parentId === comment.id);
       return `
         <div class="comment-item ${isReply ? 'comment-reply' : ''}" data-id="${comment.id}">
-          <div class="comment-author">${escapeHtml(comment.name || comment.username || '사용자')}</div>
+          <div class="comment-author">${escapeHtml(formatAuthorDisplay({ nickname: comment.nickname || comment.name || comment.username, role: comment.role || 'GENERAL' }))}</div>
           <div class="comment-text">${escapeHtml(comment.text)}</div>
           <div class="comment-time d-flex justify-content-between align-items-center gap-2 flex-wrap">
             <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
@@ -2751,6 +2838,8 @@
         id: newId,
         parentId: parentId || null,
         username: user.username,
+        nickname: user.nickname || user.username,
+        role: user.role || 'GENERAL',
         name: user.name,
         text,
         time: new Date().toISOString()
@@ -2861,7 +2950,7 @@
       tr.innerHTML = `
         <td>${item.id}</td>
         <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a></td>
-        <td>${item.author || '관리자'}</td>
+        <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
         <td>${item.date}</td>
         <td>${item.views || 0} / ${recommendCount}</td>
         <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id})">수정</button>` : ''}</td>
@@ -2928,7 +3017,7 @@
       tr.innerHTML = `
         <td>${item.id}</td>
         <td><a href="#" onclick="openFaqDetail(${item.id}); return false;">${item.title}</a></td>
-        <td>${item.author || '관리자'}</td>
+        <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
         <td>${item.date || ''}</td>
         <td>${item.views || 0}</td>
         <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'faq')">수정</button>` : ''}</td>
@@ -2996,7 +3085,7 @@
       tr.innerHTML = `
         <td>${item.id}</td>
         <td>${canRead ? `<a href="#" onclick="openQnaDetail(${item.id}); return false;">${item.title}${item.isSecret ? ' 🔒' : ''}</a>` : `비밀글 🔒`}</td>
-        <td>${item.author || ''}</td>
+        <td>${formatAuthorDisplay(item.author || '', getCurrentUser())}</td>
         <td>${item.date || ''}</td>
         <td>${item.answer ? '답변완료' : '대기'}</td>
         <td>${user && item.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'qna')">수정</button>` : ''}</td>
@@ -3064,7 +3153,7 @@
     renderFaq();
 
     document.getElementById('news-detail-title').textContent = item.title;
-    document.getElementById('news-detail-meta').textContent = `${item.author || '관리자'} | ${item.date || ''} | 조회수 ${item.views || 0}`;
+    document.getElementById('news-detail-meta').textContent = `${formatAuthorDisplay(item.author || '관리자', getCurrentUser())} | ${item.date || ''} | 조회수 ${item.views || 0}`;
     document.getElementById('news-detail-content').innerHTML = item.content || '';
     document.getElementById('news-detail-image').classList.add('d-none');
     document.getElementById('news-recommend-btn').parentElement.classList.add('d-none');
@@ -3087,7 +3176,7 @@
     }
 
     document.getElementById('qna-detail-title').textContent = item.title;
-    document.getElementById('qna-detail-meta').textContent = `${item.author || ''} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
+    document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
     document.getElementById('qna-detail-question').innerHTML = item.content || '';
     document.getElementById('qna-detail-answer').innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
     const answerBtn = document.getElementById('qna-answer-btn');
@@ -3126,7 +3215,7 @@
     const volunteerMeta = volunteerStart
       ? ` | 봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? `~${volunteerEnd}` : ''}`
       : '';
-    metaEl.textContent = `${notice.author || '관리자'} | ${notice.date}${volunteerMeta} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    metaEl.textContent = `${formatAuthorDisplay(notice.author || '관리자', getCurrentUser())} | ${notice.date}${volunteerMeta} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
     contentEl.innerHTML = notice.content || '';
     if (actionsEl) {
       if (volunteerStart) {
@@ -3282,7 +3371,7 @@
     currentGalleryDetailId = id;
     document.getElementById('gallery-detail-image').src = item.image;
     document.getElementById('gallery-detail-title').innerText = item.title;
-    document.getElementById('gallery-detail-meta').innerText = `${item.author || '작성자 미상'} | ${item.date || ''} | ${item.year || ''} | 조회수 ${item.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
+    document.getElementById('gallery-detail-meta').innerText = `${formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser())} | ${item.date || ''} | ${item.year || ''} | 조회수 ${item.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
     document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
 
     const editBtn = document.getElementById('gallery-detail-edit-btn');
@@ -3567,7 +3656,7 @@
           const target = source.find(n => n.id === editId);
           if (target) {
             target.title = e.target.title.value;
-            target.author = e.target.author.value || user.username || user.name;
+            target.author = e.target.author.value || user.nickname || user.username || user.name;
             target.date = target.date || newDate;
             target.image = imageData || target.image || '';
             target.content = e.target.content.value;
@@ -3591,7 +3680,7 @@
           const newItem = {
             id: newId,
             title: e.target.title.value,
-            author: e.target.author.value || user.username || user.name,
+            author: e.target.author.value || user.nickname || user.username || user.name,
             date: newDate,
             image: tabType === 'notice' ? imageData : '',
             content: e.target.content.value,
@@ -3655,7 +3744,7 @@
             category: `y${year}`,
             image: imageData || 'logo.png',
             content: e.target.content.value || '',
-            author: user.username || user.name,
+            author: user.nickname || user.username || user.name,
             views: 0
           });
         }
@@ -3701,7 +3790,7 @@
         }
         target.answer = answerHtml;
         target.answerDate = getTodayString();
-        target.answerAuthor = user.username || user.name || '운영자';
+        target.answerAuthor = user.nickname || user.username || user.name || '운영자';
         saveContent(next);
         renderQna();
         openQnaDetail(editId);
@@ -3824,7 +3913,7 @@
         resetWriteForms();
         const form = document.getElementById('add-news-form');
         form.editId.value = '';
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'notice';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);
@@ -3842,7 +3931,7 @@
         }
         resetWriteForms();
         const form = document.getElementById('add-news-form');
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'faq';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);
@@ -3860,7 +3949,7 @@
         }
         resetWriteForms();
         const form = document.getElementById('add-news-form');
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'qna';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);

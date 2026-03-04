@@ -29,13 +29,30 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 WEAVE_ENV = os.environ.get("WEAVE_ENV", "development").lower()
 DEFAULT_ADMIN_PASSWORD = "Weave!2026"
-ROLE_ORDER = {"member": 1, "staff": 2, "admin": 3}
+ROLE_ORDER = {
+    "GENERAL": 1,
+    "MEMBER": 2,
+    "EXECUTIVE": 3,
+    "VICE_LEADER": 4,
+    "LEADER": 5,
+    "OPERATOR": 6,
+}
+LEGACY_ROLE_MAP = {
+    "member": "MEMBER",
+    "staff": "EXECUTIVE",
+    "admin": "OPERATOR",
+    "general": "GENERAL",
+    "executive": "EXECUTIVE",
+    "leader": "LEADER",
+    "vice_leader": "VICE_LEADER",
+    "operator": "OPERATOR",
+}
 KST = timezone(timedelta(hours=9))
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
-LOGIN_RATE_LIMIT_COUNT = 5
-LOGIN_RATE_LIMIT_WINDOW = timedelta(minutes=10)
-LOGIN_RATE_LIMIT_BLOCK = timedelta(minutes=10)
+LOGIN_RATE_LIMIT_COUNT = 10
+LOGIN_RATE_LIMIT_WINDOW = timedelta(minutes=5)
+LOGIN_RATE_LIMIT_BLOCK = timedelta(minutes=5)
 LOGIN_ATTEMPTS = {}
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
@@ -49,6 +66,8 @@ MAX_UPLOAD_MB = int(os.environ.get("WEAVE_MAX_UPLOAD_MB", "10"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 ALLOWED_UPLOAD_MIME = {
     "application/pdf",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "image/jpeg",
     "image/png",
     "image/webp",
@@ -122,6 +141,85 @@ def parse_rate_limit_bucket(ip):
         bucket["blocked_until"] = None
     LOGIN_ATTEMPTS[ip] = bucket
     return bucket
+
+
+def normalize_role(role):
+    text = str(role or "GENERAL").strip()
+    if text in ROLE_ORDER:
+        return text
+    mapped = LEGACY_ROLE_MAP.get(text.lower())
+    return mapped or "GENERAL"
+
+
+def role_to_label(role):
+    labels = {
+        "GENERAL": "일반",
+        "MEMBER": "단원",
+        "EXECUTIVE": "임원",
+        "LEADER": "단장",
+        "VICE_LEADER": "부단장",
+        "OPERATOR": "운영자",
+    }
+    return labels.get(normalize_role(role), "일반")
+
+
+def role_to_icon(role):
+    icons = {
+        "OPERATOR": "🛡️",
+        "LEADER": "👑",
+        "VICE_LEADER": "⭐",
+        "MEMBER": "🙋",
+    }
+    return icons.get(normalize_role(role), "")
+
+
+def author_payload_from_user(user_row):
+    if not user_row:
+        return None
+    role_value = normalize_role(user_row["role"])
+    nickname = user_row["nickname"] if "nickname" in user_row.keys() and user_row["nickname"] else user_row["username"]
+    return {
+        "id": user_row["id"],
+        "nickname": nickname,
+        "role": role_value,
+        "role_label": role_to_label(role_value),
+        "role_icon": role_to_icon(role_value),
+    }
+
+
+def validate_nickname(nickname):
+    text = str(nickname or "").strip()
+    if not (2 <= len(text) <= 12):
+        return False, "닉네임은 2~12자여야 합니다."
+    if not re.fullmatch(r"[가-힣A-Za-z0-9]+", text):
+        return False, "닉네임은 한글/영문/숫자만 사용할 수 있습니다."
+    return True, ""
+
+
+def get_rate_limit_key(action, username_hint=""):
+    return f"{action}:{get_client_ip()}:{str(username_hint or '').strip().lower()}"
+
+
+def is_rate_limited(action, username_hint=""):
+    if WEAVE_ENV != "production":
+        return False, None
+    key = get_rate_limit_key(action, username_hint)
+    blocked, blocked_until = is_ip_blocked(key)
+    return blocked, blocked_until
+
+
+def mark_rate_limit_failure(action, username_hint=""):
+    if WEAVE_ENV != "production":
+        return None
+    key = get_rate_limit_key(action, username_hint)
+    return register_login_failure(key)
+
+
+def clear_rate_limit(action, username_hint=""):
+    if WEAVE_ENV != "production":
+        return
+    key = get_rate_limit_key(action, username_hint)
+    reset_login_failures_by_ip(key)
 
 
 def is_ip_blocked(ip):
@@ -210,7 +308,10 @@ def save_uploaded_file(file_storage):
     original_name = secure_filename(file_storage.filename)
     extension = Path(original_name).suffix.lower()
     stored_name = f"{uuid.uuid4().hex}{extension}"
-    stored_path = os.path.join(UPLOAD_DIR, stored_name)
+    now = datetime.now()
+    subdir = os.path.join(UPLOAD_DIR, f"{now.year:04d}", f"{now.month:02d}")
+    os.makedirs(subdir, exist_ok=True)
+    stored_path = os.path.join(subdir, stored_name)
     file_storage.save(stored_path)
     return {
         "original_name": original_name,
@@ -264,7 +365,9 @@ def to_list_text(value):
 
 
 def role_at_least(role, minimum):
-    return ROLE_ORDER.get(role or "member", 0) >= ROLE_ORDER.get(minimum, 0)
+    current = normalize_role(role)
+    required = normalize_role(minimum)
+    return ROLE_ORDER.get(current, 0) >= ROLE_ORDER.get(required, 0)
 
 
 def get_current_user_row(conn=None):
@@ -300,7 +403,7 @@ def admin_required(func):
         user = get_current_user_row()
         if not user:
             return error_response("Unauthorized", 401)
-        if not role_at_least(user["role"], "admin"):
+        if not role_at_least(user["role"], "OPERATOR"):
             return error_response("Forbidden", 403)
         return func(*args, **kwargs)
 
@@ -316,6 +419,25 @@ def role_required(min_role):
                 return error_response("Unauthorized", 401)
             if not role_at_least(user["role"], min_role):
                 return error_response("Forbidden", 403)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def roles_required(allowed_roles):
+    allowed = {normalize_role(role) for role in allowed_roles}
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            user = get_current_user_row()
+            if not user:
+                return error_response("Unauthorized", 401)
+            user_role = normalize_role(user["role"])
+            if user_role not in allowed:
+                return error_response("권한이 없습니다.", 403)
             return func(*args, **kwargs)
 
         return wrapper
@@ -339,38 +461,49 @@ def active_member_required(func):
 def user_row_to_dict(row):
     if not row:
         return None
+    role_value = normalize_role(row["role"])
+    nickname_value = row["nickname"] if "nickname" in row.keys() and row["nickname"] else row["username"]
+    is_admin_value = bool(row["is_admin"]) if "is_admin" in row.keys() else False
+    if role_value == "OPERATOR":
+        is_admin_value = True
     return {
         "id": row["id"],
         "name": row["name"],
         "username": row["username"],
+        "nickname": nickname_value,
+        "nicknameUpdatedAt": row["nickname_updated_at"] if "nickname_updated_at" in row.keys() else None,
         "email": row["email"],
         "phone": row["phone"],
         "birthDate": row["birth_date"],
         "joinDate": row["join_date"],
-        "role": row["role"],
+        "role": role_value,
+        "roleLabel": role_to_label(role_value),
+        "roleIcon": role_to_icon(role_value),
         "status": row["status"],
         "generation": row["generation"],
         "interests": row["interests"],
         "certificates": row["certificates"],
         "availability": row["availability"],
-        "isAdmin": role_at_least(row["role"], "admin"),
+        "isAdmin": is_admin_value,
+        "is_admin": is_admin_value,
         "failedLoginCount": row["failed_login_count"],
         "lockedUntil": row["locked_until"],
     }
 
 
-def log_audit(conn, action, target_type="", target_id=None, actor_user_id=None):
+def log_audit(conn, action, target_type="", target_id=None, actor_user_id=None, metadata=None):
     actor = actor_user_id if actor_user_id is not None else current_user_id()
     conn.execute(
         """
-        INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, ip, user_agent, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata_json, ip, user_agent, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             actor,
             str(action or "").strip(),
             str(target_type or "").strip(),
             int(target_id) if target_id is not None else None,
+            json.dumps(metadata or {}, ensure_ascii=False),
             get_client_ip(),
             get_user_agent(),
             now_iso(),
@@ -405,7 +538,8 @@ def ensure_users_migration(cur):
         row["name"] for row in cur.execute("PRAGMA table_info(users)").fetchall()
     }
     migrations = [
-        ("role", "TEXT NOT NULL DEFAULT 'member'"),
+        ("role", "TEXT NOT NULL DEFAULT 'GENERAL'"),
+        ("is_admin", "INTEGER NOT NULL DEFAULT 0"),
         ("status", "TEXT NOT NULL DEFAULT 'pending'"),
         ("generation", "TEXT DEFAULT ''"),
         ("interests", "TEXT DEFAULT ''"),
@@ -417,10 +551,33 @@ def ensure_users_migration(cur):
         ("approved_by", "INTEGER"),
         ("retention_until", "TEXT"),
         ("deleted_at", "TEXT"),
+        ("nickname", "TEXT"),
+        ("nickname_updated_at", "TEXT"),
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
             cur.execute(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}")
+
+    cur.execute("UPDATE users SET role = 'MEMBER' WHERE role = 'member'")
+    cur.execute("UPDATE users SET role = 'EXECUTIVE' WHERE role = 'staff'")
+    cur.execute("UPDATE users SET role = 'OPERATOR' WHERE role = 'admin'")
+    cur.execute("UPDATE users SET role = 'GENERAL' WHERE role IS NULL OR TRIM(role) = ''")
+    cur.execute("UPDATE users SET is_admin = 1 WHERE role = 'OPERATOR'")
+    cur.execute("UPDATE users SET nickname = username WHERE nickname IS NULL OR TRIM(nickname) = ''")
+    cur.execute("UPDATE users SET nickname_updated_at = COALESCE(nickname_updated_at, join_date, datetime('now'))")
+
+
+def ensure_posts_migration(cur):
+    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(posts)").fetchall()}
+    migrations = [
+        ("is_important", "INTEGER NOT NULL DEFAULT 0"),
+        ("image_url", "TEXT DEFAULT ''"),
+        ("volunteer_start_date", "TEXT"),
+        ("volunteer_end_date", "TEXT"),
+    ]
+    for column_name, column_type in migrations:
+        if column_name not in existing_cols:
+            cur.execute(f"ALTER TABLE posts ADD COLUMN {column_name} {column_type}")
 
 
 def ensure_table_indexes(cur):
@@ -446,6 +603,17 @@ def ensure_activity_indexes(cur):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_start ON activities(start_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_group ON activities(recurrence_group_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_cancelled ON activities(is_cancelled)")
+
+
+def ensure_events_migration(cur):
+    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(events)").fetchall()}
+    migrations = [
+        ("supplies", "TEXT DEFAULT ''"),
+        ("notice_post_id", "INTEGER"),
+    ]
+    for column_name, column_type in migrations:
+        if column_name not in existing_cols:
+            cur.execute(f"ALTER TABLE events ADD COLUMN {column_name} {column_type}")
 
 
 def init_db():
@@ -622,12 +790,15 @@ def init_db():
             location TEXT DEFAULT '',
             event_date TEXT NOT NULL,
             max_participants INTEGER NOT NULL DEFAULT 0,
+            supplies TEXT DEFAULT '',
+            notice_post_id INTEGER,
             created_by INTEGER,
             created_at TEXT NOT NULL,
             updated_at TEXT
         )
         """
     )
+    ensure_events_migration(cur)
 
     cur.execute(
         """
@@ -651,10 +822,70 @@ def init_db():
             title TEXT NOT NULL,
             content TEXT DEFAULT '',
             is_pinned INTEGER NOT NULL DEFAULT 0,
+            is_important INTEGER NOT NULL DEFAULT 0,
             publish_at TEXT,
+            image_url TEXT DEFAULT '',
+            volunteer_start_date TEXT,
+            volunteer_end_date TEXT,
             author_id INTEGER,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
+        )
+        """
+    )
+    ensure_posts_migration(cur)
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS role_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            from_role TEXT NOT NULL,
+            to_role TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            decided_by INTEGER
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            parent_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS recommends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(post_id, user_id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS event_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            vote_status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(event_id, user_id)
         )
         """
     )
@@ -681,12 +912,16 @@ def init_db():
             action TEXT NOT NULL,
             target_type TEXT DEFAULT '',
             target_id INTEGER,
+            metadata_json TEXT DEFAULT '{}',
             ip TEXT DEFAULT '',
             user_agent TEXT DEFAULT '',
             created_at TEXT NOT NULL
         )
         """
     )
+    audit_cols = {row["name"] for row in cur.execute("PRAGMA table_info(audit_logs)").fetchall()}
+    if "metadata_json" not in audit_cols:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN metadata_json TEXT DEFAULT '{}' ")
 
     cur.execute(
         """
@@ -706,6 +941,12 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish_at ON posts(publish_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_important ON posts(is_important)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_recommends_post ON recommends(post_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_votes_event ON event_votes(event_id)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname_unique ON users(nickname)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)")
     conn.commit()
 
@@ -716,7 +957,7 @@ def init_db():
         "email": admin_email,
         "phone": "010-0000-0000",
         "birth_date": "1990.01.01",
-        "role": "admin",
+        "role": "OPERATOR",
         "status": "active",
         "generation": "운영",
         "interests": "운영 총괄",
@@ -741,6 +982,7 @@ def init_db():
                 birth_date = ?,
                 password_hash = ?,
                 role = ?,
+                is_admin = 1,
                 status = ?,
                 approved_at = COALESCE(approved_at, ?),
                 generation = CASE WHEN generation IS NULL OR generation = '' THEN ? ELSE generation END,
@@ -771,9 +1013,9 @@ def init_db():
             """
             INSERT INTO users (
                 name, username, email, phone, birth_date, password_hash, join_date,
-                role, status, approved_at, generation, interests, certificates, availability
+                role, is_admin, status, approved_at, generation, interests, certificates, availability, nickname, nickname_updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 admin_defaults["name"],
@@ -784,12 +1026,15 @@ def init_db():
                 generate_password_hash(DEFAULT_ADMIN_PASSWORD),
                 admin_now,
                 admin_defaults["role"],
+                1,
                 admin_defaults["status"],
                 admin_now,
                 admin_defaults["generation"],
                 admin_defaults["interests"],
                 admin_defaults["certificates"],
                 admin_defaults["availability"],
+                admin_defaults["username"],
+                admin_now,
             ),
         )
 
@@ -962,6 +1207,7 @@ def reset_login_failures(conn, row_id):
 def validate_signup_payload(payload):
     required_fields = [
         "name",
+        "nickname",
         "email",
         "birthDate",
         "phone",
@@ -975,6 +1221,10 @@ def validate_signup_payload(payload):
     password_ok, password_message = validate_password_policy(str(payload.get("password", "")))
     if not password_ok:
         return False, password_message
+
+    nickname_ok, nickname_message = validate_nickname(payload.get("nickname", ""))
+    if not nickname_ok:
+        return False, nickname_message
 
     return True, ""
 
@@ -1017,8 +1267,14 @@ def auth_me():
 @app.route("/api/auth/signup", methods=["POST"])
 def auth_signup():
     payload = request.get_json(silent=True) or {}
+    blocked, blocked_until = is_rate_limited("signup", payload.get("username", ""))
+    if blocked:
+        blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
+        return error_response("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429, {"blocked_until": blocked_until_text})
+
     valid, message = validate_signup_payload(payload)
     if not valid:
+        mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response(message, 400)
 
     conn = get_db_connection()
@@ -1031,15 +1287,22 @@ def auth_signup():
     exists_username = cur.execute("SELECT id FROM users WHERE username = ?", (payload["username"],)).fetchone()
     if exists_username:
         conn.close()
+        mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response("이미 사용 중인 아이디입니다.", 409)
+
+    exists_nickname = cur.execute("SELECT id FROM users WHERE nickname = ?", (payload["nickname"],)).fetchone()
+    if exists_nickname:
+        conn.close()
+        mark_rate_limit_failure("signup", payload.get("username", ""))
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
 
     cur.execute(
         """
         INSERT INTO users (
             name, username, email, phone, birth_date, password_hash, join_date,
-            role, status, generation, interests, certificates, availability
+            role, status, generation, interests, certificates, availability, nickname, nickname_updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payload["name"].strip(),
@@ -1049,12 +1312,14 @@ def auth_signup():
             payload["birthDate"].strip(),
             generate_password_hash(payload["password"]),
             now_iso(),
-            "member",
+            "GENERAL",
             "pending",
             str(payload.get("generation", "")).strip(),
             to_list_text(payload.get("interests", "")),
             to_list_text(payload.get("certificates", "")),
             str(payload.get("availability", "")).strip(),
+            str(payload.get("nickname", "")).strip(),
+            now_iso(),
         ),
     )
     user_id = cur.lastrowid
@@ -1064,6 +1329,7 @@ def auth_signup():
     conn.close()
 
     write_app_log("info", "signup", user_id=user_id)
+    clear_rate_limit("signup", payload.get("username", ""))
 
     session["user_id"] = user_id
     user_data = user_row_to_dict(row)
@@ -1081,7 +1347,7 @@ def auth_login():
     password = str(payload.get("password", ""))
     client_ip = get_client_ip()
 
-    blocked, blocked_until = is_ip_blocked(client_ip)
+    blocked, blocked_until = is_rate_limited("login", username)
     if blocked:
         blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
         write_app_log("warning", "login_rate_limited", extra={"blocked_until": blocked_until_text})
@@ -1099,7 +1365,7 @@ def auth_login():
 
     if not row:
         conn.close()
-        register_login_failure(client_ip)
+        mark_rate_limit_failure("login", username)
         write_app_log("warning", "login_failed_unknown_user", extra={"username": username})
         return error_response("아이디 또는 비밀번호가 틀렸습니다.", 401)
 
@@ -1119,7 +1385,7 @@ def auth_login():
     if not check_password_hash(row["password_hash"], password):
         locked, _ = increase_login_failure(conn, row)
         conn.close()
-        register_login_failure(client_ip)
+        mark_rate_limit_failure("login", username)
         write_app_log("warning", "login_failed", user_id=row["id"])
         if locked:
             return error_response("로그인 5회 실패로 계정이 잠금되었습니다.", 423)
@@ -1129,7 +1395,7 @@ def auth_login():
     row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
     log_audit(conn, "login", "user", row["id"], row["id"])
     conn.close()
-    reset_login_failures_by_ip(client_ip)
+    clear_rate_limit("login", username)
     write_app_log("info", "login_success", user_id=row["id"])
 
     session["user_id"] = row["id"]
@@ -1188,11 +1454,18 @@ def auth_reset_password():
     contact = str(payload.get("contact", "")).strip()
     new_password = str(payload.get("newPassword", ""))
 
+    blocked, blocked_until = is_rate_limited("reset-password", username)
+    if blocked:
+        blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
+        return error_response("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429, {"blocked_until": blocked_until_text})
+
     if not username or not contact or not new_password:
+        mark_rate_limit_failure("reset-password", username)
         return error_response("필수 값을 입력해주세요.", 400)
 
     valid_password, password_message = validate_password_policy(new_password)
     if not valid_password:
+        mark_rate_limit_failure("reset-password", username)
         return error_response(password_message, 400)
 
     normalized_contact = contact.replace("-", "").lower()
@@ -1205,12 +1478,14 @@ def auth_reset_password():
 
     if not row:
         conn.close()
+        mark_rate_limit_failure("reset-password", username)
         return error_response("일치하는 계정을 찾지 못했습니다.", 404)
 
     email_key = (row["email"] or "").replace("-", "").lower()
     phone_key = (row["phone"] or "").replace("-", "").lower()
     if normalized_contact not in (email_key, phone_key):
         conn.close()
+        mark_rate_limit_failure("reset-password", username)
         return error_response("일치하는 계정을 찾지 못했습니다.", 404)
 
     conn.execute(
@@ -1221,6 +1496,7 @@ def auth_reset_password():
     send_email(row["email"], "[Weave] 비밀번호 재설정 안내", "비밀번호가 재설정되었습니다. 본인이 요청하지 않았다면 즉시 운영진에 문의하세요.")
     conn.commit()
     conn.close()
+    clear_rate_limit("reset-password", username)
     write_app_log("info", "password_reset", user_id=row["id"])
     payload = {"ok": True, "message": "비밀번호가 재설정되었습니다."}
     return jsonify({"success": True, "data": payload, **payload})
@@ -1319,7 +1595,7 @@ def auth_withdraw():
 
 
 @app.route("/api/admin/pending-users", methods=["GET"])
-@role_required("staff")
+@role_required("EXECUTIVE")
 def admin_pending_users():
     page = int(request.args.get("page", "1") or 1)
     page_size = int(request.args.get("pageSize", "10") or 10)
@@ -1354,11 +1630,11 @@ def admin_pending_users():
 
 
 @app.route("/api/admin/users/<int:user_id>/approve", methods=["POST"])
-@role_required("staff")
+@role_required("EXECUTIVE")
 def admin_approve_user(user_id):
     payload = request.get_json(silent=True) or {}
-    role = str(payload.get("role", "member")).strip().lower()
-    if role not in ("member", "staff", "admin"):
+    role = normalize_role(payload.get("role", "MEMBER"))
+    if role not in ("GENERAL", "MEMBER", "EXECUTIVE", "VICE_LEADER", "LEADER", "OPERATOR"):
         return error_response("유효하지 않은 역할입니다.", 400)
 
     conn = get_db_connection()
@@ -1371,13 +1647,13 @@ def admin_approve_user(user_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    if role == "admin" and not role_at_least(me["role"], "admin"):
+    if role == "OPERATOR" and not role_at_least(me["role"], "OPERATOR"):
         conn.close()
         return error_response("관리자 승격 권한이 없습니다.", 403)
 
     conn.execute(
-        "UPDATE users SET status = 'active', role = ?, approved_at = ?, approved_by = ? WHERE id = ?",
-        (role, now_iso(), me["id"], user_id),
+        "UPDATE users SET status = 'active', role = ?, is_admin = CASE WHEN ? = 'OPERATOR' THEN 1 ELSE is_admin END, approved_at = ?, approved_by = ? WHERE id = ?",
+        (role, role, now_iso(), me["id"], user_id),
     )
     log_audit(conn, "role_change", "user", user_id, me["id"])
     conn.commit()
@@ -1390,7 +1666,7 @@ def admin_approve_user(user_id):
 
 
 @app.route("/api/admin/users/<int:user_id>/reject", methods=["POST"])
-@role_required("staff")
+@role_required("EXECUTIVE")
 def admin_reject_user(user_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -2395,6 +2671,9 @@ def list_events():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 이벤트를 확인할 수 있습니다.", 403)
     total = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
     rows = conn.execute(
         """
@@ -2416,6 +2695,8 @@ def list_events():
                 "title": row["title"],
                 "description": row["description"],
                 "location": row["location"],
+                "supplies": row["supplies"],
+                "noticePostId": row["notice_post_id"],
                 "eventDate": row["event_date"],
                 "maxParticipants": row["max_participants"],
                 "participantCount": row["participant_count"],
@@ -2455,8 +2736,8 @@ def create_event():
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO events (title, description, location, event_date, max_participants, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events (title, description, location, event_date, max_participants, supplies, notice_post_id, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             title,
@@ -2464,6 +2745,8 @@ def create_event():
             str(payload.get("location", "")).strip(),
             event_date,
             int(payload.get("max_participants", 0) or 0),
+            str(payload.get("supplies", "")).strip(),
+            payload.get("notice_post_id"),
             me["id"],
             now_iso(),
             now_iso(),
@@ -2494,6 +2777,8 @@ def update_event(event_id):
     title = str(payload.get("title", target["title"])).strip()
     description = str(payload.get("description", target["description"])).strip()
     location = str(payload.get("location", target["location"])).strip()
+    supplies = str(payload.get("supplies", target["supplies"])).strip()
+    notice_post_id = payload.get("notice_post_id", target["notice_post_id"])
     event_date = str(payload.get("event_date", target["event_date"])).strip()
     max_participants = int(payload.get("max_participants", target["max_participants"]) or 0)
     if not parse_iso_datetime(event_date):
@@ -2503,10 +2788,10 @@ def update_event(event_id):
     conn.execute(
         """
         UPDATE events
-        SET title = ?, description = ?, location = ?, event_date = ?, max_participants = ?, updated_at = ?
+        SET title = ?, description = ?, location = ?, supplies = ?, notice_post_id = ?, event_date = ?, max_participants = ?, updated_at = ?
         WHERE id = ?
         """,
-        (title, description, location, event_date, max_participants, now_iso(), event_id),
+        (title, description, location, supplies, notice_post_id, event_date, max_participants, now_iso(), event_id),
     )
     notified = send_event_change_notifications(conn, event_id, title)
     log_audit(conn, "update_event", "event", event_id, me["id"])
@@ -2524,6 +2809,9 @@ def join_event(event_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 참여 신청할 수 있습니다.", 403)
     event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not event:
         conn.close()
@@ -2568,6 +2856,9 @@ def cancel_event_participation(event_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 참여 취소할 수 있습니다.", 403)
     existing = conn.execute(
         "SELECT * FROM participants WHERE event_id = ? AND user_id = ?",
         (event_id, me["id"]),
@@ -2592,18 +2883,19 @@ def list_posts():
     page = max(1, int(request.args.get("page", "1") or 1))
     page_size = min(100, max(1, int(request.args.get("pageSize", "10") or 10)))
     offset = (page - 1) * page_size
-    category = str(request.args.get("category", "")).strip().lower()
-    keyword = str(request.args.get("q", "")).strip()
+    category = str(request.args.get("type", request.args.get("category", ""))).strip().lower()
+    keyword = str(request.args.get("query", request.args.get("q", ""))).strip()
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
-    is_staff = role_at_least(me["role"], "staff") if me else False
+    is_staff = role_at_least(me["role"], "EXECUTIVE") if me else False
 
     where = ["1=1"]
     params = []
-    if category:
+    if category in ("notice", "faq", "qna", "gallery", "review", "recruit"):
+        mapped = "review" if category == "faq" else category
         where.append("p.category = ?")
-        params.append(category)
+        params.append(mapped)
     if keyword:
         where.append("(p.title LIKE ? OR p.content LIKE ?)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
@@ -2615,12 +2907,13 @@ def list_posts():
     total = conn.execute(f"SELECT COUNT(*) AS c FROM posts p WHERE {where_sql}", params).fetchone()["c"]
     rows = conn.execute(
         f"""
-        SELECT p.*, u.username AS author_username,
+         SELECT p.*, u.username AS author_username, u.nickname AS author_nickname, u.role AS author_role,
                (SELECT COUNT(*) FROM post_files pf WHERE pf.post_id = p.id) AS file_count
         FROM posts p
         LEFT JOIN users u ON u.id = p.author_id
         WHERE {where_sql}
-        ORDER BY CASE WHEN p.category = 'notice' THEN p.is_pinned ELSE 0 END DESC,
+         ORDER BY CASE WHEN p.category = 'notice' THEN p.is_important ELSE 0 END DESC,
+               CASE WHEN p.category = 'notice' THEN p.is_pinned ELSE 0 END DESC,
                  COALESCE(p.publish_at, p.created_at) DESC,
                  p.id DESC
         LIMIT ? OFFSET ?
@@ -2633,12 +2926,23 @@ def list_posts():
         {
             "id": row["id"],
             "category": row["category"],
+            "type": row["category"],
             "title": row["title"],
             "content": row["content"],
             "is_pinned": bool(row["is_pinned"]),
+            "is_important": bool(row["is_important"]),
             "publish_at": row["publish_at"],
+            "image_url": row["image_url"],
+            "volunteerStartDate": row["volunteer_start_date"],
+            "volunteerEndDate": row["volunteer_end_date"],
             "author_id": row["author_id"],
             "author_name": row["author_username"],
+            "author": {
+                "nickname": row["author_nickname"] or row["author_username"],
+                "role": normalize_role(row["author_role"]),
+                "role_label": role_to_label(row["author_role"]),
+                "role_icon": role_to_icon(row["author_role"]),
+            },
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "file_count": row["file_count"],
@@ -2659,12 +2963,12 @@ def list_posts():
 
 
 @app.route("/api/posts", methods=["POST"])
-@role_required("staff")
+@login_required
 def create_post():
     payload = request.get_json(silent=True) or {}
     category = str(payload.get("category", "")).strip().lower()
-    if category not in ("notice", "review", "recruit"):
-        return error_response("category는 notice|review|recruit만 허용됩니다.", 400)
+    if category not in ("notice", "review", "recruit", "qna", "gallery"):
+        return error_response("type(category)는 notice|review|recruit|qna|gallery만 허용됩니다.", 400)
     title = str(payload.get("title", "")).strip()
     if not title:
         return error_response("title은 필수입니다.", 400)
@@ -2677,28 +2981,153 @@ def create_post():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+
+    if category in ("notice", "gallery") and not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return error_response("공지/갤러리 작성은 임원 이상만 가능합니다.", 403)
+
+    if category == "qna" and not role_at_least(me["role"], "GENERAL"):
+        conn.close()
+        return error_response("Q&A 작성 권한이 없습니다.", 403)
+
+    volunteer_start = str(payload.get("volunteerStartDate", "")).strip() or None
+    volunteer_end = str(payload.get("volunteerEndDate", "")).strip() or volunteer_start
+
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO posts (category, title, content, is_pinned, publish_at, author_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO posts (
+            category, title, content, is_pinned, is_important, publish_at, image_url,
+            volunteer_start_date, volunteer_end_date, author_id, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             category,
             title,
             str(payload.get("content", "")),
             1 if bool(payload.get("is_pinned", False)) else 0,
+            1 if bool(payload.get("is_important", False)) else 0,
             publish_at,
+            str(payload.get("image_url", "")).strip(),
+            volunteer_start,
+            volunteer_end,
             me["id"],
             now_iso(),
             now_iso(),
         ),
     )
     post_id = cur.lastrowid
-    log_audit(conn, "create_post", "post", post_id, me["id"])
+
+    if category == "notice" and volunteer_start:
+        activity_start = f"{volunteer_start}T09:00:00"
+        activity_end = f"{(volunteer_end or volunteer_start)}T18:00:00"
+        conn.execute(
+            """
+            INSERT INTO activities (
+                title, description, start_at, end_at, place, supplies, gather_time,
+                manager_name, recruitment_limit, created_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                title,
+                str(payload.get("content", ""))[:300],
+                activity_start,
+                activity_end,
+                str(payload.get("place", "")).strip(),
+                str(payload.get("supplies", "")).strip(),
+                "",
+                me["nickname"] if "nickname" in me.keys() and me["nickname"] else me["username"],
+                int(payload.get("recruitment_limit", 0) or 0),
+                me["id"],
+                now_iso(),
+            ),
+        )
+
+    log_audit(conn, "create_post", "post", post_id, me["id"], {"category": category})
     conn.commit()
     conn.close()
     return success_response({"post_id": post_id}, 201)
+
+
+@app.route("/api/posts/<int:post_id>", methods=["GET"])
+@login_required
+def get_post(post_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    row = conn.execute(
+        """
+        SELECT p.*, u.username AS author_username, u.nickname AS author_nickname, u.role AS author_role
+        FROM posts p
+        LEFT JOIN users u ON u.id = p.author_id
+        WHERE p.id = ?
+        """,
+        (post_id,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+
+    is_staff = role_at_least(me["role"], "EXECUTIVE") if me else False
+    publish_at_dt = parse_iso_datetime(row["publish_at"]) if row["publish_at"] else None
+    if not is_staff and publish_at_dt and publish_at_dt > datetime.now():
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+
+    comments = conn.execute(
+        """
+        SELECT c.*, u.nickname, u.username, u.role
+        FROM comments c
+        JOIN users u ON u.id = c.user_id
+        WHERE c.post_id = ?
+        ORDER BY c.created_at ASC
+        """,
+        (post_id,),
+    ).fetchall()
+    recommend_count = conn.execute("SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    files = conn.execute(
+        "SELECT id, original_name, mime_type, size, uploaded_at FROM post_files WHERE post_id = ? ORDER BY id DESC",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+
+    return success_response(
+        {
+            "id": row["id"],
+            "type": row["category"],
+            "title": row["title"],
+            "content": row["content"],
+            "is_pinned": bool(row["is_pinned"]),
+            "is_important": bool(row["is_important"]),
+            "publish_at": row["publish_at"],
+            "image_url": row["image_url"],
+            "volunteerStartDate": row["volunteer_start_date"],
+            "volunteerEndDate": row["volunteer_end_date"],
+            "author": {
+                "nickname": row["author_nickname"] or row["author_username"],
+                "role": normalize_role(row["author_role"]),
+                "role_label": role_to_label(row["author_role"]),
+                "role_icon": role_to_icon(row["author_role"]),
+            },
+            "recommend_count": int(recommend_count or 0),
+            "comments": [
+                {
+                    "id": c["id"],
+                    "content": c["content"],
+                    "parent_id": c["parent_id"],
+                    "created_at": c["created_at"],
+                    "author": {
+                        "nickname": c["nickname"] or c["username"],
+                        "role": normalize_role(c["role"]),
+                        "role_label": role_to_label(c["role"]),
+                        "role_icon": role_to_icon(c["role"]),
+                    },
+                }
+                for c in comments
+            ],
+            "files": [dict(f) for f in files],
+        }
+    )
 
 
 @app.route("/api/posts/<int:post_id>", methods=["PUT"])
@@ -2746,7 +3175,7 @@ def update_post(post_id):
 
 
 @app.route("/api/posts/<int:post_id>", methods=["DELETE"])
-@role_required("staff")
+@login_required
 def delete_post(post_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -2757,6 +3186,9 @@ def delete_post(post_id):
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
+    if not (role_at_least(me["role"], "EXECUTIVE") or int(post["author_id"] or 0) == int(me["id"])):
+        conn.close()
+        return error_response("작성자 또는 운영권한이 필요합니다.", 403)
     files = conn.execute("SELECT * FROM post_files WHERE post_id = ?", (post_id,)).fetchall()
     for file_row in files:
         try:
@@ -2766,10 +3198,102 @@ def delete_post(post_id):
             pass
     conn.execute("DELETE FROM post_files WHERE post_id = ?", (post_id,))
     conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-    log_audit(conn, "delete_post", "post", post_id, me["id"])
+    log_audit(conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]})
     conn.commit()
     conn.close()
     return success_response({"deleted": True})
+
+
+@app.route("/api/posts/<int:post_id>/comments", methods=["POST"])
+@login_required
+def create_post_comment(post_id):
+    payload = request.get_json(silent=True) or {}
+    content = str(payload.get("content", "")).strip()
+    if not content:
+        return error_response("댓글 내용을 입력해주세요.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    post = conn.execute("SELECT id, category FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+    if post["category"] in ("notice", "gallery") and not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("공지/갤러리 댓글은 단원 이상만 가능합니다.", 403)
+
+    conn.execute(
+        """
+        INSERT INTO comments (post_id, user_id, content, parent_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            post_id,
+            me["id"],
+            content,
+            payload.get("parent_id"),
+            now_iso(),
+            now_iso(),
+        ),
+    )
+    log_audit(conn, "create_comment", "post", post_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"ok": True}, 201)
+
+
+@app.route("/api/posts/<int:post_id>/recommend", methods=["POST"])
+@login_required
+def recommend_post(post_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    post = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+
+    existing = conn.execute(
+        "SELECT id FROM recommends WHERE post_id = ? AND user_id = ?",
+        (post_id, me["id"]),
+    ).fetchone()
+    if existing:
+        conn.close()
+        return error_response("이미 추천하셨습니다.", 409)
+
+    conn.execute(
+        "INSERT INTO recommends (post_id, user_id, created_at) VALUES (?, ?, ?)",
+        (post_id, me["id"], now_iso()),
+    )
+    log_audit(conn, "recommend_post", "post", post_id, me["id"])
+    conn.commit()
+    count = conn.execute("SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    conn.close()
+    return success_response({"recommend_count": int(count or 0)})
+
+
+@app.route("/api/home/important-notices", methods=["GET"])
+@login_required
+def important_notices():
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT id, title, publish_at, created_at
+        FROM posts
+        WHERE category = 'notice' AND is_important = 1
+          AND (publish_at IS NULL OR publish_at <= ?)
+        ORDER BY is_pinned DESC, COALESCE(publish_at, created_at) DESC
+        LIMIT 3
+        """,
+        (now_iso(),),
+    ).fetchall()
+    conn.close()
+    return success_response({"items": [dict(row) for row in rows]})
 
 
 @app.route("/api/posts/<int:post_id>/files", methods=["POST"])
@@ -2780,7 +3304,7 @@ def upload_post_file(post_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    post = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
+    post = conn.execute("SELECT id, category FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
@@ -2793,6 +3317,16 @@ def upload_post_file(post_id):
     if not file_info:
         conn.close()
         return error_response("파일 처리에 실패했습니다.", 400)
+
+    if post["category"] == "gallery":
+        allowed_ext = {".jpg", ".jpeg", ".png", ".webp"}
+        ext = Path(file_info["original_name"]).suffix.lower()
+        if ext not in allowed_ext:
+            conn.close()
+            return error_response("갤러리는 jpg/jpeg/png/webp만 업로드할 수 있습니다.", 400)
+        if int(file_info["size"] or 0) > 3 * 1024 * 1024:
+            conn.close()
+            return error_response("갤러리 이미지는 최대 3MB까지 업로드할 수 있습니다.", 400)
 
     cur = conn.cursor()
     cur.execute(
@@ -2810,6 +3344,8 @@ def upload_post_file(post_id):
         ),
     )
     file_id = cur.lastrowid
+    if post["category"] == "gallery":
+        conn.execute("UPDATE posts SET image_url = ? WHERE id = ?", (f"/api/posts/files/{file_id}/download", post_id))
     log_audit(conn, "upload_post_file", "post", post_id, me["id"])
     conn.commit()
     conn.close()
@@ -2925,6 +3461,241 @@ def get_audit_logs():
             },
         }
     )
+
+
+@app.route("/api/user/profile", methods=["GET"])
+@login_required
+def user_profile():
+    row = get_current_user_row()
+    return success_response({"user": user_row_to_dict(row)})
+
+
+@app.route("/api/user/nickname", methods=["POST"])
+@login_required
+def update_user_nickname():
+    payload = request.get_json(silent=True) or {}
+    nickname = str(payload.get("nickname", "")).strip()
+    valid, message = validate_nickname(nickname)
+    if not valid:
+        return error_response(message, 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+
+    exists = conn.execute(
+        "SELECT id FROM users WHERE nickname = ? AND id != ?",
+        (nickname, me["id"]),
+    ).fetchone()
+    if exists:
+        conn.close()
+        return error_response("이미 사용 중인 닉네임입니다.", 409)
+
+    last_updated = parse_iso_datetime(me["nickname_updated_at"]) if "nickname_updated_at" in me.keys() else None
+    if last_updated:
+        next_allowed = last_updated + timedelta(days=180)
+        if next_allowed > datetime.now():
+            conn.close()
+            return error_response("닉네임은 180일에 1회만 변경할 수 있습니다.", 403, {"next_allowed_at": next_allowed.isoformat()})
+
+    conn.execute(
+        "UPDATE users SET nickname = ?, nickname_updated_at = ? WHERE id = ?",
+        (nickname, now_iso(), me["id"]),
+    )
+    log_audit(conn, "change_nickname", "user", me["id"], me["id"], {"nickname": nickname})
+    conn.commit()
+    updated = conn.execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone()
+    conn.close()
+    return success_response({"message": "닉네임이 변경되었습니다.", "user": user_row_to_dict(updated)})
+
+
+@app.route("/api/role/request", methods=["POST"])
+@login_required
+def request_role_change():
+    payload = request.get_json(silent=True) or {}
+    target = normalize_role(payload.get("to_role", ""))
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+
+    current = normalize_role(me["role"])
+    allowed = {("GENERAL", "MEMBER"), ("MEMBER", "EXECUTIVE")}
+    if (current, target) not in allowed:
+        conn.close()
+        return error_response("요청 가능한 역할 전환이 아닙니다.", 400)
+
+    pending = conn.execute(
+        "SELECT id FROM role_requests WHERE user_id = ? AND status = 'PENDING'",
+        (me["id"],),
+    ).fetchone()
+    if pending:
+        conn.close()
+        return error_response("이미 처리 대기 중인 요청이 있습니다.", 409)
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO role_requests (user_id, from_role, to_role, status, created_at)
+        VALUES (?, ?, ?, 'PENDING', ?)
+        """,
+        (me["id"], current, target, now_iso()),
+    )
+    request_id = cur.lastrowid
+    log_audit(conn, "request_role_change", "role_request", request_id, me["id"], {"from": current, "to": target})
+    conn.commit()
+    conn.close()
+    return success_response({"request_id": request_id}, 201)
+
+
+@app.route("/api/admin/role/requests", methods=["GET"])
+@roles_required(["OPERATOR", "LEADER", "VICE_LEADER"])
+def list_role_requests():
+    status = str(request.args.get("status", "PENDING")).strip().upper()
+    page = max(1, int(request.args.get("page", "1") or 1))
+    page_size = min(100, max(1, int(request.args.get("pageSize", "20") or 20)))
+    offset = (page - 1) * page_size
+
+    conn = get_db_connection()
+    total = conn.execute("SELECT COUNT(*) AS c FROM role_requests WHERE status = ?", (status,)).fetchone()["c"]
+    rows = conn.execute(
+        """
+        SELECT rr.*, u.username, u.nickname
+        FROM role_requests rr
+        JOIN users u ON u.id = rr.user_id
+        WHERE rr.status = ?
+        ORDER BY rr.id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (status, page_size, offset),
+    ).fetchall()
+    conn.close()
+    return success_response(
+        {
+            "items": [dict(row) for row in rows],
+            "pagination": {
+                "total": int(total or 0),
+                "page": page,
+                "pageSize": page_size,
+                "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
+            },
+        }
+    )
+
+
+def _decide_role_request(request_id, approve=True):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    req = conn.execute("SELECT * FROM role_requests WHERE id = ?", (request_id,)).fetchone()
+    if not req:
+        conn.close()
+        return error_response("요청을 찾을 수 없습니다.", 404)
+    if req["status"] != "PENDING":
+        conn.close()
+        return error_response("이미 처리된 요청입니다.", 409)
+
+    next_status = "APPROVED" if approve else "REJECTED"
+    conn.execute(
+        "UPDATE role_requests SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?",
+        (next_status, now_iso(), me["id"], request_id),
+    )
+    if approve:
+        conn.execute("UPDATE users SET role = ?, is_admin = CASE WHEN ? = 'OPERATOR' THEN 1 ELSE is_admin END WHERE id = ?", (req["to_role"], req["to_role"], req["user_id"]))
+    log_audit(conn, f"role_request_{next_status.lower()}", "role_request", request_id, me["id"], {"user_id": req["user_id"]})
+    conn.commit()
+    conn.close()
+    return success_response({"request_id": request_id, "status": next_status})
+
+
+@app.route("/api/admin/role/requests/<int:request_id>/approve", methods=["POST"])
+@roles_required(["OPERATOR", "LEADER", "VICE_LEADER"])
+def approve_role_request(request_id):
+    return _decide_role_request(request_id, True)
+
+
+@app.route("/api/admin/role/requests/<int:request_id>/reject", methods=["POST"])
+@roles_required(["OPERATOR", "LEADER", "VICE_LEADER"])
+def reject_role_request(request_id):
+    return _decide_role_request(request_id, False)
+
+
+@app.route("/api/events/<int:event_id>", methods=["GET"])
+@login_required
+def event_detail(event_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 접근할 수 있습니다.", 403)
+
+    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        conn.close()
+        return error_response("이벤트를 찾을 수 없습니다.", 404)
+    votes = conn.execute(
+        "SELECT vote_status, COUNT(*) AS c FROM event_votes WHERE event_id = ? GROUP BY vote_status",
+        (event_id,),
+    ).fetchall()
+    my_vote = conn.execute(
+        "SELECT vote_status FROM event_votes WHERE event_id = ? AND user_id = ?",
+        (event_id, me["id"]),
+    ).fetchone()
+    conn.close()
+
+    summary = {"ATTEND": 0, "ABSENT": 0, "WAITING": 0}
+    for row in votes:
+        key = str(row["vote_status"] or "").upper()
+        if key in summary:
+            summary[key] = int(row["c"] or 0)
+    return success_response({"event": dict(event), "summary": summary, "my_vote": my_vote["vote_status"] if my_vote else None})
+
+
+@app.route("/api/events/<int:event_id>/vote", methods=["POST"])
+@login_required
+def vote_event(event_id):
+    payload = request.get_json(silent=True) or {}
+    status = str(payload.get("status", "")).strip().upper()
+    if status not in ("ATTEND", "ABSENT", "WAITING"):
+        return error_response("투표 상태는 ATTEND/ABSENT/WAITING 중 하나여야 합니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "MEMBER"):
+        conn.close()
+        return error_response("단원 이상만 투표할 수 있습니다.", 403)
+
+    event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        conn.close()
+        return error_response("이벤트를 찾을 수 없습니다.", 404)
+
+    existing = conn.execute(
+        "SELECT id FROM event_votes WHERE event_id = ? AND user_id = ?",
+        (event_id, me["id"]),
+    ).fetchone()
+    if existing:
+        conn.execute("UPDATE event_votes SET vote_status = ?, updated_at = ? WHERE id = ?", (status, now_iso(), existing["id"]))
+    else:
+        conn.execute(
+            "INSERT INTO event_votes (event_id, user_id, vote_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (event_id, me["id"], status, now_iso(), now_iso()),
+        )
+    log_audit(conn, "vote_event", "event", event_id, me["id"], {"status": status})
+    conn.commit()
+    conn.close()
+    return success_response({"event_id": event_id, "status": status})
 
 
 @app.errorhandler(400)
