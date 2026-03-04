@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+.git/
+.gitignore
+node_modules/
+test-results/
+loadtests/results/
+*.pyc
+*.pyo
+*.pyd
+*.db
+logs/
+backups/

@@ -4,22 +4,67 @@ import sqlite3
 import uuid
 import csv
 import io
+import json
+import logging
+import smtplib
 from functools import wraps
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
+from pathlib import Path
 
-from flask import Flask, Response, jsonify, request, send_from_directory, session
+from flask import Flask, Response, jsonify, request, send_from_directory, send_file, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "weave.db")
+INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+DB_PATH = os.environ.get("WEAVE_DB_PATH", os.path.join(BASE_DIR, "weave.db"))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+UPLOAD_DIR = os.path.join(BASE_DIR, "storage", "uploads")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 WEAVE_ENV = os.environ.get("WEAVE_ENV", "development").lower()
 DEFAULT_ADMIN_PASSWORD = "Weave!2026"
 ROLE_ORDER = {"member": 1, "staff": 2, "admin": 3}
 KST = timezone(timedelta(hours=9))
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
+LOGIN_RATE_LIMIT_COUNT = 5
+LOGIN_RATE_LIMIT_WINDOW = timedelta(minutes=10)
+LOGIN_RATE_LIMIT_BLOCK = timedelta(minutes=10)
+LOGIN_ATTEMPTS = {}
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "no-reply@weave.local")
+SMTP_TLS = os.environ.get("SMTP_TLS", "true").lower() == "true"
+
+MAX_UPLOAD_MB = int(os.environ.get("WEAVE_MAX_UPLOAD_MB", "10"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+ALLOWED_UPLOAD_MIME = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/zip",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+logger = logging.getLogger("weave")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    file_handler = logging.FileHandler(os.path.join(LOG_DIR, "app.log"), encoding="utf-8")
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 app.config["SECRET_KEY"] = os.environ.get("WEAVE_SECRET_KEY", "weave-local-dev-secret-key")
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("WEAVE_MAX_CONTENT_LENGTH", 1024 * 1024))
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -38,6 +83,142 @@ if trusted_hosts:
 
 proxy_hops = int(os.environ.get("WEAVE_PROXY_HOPS", "1"))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxy_hops, x_proto=proxy_hops, x_host=proxy_hops, x_port=proxy_hops)
+
+
+def success_response(data=None, status_code=200):
+    return jsonify({"success": True, "data": data}), status_code
+
+
+def error_response(message, code=400, details=None):
+    body = {"success": False, "error": str(message)}
+    if details is not None:
+        body["details"] = details
+    return jsonify(body), code
+
+
+def is_api_request():
+    return request.path.startswith("/api")
+
+
+def get_client_ip():
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def get_user_agent():
+    return request.headers.get("User-Agent", "")[:500]
+
+
+def parse_rate_limit_bucket(ip):
+    now = datetime.now()
+    bucket = LOGIN_ATTEMPTS.get(ip, {"fails": [], "blocked_until": None})
+    bucket["fails"] = [
+        ts for ts in bucket.get("fails", []) if (now - ts) <= LOGIN_RATE_LIMIT_WINDOW
+    ]
+    blocked_until = bucket.get("blocked_until")
+    if blocked_until and blocked_until <= now:
+        bucket["blocked_until"] = None
+    LOGIN_ATTEMPTS[ip] = bucket
+    return bucket
+
+
+def is_ip_blocked(ip):
+    bucket = parse_rate_limit_bucket(ip)
+    blocked_until = bucket.get("blocked_until")
+    if blocked_until and blocked_until > datetime.now():
+        return True, blocked_until
+    return False, None
+
+
+def register_login_failure(ip):
+    bucket = parse_rate_limit_bucket(ip)
+    now = datetime.now()
+    bucket["fails"].append(now)
+    if len(bucket["fails"]) >= LOGIN_RATE_LIMIT_COUNT:
+        bucket["blocked_until"] = now + LOGIN_RATE_LIMIT_BLOCK
+        bucket["fails"] = []
+    LOGIN_ATTEMPTS[ip] = bucket
+    return bucket.get("blocked_until")
+
+
+def reset_login_failures_by_ip(ip):
+    if ip in LOGIN_ATTEMPTS:
+        LOGIN_ATTEMPTS.pop(ip, None)
+
+
+def write_app_log(level, action, user_id=None, extra=None):
+    payload = {
+        "action": action,
+        "ip": get_client_ip() if request else "unknown",
+        "user_id": user_id,
+        "user_agent": get_user_agent() if request else "",
+    }
+    if extra:
+        payload.update(extra)
+    line = json.dumps(payload, ensure_ascii=False)
+    if level == "warning":
+        logger.warning(line)
+    elif level == "error":
+        logger.error(line)
+    else:
+        logger.info(line)
+
+
+def send_email(to_email, subject, body):
+    if not SMTP_HOST or not to_email:
+        return False
+    try:
+        message = EmailMessage()
+        message["From"] = SMTP_FROM
+        message["To"] = to_email
+        message["Subject"] = subject
+        message.set_content(body)
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            if SMTP_TLS:
+                server.starttls()
+            if SMTP_USER:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(message)
+        return True
+    except Exception as exc:
+        logger.error(f"email_send_failed: {exc}")
+        return False
+
+
+def current_user_id():
+    return session.get("user_id")
+
+
+def save_uploaded_file(file_storage):
+    if not file_storage:
+        return None, "파일이 없습니다."
+    if not file_storage.filename:
+        return None, "파일명이 없습니다."
+    mime_type = (file_storage.mimetype or "").lower()
+    if mime_type not in ALLOWED_UPLOAD_MIME:
+        return None, "허용되지 않은 파일 형식입니다."
+
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > MAX_UPLOAD_BYTES:
+        return None, f"파일 크기는 최대 {MAX_UPLOAD_MB}MB까지 허용됩니다."
+
+    original_name = secure_filename(file_storage.filename)
+    extension = Path(original_name).suffix.lower()
+    stored_name = f"{uuid.uuid4().hex}{extension}"
+    stored_path = os.path.join(UPLOAD_DIR, stored_name)
+    file_storage.save(stored_path)
+    return {
+        "original_name": original_name,
+        "stored_name": stored_name,
+        "stored_path": stored_path,
+        "mime_type": mime_type,
+        "size": size,
+    }, None
 
 
 def get_db_connection():
@@ -107,7 +288,20 @@ def login_required(func):
     def wrapper(*args, **kwargs):
         user = get_current_user_row()
         if not user:
-            return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+            return error_response("Unauthorized", 401)
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def admin_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        user = get_current_user_row()
+        if not user:
+            return error_response("Unauthorized", 401)
+        if not role_at_least(user["role"], "admin"):
+            return error_response("Forbidden", 403)
         return func(*args, **kwargs)
 
     return wrapper
@@ -119,9 +313,9 @@ def role_required(min_role):
         def wrapper(*args, **kwargs):
             user = get_current_user_row()
             if not user:
-                return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+                return error_response("Unauthorized", 401)
             if not role_at_least(user["role"], min_role):
-                return jsonify({"ok": False, "message": "권한이 없습니다."}), 403
+                return error_response("Forbidden", 403)
             return func(*args, **kwargs)
 
         return wrapper
@@ -134,9 +328,9 @@ def active_member_required(func):
     def wrapper(*args, **kwargs):
         user = get_current_user_row()
         if not user:
-            return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+            return error_response("Unauthorized", 401)
         if user["status"] != "active":
-            return jsonify({"ok": False, "message": "승인된 정식 단원만 이용할 수 있습니다."}), 403
+            return error_response("승인된 정식 단원만 이용할 수 있습니다.", 403)
         return func(*args, **kwargs)
 
     return wrapper
@@ -163,6 +357,47 @@ def user_row_to_dict(row):
         "failedLoginCount": row["failed_login_count"],
         "lockedUntil": row["locked_until"],
     }
+
+
+def log_audit(conn, action, target_type="", target_id=None, actor_user_id=None):
+    actor = actor_user_id if actor_user_id is not None else current_user_id()
+    conn.execute(
+        """
+        INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, ip, user_agent, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            actor,
+            str(action or "").strip(),
+            str(target_type or "").strip(),
+            int(target_id) if target_id is not None else None,
+            get_client_ip(),
+            get_user_agent(),
+            now_iso(),
+        ),
+    )
+
+
+def notification_already_sent(conn, notification_type, target_type, target_id):
+    row = conn.execute(
+        """
+        SELECT id FROM notification_history
+        WHERE notification_type = ? AND target_type = ? AND target_id = ?
+        LIMIT 1
+        """,
+        (notification_type, target_type, str(target_id)),
+    ).fetchone()
+    return bool(row)
+
+
+def mark_notification_sent(conn, notification_type, target_type, target_id, recipient):
+    conn.execute(
+        """
+        INSERT INTO notification_history (notification_type, target_type, target_id, recipient, sent_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (notification_type, target_type, str(target_id), recipient, now_iso()),
+    )
 
 
 def ensure_users_migration(cur):
@@ -377,6 +612,101 @@ def init_db():
         )
         """
     )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            location TEXT DEFAULT '',
+            event_date TEXT NOT NULL,
+            max_participants INTEGER NOT NULL DEFAULT 0,
+            created_by INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'registered',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(event_id, user_id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT DEFAULT '',
+            is_pinned INTEGER NOT NULL DEFAULT 0,
+            publish_at TEXT,
+            author_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS post_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            original_name TEXT NOT NULL,
+            stored_path TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            uploaded_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor_user_id INTEGER,
+            action TEXT NOT NULL,
+            target_type TEXT DEFAULT '',
+            target_id INTEGER,
+            ip TEXT DEFAULT '',
+            user_agent TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notification_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            notification_type TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            recipient TEXT NOT NULL,
+            sent_at TEXT NOT NULL,
+            UNIQUE(notification_type, target_type, target_id, recipient)
+        )
+        """
+    )
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish_at ON posts(publish_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)")
     conn.commit()
 
     admin_email = "admin@weave.com"
@@ -661,23 +991,27 @@ def set_security_headers(response):
 
 @app.route("/")
 def root():
-    return send_from_directory(BASE_DIR, "index.html")
+    return send_from_directory(STATIC_DIR, "index.html")
 
 
 @app.route("/healthz", methods=["GET"])
 def healthz():
-    conn = get_db_connection()
-    conn.execute("SELECT 1")
-    conn.close()
-    return jsonify({"ok": True, "status": "healthy"}), 200
+    try:
+        conn = get_db_connection()
+        conn.execute("SELECT 1")
+        conn.close()
+        return success_response({"status": "healthy", "db": "ok"}, 200)
+    except Exception as exc:
+        return error_response("DB connectivity check failed", 500, {"reason": str(exc)})
 
 
 @app.route("/api/auth/me", methods=["GET"])
 def auth_me():
     row = get_current_user_row()
     if not row:
-        return jsonify({"user": None})
-    return jsonify({"user": user_row_to_dict(row)})
+        return success_response({"user": None})
+    data = {"user": user_row_to_dict(row)}
+    return jsonify({"success": True, "data": data, "user": data["user"]})
 
 
 @app.route("/api/auth/signup", methods=["POST"])
@@ -685,19 +1019,19 @@ def auth_signup():
     payload = request.get_json(silent=True) or {}
     valid, message = validate_signup_payload(payload)
     if not valid:
-        return jsonify({"ok": False, "message": message}), 400
+        return error_response(message, 400)
 
     conn = get_db_connection()
     cur = conn.cursor()
     exists_email = cur.execute("SELECT id FROM users WHERE email = ?", (payload["email"],)).fetchone()
     if exists_email:
         conn.close()
-        return jsonify({"ok": False, "message": "이미 등록된 이메일입니다."}), 409
+        return error_response("이미 등록된 이메일입니다.", 409)
 
     exists_username = cur.execute("SELECT id FROM users WHERE username = ?", (payload["username"],)).fetchone()
     if exists_username:
         conn.close()
-        return jsonify({"ok": False, "message": "이미 사용 중인 아이디입니다."}), 409
+        return error_response("이미 사용 중인 아이디입니다.", 409)
 
     cur.execute(
         """
@@ -724,18 +1058,20 @@ def auth_signup():
         ),
     )
     user_id = cur.lastrowid
+    log_audit(conn, "signup", "user", user_id, user_id)
     conn.commit()
     row = cur.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
 
+    write_app_log("info", "signup", user_id=user_id)
+
     session["user_id"] = user_id
-    return jsonify(
-        {
-            "ok": True,
-            "message": "가입 신청이 완료되었습니다. 운영진 승인 후 정식 단원으로 전환됩니다.",
-            "user": user_row_to_dict(row),
-        }
-    )
+    user_data = user_row_to_dict(row)
+    payload = {
+        "message": "가입 신청이 완료되었습니다. 운영진 승인 후 정식 단원으로 전환됩니다.",
+        "user": user_data,
+    }
+    return jsonify({"success": True, "data": payload, "ok": True, **payload})
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -743,57 +1079,83 @@ def auth_login():
     payload = request.get_json(silent=True) or {}
     username = str(payload.get("username", "")).strip()
     password = str(payload.get("password", ""))
+    client_ip = get_client_ip()
+
+    blocked, blocked_until = is_ip_blocked(client_ip)
+    if blocked:
+        blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
+        write_app_log("warning", "login_rate_limited", extra={"blocked_until": blocked_until_text})
+        return error_response(
+            f"로그인 시도가 너무 많습니다. {blocked_until_text} 이후 다시 시도하세요.",
+            429,
+            {"blocked_until": blocked_until_text},
+        )
 
     if not username or not password:
-        return jsonify({"ok": False, "message": "아이디와 비밀번호를 입력해주세요."}), 400
+        return error_response("아이디와 비밀번호를 입력해주세요.", 400)
 
     conn = get_db_connection()
     row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
     if not row:
         conn.close()
-        return jsonify({"ok": False, "message": "아이디 또는 비밀번호가 틀렸습니다."}), 401
+        register_login_failure(client_ip)
+        write_app_log("warning", "login_failed_unknown_user", extra={"username": username})
+        return error_response("아이디 또는 비밀번호가 틀렸습니다.", 401)
 
     try_unlock_expired_user(conn, row)
     row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
 
     if row["status"] == "withdrawn":
         conn.close()
-        return jsonify({"ok": False, "message": "탈퇴 처리된 계정입니다."}), 403
+        write_app_log("warning", "login_withdrawn", user_id=row["id"])
+        return error_response("탈퇴 처리된 계정입니다.", 403)
 
     if row["status"] == "locked":
         conn.close()
-        return jsonify({"ok": False, "message": "로그인 5회 실패로 잠금되었습니다. 휴대폰/이메일 인증으로 해제하세요."}), 423
+        write_app_log("warning", "login_locked", user_id=row["id"])
+        return error_response("로그인 5회 실패로 잠금되었습니다. 휴대폰/이메일 인증으로 해제하세요.", 423)
 
     if not check_password_hash(row["password_hash"], password):
         locked, _ = increase_login_failure(conn, row)
         conn.close()
+        register_login_failure(client_ip)
+        write_app_log("warning", "login_failed", user_id=row["id"])
         if locked:
-            return jsonify({"ok": False, "message": "로그인 5회 실패로 계정이 잠금되었습니다."}), 423
-        return jsonify({"ok": False, "message": "아이디 또는 비밀번호가 틀렸습니다."}), 401
+            return error_response("로그인 5회 실패로 계정이 잠금되었습니다.", 423)
+        return error_response("아이디 또는 비밀번호가 틀렸습니다.", 401)
 
     reset_login_failures(conn, row["id"])
     row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
+    log_audit(conn, "login", "user", row["id"], row["id"])
     conn.close()
+    reset_login_failures_by_ip(client_ip)
+    write_app_log("info", "login_success", user_id=row["id"])
 
     session["user_id"] = row["id"]
     if row["status"] == "pending":
-        return jsonify(
-            {
-                "ok": True,
-                "pending": True,
-                "message": "가입 승인 대기 중입니다. 승인 후 정식 단원 기능을 사용할 수 있습니다.",
-                "user": user_row_to_dict(row),
-            }
-        )
+        payload = {
+            "pending": True,
+            "message": "가입 승인 대기 중입니다. 승인 후 정식 단원 기능을 사용할 수 있습니다.",
+            "user": user_row_to_dict(row),
+        }
+        return jsonify({"success": True, "data": payload, "ok": True, **payload})
 
-    return jsonify({"ok": True, "user": user_row_to_dict(row)})
+    payload = {"user": user_row_to_dict(row)}
+    return jsonify({"success": True, "data": payload, "ok": True, **payload})
 
 
 @app.route("/api/auth/logout", methods=["POST"])
 def auth_logout():
+    user_id = session.get("user_id")
+    conn = get_db_connection()
+    if user_id:
+        log_audit(conn, "logout", "user", user_id, user_id)
+        write_app_log("info", "logout", user_id=user_id)
+    conn.commit()
+    conn.close()
     session.pop("user_id", None)
-    return jsonify({"ok": True})
+    return success_response({"ok": True})
 
 
 @app.route("/api/auth/find-username", methods=["POST"])
@@ -801,7 +1163,7 @@ def auth_find_username():
     payload = request.get_json(silent=True) or {}
     contact = str(payload.get("contact", "")).strip()
     if not contact:
-        return jsonify({"ok": False, "message": "연락처 또는 이메일을 입력하세요."}), 400
+        return error_response("연락처 또는 이메일을 입력하세요.", 400)
 
     normalized = contact.replace("-", "").lower()
     conn = get_db_connection()
@@ -814,9 +1176,9 @@ def auth_find_username():
         email_key = (item["email"] or "").replace("-", "").lower()
         phone_key = (item["phone"] or "").replace("-", "").lower()
         if normalized in (email_key, phone_key):
-            return jsonify({"ok": True, "username": item["username"]})
+            return success_response({"username": item["username"], "ok": True})
 
-    return jsonify({"ok": False, "message": "일치하는 계정을 찾지 못했습니다."}), 404
+    return error_response("일치하는 계정을 찾지 못했습니다.", 404)
 
 
 @app.route("/api/auth/reset-password", methods=["POST"])
@@ -827,11 +1189,11 @@ def auth_reset_password():
     new_password = str(payload.get("newPassword", ""))
 
     if not username or not contact or not new_password:
-        return jsonify({"ok": False, "message": "필수 값을 입력해주세요."}), 400
+        return error_response("필수 값을 입력해주세요.", 400)
 
     valid_password, password_message = validate_password_policy(new_password)
     if not valid_password:
-        return jsonify({"ok": False, "message": password_message}), 400
+        return error_response(password_message, 400)
 
     normalized_contact = contact.replace("-", "").lower()
 
@@ -843,21 +1205,25 @@ def auth_reset_password():
 
     if not row:
         conn.close()
-        return jsonify({"ok": False, "message": "일치하는 계정을 찾지 못했습니다."}), 404
+        return error_response("일치하는 계정을 찾지 못했습니다.", 404)
 
     email_key = (row["email"] or "").replace("-", "").lower()
     phone_key = (row["phone"] or "").replace("-", "").lower()
     if normalized_contact not in (email_key, phone_key):
         conn.close()
-        return jsonify({"ok": False, "message": "일치하는 계정을 찾지 못했습니다."}), 404
+        return error_response("일치하는 계정을 찾지 못했습니다.", 404)
 
     conn.execute(
         "UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL, status = CASE WHEN status='locked' THEN COALESCE(CASE WHEN approved_at IS NOT NULL THEN 'active' END, 'pending') ELSE status END WHERE id = ?",
         (generate_password_hash(new_password), row["id"]),
     )
+    log_audit(conn, "password_reset", "user", row["id"], row["id"])
+    send_email(row["email"], "[Weave] 비밀번호 재설정 안내", "비밀번호가 재설정되었습니다. 본인이 요청하지 않았다면 즉시 운영진에 문의하세요.")
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "message": "비밀번호가 재설정되었습니다."})
+    write_app_log("info", "password_reset", user_id=row["id"])
+    payload = {"ok": True, "message": "비밀번호가 재설정되었습니다."}
+    return jsonify({"success": True, "data": payload, **payload})
 
 
 @app.route("/api/auth/unlock-account", methods=["POST"])
@@ -901,15 +1267,15 @@ def auth_withdraw():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response("Unauthorized", 401)
 
     if contact not in (normalize_contact(me["email"]), normalize_contact(me["phone"])):
         conn.close()
-        return jsonify({"ok": False, "message": "연락처/이메일 인증이 필요합니다."}), 403
+        return error_response("연락처/이메일 인증이 필요합니다.", 403)
 
     if not check_password_hash(me["password_hash"], password):
         conn.close()
-        return jsonify({"ok": False, "message": "비밀번호가 올바르지 않습니다."}), 403
+        return error_response("비밀번호가 올바르지 않습니다.", 403)
 
     retention_days = int(os.environ.get("WEAVE_RETENTION_DAYS", "30"))
     retention_until = (datetime.now() + timedelta(days=retention_days)).isoformat()
@@ -944,10 +1310,12 @@ def auth_withdraw():
             me["id"],
         ),
     )
+    log_audit(conn, "delete_user", "user", me["id"], me["id"])
     conn.commit()
     conn.close()
     session.pop("user_id", None)
-    return jsonify({"ok": True, "message": f"탈퇴 완료. 데이터는 {retention_days}일 보관 후 파기됩니다."})
+    write_app_log("info", "user_withdraw", user_id=me["id"])
+    return success_response({"ok": True, "message": f"탈퇴 완료. 데이터는 {retention_days}일 보관 후 파기됩니다."})
 
 
 @app.route("/api/admin/pending-users", methods=["GET"])
@@ -991,45 +1359,52 @@ def admin_approve_user(user_id):
     payload = request.get_json(silent=True) or {}
     role = str(payload.get("role", "member")).strip().lower()
     if role not in ("member", "staff", "admin"):
-        return jsonify({"ok": False, "message": "유효하지 않은 역할입니다."}), 400
+        return error_response("유효하지 않은 역할입니다.", 400)
 
     conn = get_db_connection()
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
-        return jsonify({"ok": False, "message": "대상을 찾을 수 없습니다."}), 404
+        return error_response("대상을 찾을 수 없습니다.", 404)
 
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response("Unauthorized", 401)
     if role == "admin" and not role_at_least(me["role"], "admin"):
         conn.close()
-        return jsonify({"ok": False, "message": "관리자 승격 권한이 없습니다."}), 403
+        return error_response("관리자 승격 권한이 없습니다.", 403)
 
     conn.execute(
         "UPDATE users SET status = 'active', role = ?, approved_at = ?, approved_by = ? WHERE id = ?",
         (role, now_iso(), me["id"], user_id),
     )
+    log_audit(conn, "role_change", "user", user_id, me["id"])
     conn.commit()
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    send_email(row["email"], "[Weave] 가입 승인 안내", f"가입이 승인되었습니다. 현재 권한: {role}")
     conn.close()
-    return jsonify({"ok": True, "message": "가입이 승인되었습니다.", "user": user_row_to_dict(row)})
+    write_app_log("info", "admin_approve_user", user_id=me["id"], extra={"target_user_id": user_id, "role": role})
+    payload = {"ok": True, "message": "가입이 승인되었습니다.", "user": user_row_to_dict(row)}
+    return jsonify({"success": True, "data": payload, **payload})
 
 
 @app.route("/api/admin/users/<int:user_id>/reject", methods=["POST"])
 @role_required("staff")
 def admin_reject_user(user_id):
     conn = get_db_connection()
+    me = get_current_user_row(conn)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
-        return jsonify({"ok": False, "message": "대상을 찾을 수 없습니다."}), 404
+        return error_response("대상을 찾을 수 없습니다.", 404)
 
     conn.execute("UPDATE users SET status = 'withdrawn', deleted_at = ? WHERE id = ?", (now_iso(), user_id))
+    log_audit(conn, "delete_user", "user", user_id, me["id"] if me else None)
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "message": "가입 신청이 반려되었습니다."})
+    write_app_log("warning", "admin_reject_user", user_id=me["id"] if me else None, extra={"target_user_id": user_id})
+    return success_response({"ok": True, "message": "가입 신청이 반려되었습니다."})
 
 
 def serialize_activity_row(row):
@@ -1952,9 +2327,665 @@ def generate_template():
     return jsonify({"ok": True, "content": content})
 
 
+def send_event_change_notifications(conn, event_id, title):
+    users = conn.execute(
+        """
+        SELECT u.email, u.id
+        FROM participants p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.event_id = ? AND p.status = 'registered'
+        """,
+        (event_id,),
+    ).fetchall()
+    sent = 0
+    for user in users:
+        key_target = f"{event_id}:{user['id']}"
+        if notification_already_sent(conn, "event_changed", "event_user", key_target):
+            continue
+        if send_email(user["email"], "[Weave] 일정 변경 안내", f"일정이 변경되었습니다: {title}"):
+            mark_notification_sent(conn, "event_changed", "event_user", key_target, user["email"])
+            sent += 1
+    return sent
+
+
+def send_due_event_reminders(reference_time=None):
+    now = reference_time or datetime.now()
+    start = (now + timedelta(hours=23)).isoformat()
+    end = (now + timedelta(hours=25)).isoformat()
+    conn = get_db_connection()
+    events = conn.execute(
+        "SELECT id, title, event_date FROM events WHERE event_date >= ? AND event_date <= ?",
+        (start, end),
+    ).fetchall()
+    sent_count = 0
+    for event in events:
+        recipients = conn.execute(
+            """
+            SELECT u.id, u.email
+            FROM participants p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.event_id = ? AND p.status = 'registered'
+            """,
+            (event["id"],),
+        ).fetchall()
+        for user in recipients:
+            target_key = f"{event['id']}:{user['id']}"
+            if notification_already_sent(conn, "event_reminder_24h", "event_user", target_key):
+                continue
+            if send_email(
+                user["email"],
+                "[Weave] 활동 리마인더",
+                f"내일 예정된 일정 안내: {event['title']} ({event['event_date']})",
+            ):
+                mark_notification_sent(conn, "event_reminder_24h", "event_user", target_key, user["email"])
+                sent_count += 1
+    conn.commit()
+    conn.close()
+    return sent_count
+
+
+@app.route("/api/events", methods=["GET"])
+@login_required
+def list_events():
+    page = max(1, int(request.args.get("page", "1") or 1))
+    page_size = min(100, max(1, int(request.args.get("pageSize", "10") or 10)))
+    offset = (page - 1) * page_size
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    total = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
+    rows = conn.execute(
+        """
+        SELECT e.*, u.username AS author_username,
+               (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.status='registered') AS participant_count,
+               (SELECT status FROM participants p2 WHERE p2.event_id = e.id AND p2.user_id = ? LIMIT 1) AS my_status
+        FROM events e
+        LEFT JOIN users u ON u.id = e.created_by
+        ORDER BY e.event_date ASC
+        LIMIT ? OFFSET ?
+        """,
+        (me["id"], page_size, offset),
+    ).fetchall()
+    conn.close()
+    data = {
+        "items": [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "description": row["description"],
+                "location": row["location"],
+                "eventDate": row["event_date"],
+                "maxParticipants": row["max_participants"],
+                "participantCount": row["participant_count"],
+                "createdBy": row["created_by"],
+                "createdByUsername": row["author_username"],
+                "createdAt": row["created_at"],
+                "myStatus": row["my_status"],
+            }
+            for row in rows
+        ],
+        "pagination": {
+            "total": int(total or 0),
+            "page": page,
+            "pageSize": page_size,
+            "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
+        },
+    }
+    return success_response(data)
+
+
+@app.route("/api/events", methods=["POST"])
+@admin_required
+def create_event():
+    payload = request.get_json(silent=True) or {}
+    title = str(payload.get("title", "")).strip()
+    event_date = str(payload.get("event_date", "")).strip()
+    if not title or not event_date:
+        return error_response("title/event_date는 필수입니다.", 400)
+    if not parse_iso_datetime(event_date):
+        return error_response("event_date는 ISO 형식이어야 합니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO events (title, description, location, event_date, max_participants, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title,
+            str(payload.get("description", "")).strip(),
+            str(payload.get("location", "")).strip(),
+            event_date,
+            int(payload.get("max_participants", 0) or 0),
+            me["id"],
+            now_iso(),
+            now_iso(),
+        ),
+    )
+    event_id = cur.lastrowid
+    log_audit(conn, "create_event", "event", event_id, me["id"])
+    conn.commit()
+    conn.close()
+    write_app_log("info", "create_event", user_id=me["id"], extra={"event_id": event_id})
+    return success_response({"event_id": event_id}, 201)
+
+
+@app.route("/api/events/<int:event_id>", methods=["PUT"])
+@admin_required
+def update_event(event_id):
+    payload = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    target = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not target:
+        conn.close()
+        return error_response("이벤트를 찾을 수 없습니다.", 404)
+
+    title = str(payload.get("title", target["title"])).strip()
+    description = str(payload.get("description", target["description"])).strip()
+    location = str(payload.get("location", target["location"])).strip()
+    event_date = str(payload.get("event_date", target["event_date"])).strip()
+    max_participants = int(payload.get("max_participants", target["max_participants"]) or 0)
+    if not parse_iso_datetime(event_date):
+        conn.close()
+        return error_response("event_date는 ISO 형식이어야 합니다.", 400)
+
+    conn.execute(
+        """
+        UPDATE events
+        SET title = ?, description = ?, location = ?, event_date = ?, max_participants = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (title, description, location, event_date, max_participants, now_iso(), event_id),
+    )
+    notified = send_event_change_notifications(conn, event_id, title)
+    log_audit(conn, "update_event", "event", event_id, me["id"])
+    conn.commit()
+    conn.close()
+    write_app_log("info", "update_event", user_id=me["id"], extra={"event_id": event_id, "notified": notified})
+    return success_response({"event_id": event_id, "notified": notified})
+
+
+@app.route("/api/events/<int:event_id>/join", methods=["POST"])
+@login_required
+def join_event(event_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        conn.close()
+        return error_response("이벤트를 찾을 수 없습니다.", 404)
+
+    active_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM participants WHERE event_id = ? AND status = 'registered'",
+        (event_id,),
+    ).fetchone()["c"]
+    limit_count = int(event["max_participants"] or 0)
+    if limit_count > 0 and active_count >= limit_count:
+        conn.close()
+        return error_response("모집 정원이 마감되었습니다.", 409)
+
+    existing = conn.execute(
+        "SELECT * FROM participants WHERE event_id = ? AND user_id = ?",
+        (event_id, me["id"]),
+    ).fetchone()
+
+    if existing:
+        conn.execute(
+            "UPDATE participants SET status = 'registered', updated_at = ? WHERE id = ?",
+            (now_iso(), existing["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO participants (event_id, user_id, status, created_at, updated_at) VALUES (?, ?, 'registered', ?, ?)",
+            (event_id, me["id"], now_iso(), now_iso()),
+        )
+
+    log_audit(conn, "join_event", "event", event_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"event_id": event_id, "status": "registered"})
+
+
+@app.route("/api/events/<int:event_id>/cancel", methods=["POST"])
+@login_required
+def cancel_event_participation(event_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    existing = conn.execute(
+        "SELECT * FROM participants WHERE event_id = ? AND user_id = ?",
+        (event_id, me["id"]),
+    ).fetchone()
+    if not existing:
+        conn.close()
+        return error_response("참가 신청 이력이 없습니다.", 404)
+
+    conn.execute(
+        "UPDATE participants SET status = 'cancelled', updated_at = ? WHERE id = ?",
+        (now_iso(), existing["id"]),
+    )
+    log_audit(conn, "cancel_event", "event", event_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"event_id": event_id, "status": "cancelled"})
+
+
+@app.route("/api/posts", methods=["GET"])
+@login_required
+def list_posts():
+    page = max(1, int(request.args.get("page", "1") or 1))
+    page_size = min(100, max(1, int(request.args.get("pageSize", "10") or 10)))
+    offset = (page - 1) * page_size
+    category = str(request.args.get("category", "")).strip().lower()
+    keyword = str(request.args.get("q", "")).strip()
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    is_staff = role_at_least(me["role"], "staff") if me else False
+
+    where = ["1=1"]
+    params = []
+    if category:
+        where.append("p.category = ?")
+        params.append(category)
+    if keyword:
+        where.append("(p.title LIKE ? OR p.content LIKE ?)")
+        params.extend([f"%{keyword}%", f"%{keyword}%"])
+    if not is_staff:
+        where.append("(p.publish_at IS NULL OR p.publish_at <= ?)")
+        params.append(now_iso())
+
+    where_sql = " AND ".join(where)
+    total = conn.execute(f"SELECT COUNT(*) AS c FROM posts p WHERE {where_sql}", params).fetchone()["c"]
+    rows = conn.execute(
+        f"""
+        SELECT p.*, u.username AS author_username,
+               (SELECT COUNT(*) FROM post_files pf WHERE pf.post_id = p.id) AS file_count
+        FROM posts p
+        LEFT JOIN users u ON u.id = p.author_id
+        WHERE {where_sql}
+        ORDER BY CASE WHEN p.category = 'notice' THEN p.is_pinned ELSE 0 END DESC,
+                 COALESCE(p.publish_at, p.created_at) DESC,
+                 p.id DESC
+        LIMIT ? OFFSET ?
+        """,
+        [*params, page_size, offset],
+    ).fetchall()
+    conn.close()
+
+    items = [
+        {
+            "id": row["id"],
+            "category": row["category"],
+            "title": row["title"],
+            "content": row["content"],
+            "is_pinned": bool(row["is_pinned"]),
+            "publish_at": row["publish_at"],
+            "author_id": row["author_id"],
+            "author_name": row["author_username"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "file_count": row["file_count"],
+        }
+        for row in rows
+    ]
+    return success_response(
+        {
+            "items": items,
+            "pagination": {
+                "total": int(total or 0),
+                "page": page,
+                "pageSize": page_size,
+                "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
+            },
+        }
+    )
+
+
+@app.route("/api/posts", methods=["POST"])
+@role_required("staff")
+def create_post():
+    payload = request.get_json(silent=True) or {}
+    category = str(payload.get("category", "")).strip().lower()
+    if category not in ("notice", "review", "recruit"):
+        return error_response("category는 notice|review|recruit만 허용됩니다.", 400)
+    title = str(payload.get("title", "")).strip()
+    if not title:
+        return error_response("title은 필수입니다.", 400)
+    publish_at = str(payload.get("publish_at", "")).strip() or None
+    if publish_at and not parse_iso_datetime(publish_at):
+        return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO posts (category, title, content, is_pinned, publish_at, author_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            category,
+            title,
+            str(payload.get("content", "")),
+            1 if bool(payload.get("is_pinned", False)) else 0,
+            publish_at,
+            me["id"],
+            now_iso(),
+            now_iso(),
+        ),
+    )
+    post_id = cur.lastrowid
+    log_audit(conn, "create_post", "post", post_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"post_id": post_id}, 201)
+
+
+@app.route("/api/posts/<int:post_id>", methods=["PUT"])
+@role_required("staff")
+def update_post(post_id):
+    payload = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    post = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+    category = str(payload.get("category", post["category"]))
+    if category not in ("notice", "review", "recruit"):
+        conn.close()
+        return error_response("category는 notice|review|recruit만 허용됩니다.", 400)
+    publish_at = str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
+    if publish_at and not parse_iso_datetime(publish_at):
+        conn.close()
+        return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+
+    conn.execute(
+        """
+        UPDATE posts
+        SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            category,
+            str(payload.get("title", post["title"])).strip(),
+            str(payload.get("content", post["content"])),
+            1 if bool(payload.get("is_pinned", bool(post["is_pinned"]))) else 0,
+            publish_at,
+            now_iso(),
+            post_id,
+        ),
+    )
+    log_audit(conn, "update_post", "post", post_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"post_id": post_id})
+
+
+@app.route("/api/posts/<int:post_id>", methods=["DELETE"])
+@role_required("staff")
+def delete_post(post_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    post = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+    files = conn.execute("SELECT * FROM post_files WHERE post_id = ?", (post_id,)).fetchall()
+    for file_row in files:
+        try:
+            if os.path.exists(file_row["stored_path"]):
+                os.remove(file_row["stored_path"])
+        except Exception:
+            pass
+    conn.execute("DELETE FROM post_files WHERE post_id = ?", (post_id,))
+    conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+    log_audit(conn, "delete_post", "post", post_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"deleted": True})
+
+
+@app.route("/api/posts/<int:post_id>/files", methods=["POST"])
+@role_required("staff")
+def upload_post_file(post_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    post = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return error_response("게시글을 찾을 수 없습니다.", 404)
+
+    file_storage = request.files.get("file")
+    file_info, err = save_uploaded_file(file_storage)
+    if err:
+        conn.close()
+        return error_response(err, 400)
+    if not file_info:
+        conn.close()
+        return error_response("파일 처리에 실패했습니다.", 400)
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO post_files (post_id, original_name, stored_path, mime_type, size, uploaded_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            post_id,
+            file_info["original_name"],
+            file_info["stored_path"],
+            file_info["mime_type"],
+            int(file_info["size"]),
+            now_iso(),
+        ),
+    )
+    file_id = cur.lastrowid
+    log_audit(conn, "upload_post_file", "post", post_id, me["id"])
+    conn.commit()
+    conn.close()
+    return success_response({"file_id": file_id}, 201)
+
+
+@app.route("/api/posts/<int:post_id>/files", methods=["GET"])
+@login_required
+def list_post_files(post_id):
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT id, original_name, mime_type, size, uploaded_at FROM post_files WHERE post_id = ? ORDER BY id DESC",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return success_response({"items": [dict(row) for row in rows]})
+
+
+@app.route("/api/posts/files/<int:file_id>/download", methods=["GET"])
+@login_required
+def download_post_file(file_id):
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM post_files WHERE id = ?", (file_id,)).fetchone()
+    conn.close()
+    if not row:
+        return error_response("파일을 찾을 수 없습니다.", 404)
+    if not os.path.exists(row["stored_path"]):
+        return error_response("저장된 파일이 없습니다.", 404)
+    return send_file(row["stored_path"], as_attachment=True, download_name=row["original_name"])
+
+
+@app.route("/api/admin/stats", methods=["GET"])
+@admin_required
+def admin_stats():
+    conn = get_db_connection()
+    total_users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+    total_events = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
+    total_participants = conn.execute("SELECT COUNT(*) AS c FROM participants WHERE status='registered'").fetchone()["c"]
+    upcoming_events = conn.execute(
+        "SELECT COUNT(*) AS c FROM events WHERE event_date >= ?",
+        (datetime.now().isoformat(),),
+    ).fetchone()["c"]
+    recent_signups_rows = conn.execute(
+        "SELECT id, username, email, join_date FROM users ORDER BY join_date DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+    return success_response(
+        {
+            "total_users": int(total_users or 0),
+            "total_events": int(total_events or 0),
+            "total_participants": int(total_participants or 0),
+            "upcoming_events": int(upcoming_events or 0),
+            "recent_signups": [dict(row) for row in recent_signups_rows],
+        }
+    )
+
+
+@app.route("/api/admin/audit-logs", methods=["GET"])
+@admin_required
+def get_audit_logs():
+    page = max(1, int(request.args.get("page", "1") or 1))
+    page_size = min(100, max(1, int(request.args.get("pageSize", "20") or 20)))
+    offset = (page - 1) * page_size
+    action = str(request.args.get("action", "")).strip()
+    target_type = str(request.args.get("target_type", "")).strip()
+    actor_user_id = str(request.args.get("actor_user_id", "")).strip()
+    created_from = str(request.args.get("created_from", "")).strip()
+    created_to = str(request.args.get("created_to", "")).strip()
+
+    where = ["1=1"]
+    params = []
+    if action:
+        where.append("action = ?")
+        params.append(action)
+    if target_type:
+        where.append("target_type = ?")
+        params.append(target_type)
+    if actor_user_id:
+        where.append("actor_user_id = ?")
+        params.append(actor_user_id)
+    if created_from:
+        where.append("created_at >= ?")
+        params.append(created_from)
+    if created_to:
+        where.append("created_at <= ?")
+        params.append(created_to)
+
+    where_sql = " AND ".join(where)
+    conn = get_db_connection()
+    total = conn.execute(f"SELECT COUNT(*) AS c FROM audit_logs WHERE {where_sql}", params).fetchone()["c"]
+    rows = conn.execute(
+        f"""
+        SELECT a.*,
+               u.username AS actor_username
+        FROM audit_logs a
+        LEFT JOIN users u ON u.id = a.actor_user_id
+        WHERE {where_sql}
+        ORDER BY a.id DESC
+        LIMIT ? OFFSET ?
+        """,
+        [*params, page_size, offset],
+    ).fetchall()
+    conn.close()
+
+    return success_response(
+        {
+            "items": [dict(row) for row in rows],
+            "pagination": {
+                "total": int(total or 0),
+                "page": page,
+                "pageSize": page_size,
+                "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
+            },
+        }
+    )
+
+
+@app.errorhandler(400)
+def handle_400(error):
+    if is_api_request():
+        return error_response("Bad Request", 400)
+    return error
+
+
+@app.errorhandler(401)
+def handle_401(error):
+    if is_api_request():
+        return error_response("Unauthorized", 401)
+    return error
+
+
+@app.errorhandler(403)
+def handle_403(error):
+    if is_api_request():
+        return error_response("Forbidden", 403)
+    return error
+
+
+@app.errorhandler(404)
+def handle_404(error):
+    if is_api_request():
+        return error_response("Not Found", 404)
+    return send_from_directory(STATIC_DIR, "index.html")
+
+
+@app.errorhandler(500)
+def handle_500(error):
+    if is_api_request():
+        return error_response("Internal Server Error", 500)
+    return error
+
+
+def is_sensitive_path(path):
+    lowered = str(path or "").lower()
+    sensitive_suffixes = (".db", ".env", ".py", ".sqlite", ".sqlite3")
+    return (
+        ".." in lowered
+        or lowered.startswith(".")
+        or lowered.endswith(sensitive_suffixes)
+        or "__pycache__" in lowered
+        or lowered.startswith("instance/")
+    )
+
+
 @app.route("/<path:path>")
 def static_proxy(path):
-    return send_from_directory(BASE_DIR, path)
+    normalized = str(path or "").strip().lstrip("/")
+    if normalized.startswith("api/"):
+        return error_response("Not Found", 404)
+    if is_sensitive_path(normalized):
+        return error_response("Forbidden", 403)
+
+    candidate = os.path.join(STATIC_DIR, normalized)
+    if os.path.isfile(candidate):
+        return send_from_directory(STATIC_DIR, normalized)
+    return send_from_directory(STATIC_DIR, "index.html")
 
 
 init_db()

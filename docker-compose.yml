@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - WEAVE_ENV=production
+      - WEAVE_SECRET_KEY=change-me
+      - WEAVE_DB_PATH=/data/weave.db
+    volumes:
+      - weave_data:/data
+      - weave_logs:/app/logs
+
+volumes:
+  weave_data:
+  weave_logs:

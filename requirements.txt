@@ -3,3 +3,6 @@ Werkzeug>=3.1
 waitress>=3.0
 gunicorn>=22.0
 locust>=2.37
+SQLAlchemy>=2.0
+alembic>=1.13
+psycopg2-binary>=2.9

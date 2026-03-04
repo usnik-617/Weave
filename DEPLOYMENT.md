@@ -58,7 +58,7 @@ server {
 
 ## 5) 상태 확인
 - 헬스체크: `GET /healthz`
-- 응답 예시: `{ "ok": true, "status": "healthy" }`
+- 응답 예시: `{ "success": true, "data": { "status": "healthy", "db": "ok" } }`
 
 ## 6) 성능 점검 권장
 실서비스 오픈 전 최소 100 동시 사용자를 시뮬레이션하세요.
@@ -94,3 +94,53 @@ npm run test:load
 - HTTPS 강제
 - 도메인을 `WEAVE_TRUSTED_HOSTS`에 등록
 - 로그/백업(weave.db) 주기 설정
+
+## 8) DB 백업/복구
+
+### 백업 실행 (SQLite .backup API)
+```bash
+python scripts/backup_db.py --db-path ./weave.db --backup-dir ./backups
+```
+
+백업 정책:
+- 일별 백업 7개 유지 (`daily-YYYYMMDD.db`)
+- 주별 백업 4개 유지 (`weekly-YYYY-Www.db`)
+
+### 복구 실행
+```bash
+python scripts/restore_db.py --backup ./backups/daily-20260304.db --target ./weave.db
+```
+
+복구 권장 절차:
+1. 앱 프로세스 중지 (`gunicorn`/`waitress`)
+2. 현재 DB 파일 별도 보관
+3. `restore_db.py` 실행
+4. `/healthz` 호출로 DB 연결 상태 확인
+5. 앱 재기동 후 핵심 API 스모크 테스트
+
+## 9) 알림 배치(크론)
+
+이벤트 24시간 전 리마인더 발송:
+```bash
+python scripts/send_due_notifications.py
+```
+
+크론 예시(매시간):
+```cron
+0 * * * * /usr/bin/python /opt/weave/scripts/send_due_notifications.py
+```
+
+## 10) PostgreSQL 전환 준비(Alembic)
+
+`DATABASE_URL`을 설정하면 Alembic/SQLAlchemy가 해당 DB를 사용합니다.
+
+```bash
+set DATABASE_URL=postgresql+psycopg2://user:pass@host:5432/weave
+alembic upgrade head
+```
+
+SQLite 유지 시:
+```bash
+set DATABASE_URL=sqlite:///weave.db
+alembic upgrade head
+```

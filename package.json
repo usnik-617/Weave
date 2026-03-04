@@ -5,7 +5,10 @@
   "scripts": {
     "test:e2e": "playwright test",
     "test:load": "powershell -ExecutionPolicy Bypass -File scripts/verify_load.ps1",
-    "ops:check": "D:/Blog/Weave/venv/Scripts/python.exe scripts/preflight_ops_check.py --start-local"
+    "ops:check": "D:/Blog/Weave/venv/Scripts/python.exe scripts/preflight_ops_check.py --start-local",
+    "db:backup": "python scripts/backup_db.py",
+    "db:restore": "python scripts/restore_db.py",
+    "notify:due": "python scripts/send_due_notifications.py"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0"

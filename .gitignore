@@ -11,6 +11,10 @@ venv/
 # Local database / runtime artifacts
 *.db
 *.sqlite3
+logs/
+backups/
+instance/
+storage/uploads/
 
 # Node
 node_modules/
