@@ -7,7 +7,7 @@ def list_gallery_albums():
         "SELECT * FROM gallery_albums ORDER BY id DESC"
     ).fetchall()
     conn.close()
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "items": [
@@ -50,7 +50,7 @@ def create_gallery_album():
     album_id = cur.lastrowid
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "albumId": album_id})
+    return success_response_legacy({"ok": True, "albumId": album_id})
 
 
 def add_gallery_photos(album_id):
@@ -80,7 +80,7 @@ def add_gallery_photos(album_id):
 
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "created": created})
+    return success_response_legacy({"ok": True, "created": created})
 
 
 def delete_gallery_photo(photo_id):
@@ -106,7 +106,7 @@ def delete_gallery_photo(photo_id):
 
 
 def get_press_kit():
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "logoGuide": "로고는 원본 비율을 유지하고, 주변 여백을 확보해 사용하세요.",
@@ -125,7 +125,7 @@ def list_rules_versions():
         "SELECT id, version_tag, effective_date, summary, content, created_at FROM rules_versions ORDER BY id DESC"
     ).fetchall()
     conn.close()
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "items": [
@@ -160,7 +160,7 @@ def create_rules_version():
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "message": "개정 이력이 등록되었습니다."})
+    return success_response_legacy({"ok": True, "message": "개정 이력이 등록되었습니다."})
 
 
 def get_annual_report(year):
@@ -189,11 +189,11 @@ def get_annual_report(year):
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "report": data})
+    return success_response_legacy({"ok": True, "report": data})
 
 
 def get_templates():
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "items": [
@@ -219,7 +219,7 @@ def generate_template():
     content = templates.get(template_type)
     if not content:
         return jsonify({"ok": False, "message": "지원하지 않는 템플릿입니다."}), 400
-    return jsonify({"ok": True, "content": content})
+    return success_response_legacy({"ok": True, "content": content})
 
 
 def list_posts():

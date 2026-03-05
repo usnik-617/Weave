@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test:e2e": "playwright test",
+    "sync:static-root": "python scripts/sync_static_root.py",
+    "test:e2e": "npm run sync:static-root && playwright test",
     "test:load": "powershell -ExecutionPolicy Bypass -File scripts/verify_load.ps1",
     "ops:check": "D:/Blog/Weave/venv/Scripts/python.exe scripts/preflight_ops_check.py --start-local",
     "db:backup": "python scripts/backup_db.py",

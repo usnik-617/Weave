@@ -102,6 +102,16 @@ def success_response(data=None, status_code=200):
     return jsonify({"success": True, "data": data}), status_code
 
 
+def success_response_legacy(data=None, status_code=200):
+    body = {"success": True, "data": data}
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key == "success":
+                continue
+            body[key] = value
+    return jsonify(body), status_code
+
+
 def error_response(message, code=400, details=None):
     body = {"success": False, "error": str(message)}
     if details is not None:

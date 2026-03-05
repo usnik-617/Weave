@@ -25,13 +25,24 @@ async function getCsrfToken(request) {
 }
 
 async function login(request, username, password) {
-  const csrfToken = await getCsrfToken(request);
-  const response = await request.post('/api/auth/login', {
-    data: { username, password },
-    headers: { 'X-CSRF-Token': csrfToken },
-  });
-  expect(response.ok()).toBeTruthy();
-  return jsonBody(response);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const csrfToken = await getCsrfToken(request);
+    const response = await request.post('/api/auth/login?playwright_test=1', {
+      data: { username, password },
+      headers: { 'X-CSRF-Token': csrfToken, 'X-Playwright-Test': '1' },
+    });
+    if (response.ok()) {
+      return jsonBody(response);
+    }
+    const status = response.status();
+    const text = await response.text();
+    if (status === 429 && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      continue;
+    }
+    throw new Error(`login failed(${status}): ${text}`);
+  }
+  throw new Error('login failed after retries');
 }
 
 async function signup(request, seed) {

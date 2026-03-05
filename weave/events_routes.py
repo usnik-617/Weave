@@ -116,7 +116,113 @@ def create_activity():
     conn.commit()
     row = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
     conn.close()
-    return jsonify({"ok": True, "activity": serialize_activity_row(row)})
+    return success_response_legacy({"ok": True, "activity": serialize_activity_row(row)})
+
+
+def update_activity(activity_id):
+    payload = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+    if not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return jsonify({"ok": False, "message": "임원 이상만 일정을 수정할 수 있습니다."}), 403
+
+    target = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
+    if not target:
+        conn.close()
+        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+    if target["is_cancelled"]:
+        conn.close()
+        return jsonify({"ok": False, "message": "취소된 일정은 수정할 수 없습니다."}), 409
+
+    title = str(payload.get("title", target["title"] or "")).strip()
+    if not title:
+        conn.close()
+        return jsonify({"ok": False, "message": "title 값이 필요합니다."}), 400
+    if len(title) > 120:
+        conn.close()
+        return jsonify({"ok": False, "message": "활동 제목은 120자 이하여야 합니다."}), 400
+
+    start_at = str(payload.get("startAt", target["start_at"] or "")).strip()
+    end_at = str(payload.get("endAt", target["end_at"] or "")).strip()
+    start_dt = parse_iso_datetime(start_at)
+    end_dt = parse_iso_datetime(end_at)
+    if not start_dt or not end_dt:
+        conn.close()
+        return jsonify({"ok": False, "message": "시작/종료 시간 형식이 올바르지 않습니다."}), 400
+    if end_dt <= start_dt:
+        conn.close()
+        return jsonify({"ok": False, "message": "종료 시간은 시작 시간보다 늦어야 합니다."}), 400
+
+    raw_limit = payload.get("recruitmentLimit", target["recruitment_limit"])
+    recruitment_limit = int(raw_limit or 0)
+    if recruitment_limit < 0 or recruitment_limit > 1000:
+        conn.close()
+        return jsonify({"ok": False, "message": "모집 인원은 0~1000 범위여야 합니다."}), 400
+
+    conn.execute(
+        """
+        UPDATE activities
+        SET title = ?, description = ?, start_at = ?, end_at = ?, place = ?, supplies = ?,
+            gather_time = ?, manager_name = ?, recruitment_limit = ?
+        WHERE id = ?
+        """,
+        (
+            title,
+            str(payload.get("description", target["description"] or "")).strip(),
+            start_at,
+            end_at,
+            str(payload.get("place", target["place"] or "")).strip(),
+            str(payload.get("supplies", target["supplies"] or "")).strip(),
+            str(payload.get("gatherTime", target["gather_time"] or "")).strip(),
+            str(payload.get("manager", target["manager_name"] or me["name"])).strip(),
+            recruitment_limit,
+            activity_id,
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
+    conn.close()
+    return success_response_legacy({"ok": True, "activity": serialize_activity_row(row)})
+
+
+def delete_activity(activity_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+    if not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return jsonify({"ok": False, "message": "임원 이상만 일정을 삭제할 수 있습니다."}), 403
+
+    target = conn.execute("SELECT * FROM activities WHERE id = ?", (activity_id,)).fetchone()
+    if not target:
+        conn.close()
+        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+    if target["is_cancelled"]:
+        conn.close()
+        return success_response_legacy({"ok": True, "message": "이미 취소된 일정입니다."})
+
+    conn.execute(
+        "UPDATE activities SET is_cancelled = 1, cancelled_at = ? WHERE id = ?",
+        (now_iso(), activity_id),
+    )
+    conn.execute(
+        """
+        UPDATE activity_applications
+        SET status = 'cancelled', updated_at = ?
+        WHERE activity_id = ?
+          AND status IN ('waiting', 'confirmed')
+        """,
+        (now_iso(), activity_id),
+    )
+    conn.commit()
+    conn.close()
+    return success_response_legacy({"ok": True, "message": "일정이 취소(삭제)되었습니다."})
 
 
 def apply_activity(activity_id):
@@ -170,7 +276,7 @@ def apply_activity(activity_id):
         )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "status": next_status})
+    return success_response_legacy({"ok": True, "status": next_status})
 
 
 def cancel_recurrence_group(group_id):
@@ -205,7 +311,7 @@ def cancel_recurrence_group(group_id):
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "message": "반복 그룹 일정이 일괄 취소되었습니다.", "count": len(activity_ids)})
+    return success_response_legacy({"ok": True, "message": "반복 그룹 일정이 일괄 취소되었습니다.", "count": len(activity_ids)})
 
 
 def recurrence_group_impact(group_id):
@@ -254,7 +360,7 @@ def recurrence_group_impact(group_id):
     ).fetchall()
     conn.close()
 
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "groupId": group_id,
@@ -297,7 +403,7 @@ def cancel_activity(activity_id):
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "message": "신청이 취소되었습니다."})
+    return success_response_legacy({"ok": True, "message": "신청이 취소되었습니다."})
 
 
 def create_attendance_qr_token(activity_id):
@@ -319,7 +425,7 @@ def create_attendance_qr_token(activity_id):
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "token": token, "expiresAt": expires})
+    return success_response_legacy({"ok": True, "token": token, "expiresAt": expires})
 
 
 def qr_check_attendance(activity_id):
@@ -368,7 +474,7 @@ def qr_check_attendance(activity_id):
     )
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "hours": hours, "points": points})
+    return success_response_legacy({"ok": True, "hours": hours, "points": points})
 
 
 def bulk_attendance(activity_id):
@@ -426,7 +532,7 @@ def bulk_attendance(activity_id):
 
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "updated": updated})
+    return success_response_legacy({"ok": True, "updated": updated})
 
 
 def admin_dashboard():

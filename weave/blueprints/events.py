@@ -16,6 +16,8 @@ bp.add_url_rule("/api/events/<int:event_id>/attendance", view_func=er.mark_event
 
 bp.add_url_rule("/api/activities", view_func=er.list_activities, methods=["GET"])
 bp.add_url_rule("/api/activities", view_func=er.create_activity, methods=["POST"])
+bp.add_url_rule("/api/activities/<int:activity_id>", view_func=er.update_activity, methods=["PUT"])
+bp.add_url_rule("/api/activities/<int:activity_id>", view_func=er.delete_activity, methods=["DELETE"])
 bp.add_url_rule("/api/activities/<int:activity_id>/apply", view_func=er.apply_activity, methods=["POST"])
 bp.add_url_rule("/api/activities/recurrence/<group_id>/cancel", view_func=er.cancel_recurrence_group, methods=["POST"])
 bp.add_url_rule("/api/activities/recurrence/<group_id>/impact", view_func=er.recurrence_group_impact, methods=["GET"])

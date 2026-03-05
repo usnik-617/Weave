@@ -9,15 +9,15 @@ module.exports = defineConfig({
   webServer: {
     command: 'python app.py',
     env: {
-      WEAVE_PORT: '5011',
+      WEAVE_PORT: '5111',
       WEAVE_DB_PATH: 'instance/playwright.db',
     },
-    url: 'http://127.0.0.1:5011/healthz',
+    url: 'http://127.0.0.1:5111/healthz',
     reuseExistingServer: false,
     timeout: 120000,
   },
   use: {
-    baseURL: 'http://127.0.0.1:5011',
+    baseURL: 'http://127.0.0.1:5111',
     trace: 'on-first-retry'
   },
   projects: [

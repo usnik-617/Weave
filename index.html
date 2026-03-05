@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2c7be5">
   <title>남양주청년봉사단 위브 (Weave) — 지역을 함께 연결하는 청년 봉사</title>
+  <link rel="manifest" href="/manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
@@ -30,6 +32,7 @@
             <div class="nav-submenu">
               <a href="#" data-panel="about" data-about-tab="history">연혁</a>
               <a href="#" data-panel="about" data-about-tab="logo">로고</a>
+              <a href="#" data-panel="about" data-about-tab="relatedsites">관련사이트</a>
               <a href="#" data-panel="about" data-about-tab="rules">규칙및규약</a>
               <a href="#" data-panel="about" data-about-tab="awards">상장수여기준</a>
               <a href="#" data-panel="about" data-about-tab="fees">회비</a>
@@ -102,6 +105,49 @@
   </div>
 </section>
 
+<section id="home-notice-carousel" class="py-4 bg-light">
+  <div class="container">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <h5 class="fw-bold mb-0">주요 공지</h5>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="home-notice-toggle-btn">일시정지</button>
+        </div>
+        <div id="home-notice-track" class="mb-2 text-start">불러오는 중...</div>
+        <div class="d-flex justify-content-center gap-2" id="home-notice-dots"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EVENT DETAIL / 이벤트 상세 -->
+<section id="event-detail" class="py-6 panel bg-light">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button class="btn btn-outline-secondary btn-sm" id="event-detail-back-btn">← 목록으로</button>
+    </div>
+    <article class="card border-0 shadow-sm">
+      <div class="card-body p-4 p-lg-5">
+        <h2 class="h4 fw-bold mb-2" id="event-detail-title"></h2>
+        <div class="detail-meta-card mb-4">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+            <div class="detail-meta-author" id="event-detail-place"></div>
+            <div class="detail-meta-date text-end" id="event-detail-date"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div class="detail-meta-volunteer" id="event-detail-capacity"></div>
+            <div class="detail-meta-stats text-end" id="event-detail-status"></div>
+          </div>
+        </div>
+        <div id="event-detail-content" style="white-space: pre-wrap;"></div>
+      </div>
+    </article>
+  </div>
+  <div class="event-detail-cta-wrap" id="event-detail-cta-wrap">
+    <button type="button" class="btn btn-primary event-detail-cta-btn" id="event-detail-cta-btn">참여 신청</button>
+  </div>
+</section>
+
 <section id="home-calendar-preview" class="py-5 bg-white">
   <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -168,7 +214,12 @@
     
     <div class="row g-5 align-items-center mb-5">
       <div class="col-lg-6">
-        <img src="https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="봉사 활동 모습" class="img-fluid rounded-3 shadow-lg animate__animated animate__fadeInLeft">
+        <img id="about-volunteer-image" src="https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="봉사 활동 모습" class="img-fluid rounded-3 shadow-lg animate__animated animate__fadeInLeft">
+        <div id="about-photo-admin-tools" class="d-none mt-3 text-center">
+          <button type="button" id="about-photo-btn" class="btn btn-sm btn-outline-primary text-nowrap">봉사 활동 사진 변경</button>
+          <div id="about-photo-dropzone" class="image-dropzone about-photo-dropzone mt-2">여기에 사진을 드래그&드롭해도 변경됩니다</div>
+          <input id="about-photo-input" type="file" accept="image/*" class="d-none">
+        </div>
       </div>
       <div class="col-lg-6 animate__animated animate__fadeInRight">
         <h3 class="fs-4 fw-bold mb-3 text-primary">우리의 가치</h3>
@@ -198,9 +249,10 @@
     <!-- About sub-tabs -->
     <div class="row mt-5">
       <div class="col-12 text-center mb-3">
-        <div class="btn-group" role="group" aria-label="About tabs">
+        <div class="d-flex flex-wrap justify-content-center gap-2 about-tab-nav" role="tablist" aria-label="About tabs">
           <button type="button" class="btn btn-outline-primary" id="btn-history">연혁</button>
           <button type="button" class="btn btn-outline-primary" id="btn-logo">로고</button>
+          <button type="button" class="btn btn-outline-primary" id="btn-relatedsites">관련사이트</button>
           <button type="button" class="btn btn-outline-primary" id="btn-rules">규칙및규약</button>
           <button type="button" class="btn btn-outline-primary" id="btn-awards">상장수여기준</button>
           <button type="button" class="btn btn-outline-primary" id="btn-fees">회비</button>
@@ -219,6 +271,26 @@
               <li>봉사 성격에 따라 산타버전, 동물 버전 등으로 응용해 꾸밀 수 있는 장점 보유</li>
               <li>로고 아래쪽의 점들은 점자를 표현</li>
             </ul>
+          </div>
+        </div>
+
+        <div id="relatedsites-panel" class="about-panel d-none">
+          <div class="card shadow-sm border-0 p-4 mb-4">
+            <h4 class="fw-bold mb-3">관련사이트</h4>
+            <div class="list-group">
+              <a href="https://blog.naver.com/nyjvcyouth" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-blog text-primary me-2"></i>위브 블로그</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.instagram.com/nyjvcyouth?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fab fa-instagram text-primary me-2"></i>위브 인스타그램</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.nyjvc.or.kr/" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-link text-primary me-2"></i>남양주시자원봉사센터</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -490,6 +562,15 @@
             <div class="col-md-1 d-grid">
               <button class="btn btn-sm btn-primary" type="submit">등록</button>
             </div>
+            <div class="col-12">
+              <label class="form-label small mb-1">상세 내용</label>
+              <div id="activity-editor" class="rich-editor" contenteditable="true"></div>
+              <input type="hidden" name="content">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">PDF/이미지 첨부 (본문 삽입)</label>
+              <input type="file" class="form-control form-control-sm" name="activityAttachmentFiles" accept="image/*,.pdf" multiple>
+            </div>
           </form>
         </div>
       </div>
@@ -548,21 +629,20 @@
           <table class="table table-hover align-middle">
             <thead class="table-light">
               <tr>
-                <th>이름</th>
-                <th>아이디</th>
-                <th>기수</th>
-                <th>관심분야</th>
-                <th>신청상태</th>
+                <th><button class="btn btn-sm p-0 border-0 bg-transparent fw-semibold" data-ops-sort="name">이름</button></th>
+                <th><button class="btn btn-sm p-0 border-0 bg-transparent fw-semibold" data-ops-sort="username">아이디</button></th>
+                <th><button class="btn btn-sm p-0 border-0 bg-transparent fw-semibold" data-ops-sort="generation">기수</button></th>
+                <th><button class="btn btn-sm p-0 border-0 bg-transparent fw-semibold" data-ops-sort="interests">관심분야</button></th>
+                <th><button class="btn btn-sm p-0 border-0 bg-transparent fw-semibold" data-ops-sort="status">신청상태</button></th>
                 <th style="width: 220px;">처리</th>
               </tr>
             </thead>
             <tbody id="ops-pending-users-body"></tbody>
           </table>
         </div>
-        <div class="d-flex justify-content-end align-items-center gap-2 mt-2">
-          <button class="btn btn-sm btn-outline-secondary" id="ops-pending-prev-btn">이전</button>
+        <div class="d-flex justify-content-end align-items-center gap-2 mt-2 flex-wrap">
           <span class="small text-muted" id="ops-pending-page-label">1 / 1</span>
-          <button class="btn btn-sm btn-outline-secondary" id="ops-pending-next-btn">다음</button>
+          <ul class="pagination pagination-sm mb-0" id="ops-pending-pagination"></ul>
         </div>
       </div>
     </div>
@@ -666,12 +746,13 @@
       <button class="btn btn-sm btn-outline-primary" data-filter=".y2022">2022</button>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 list-toolbar">
+      <div class="small text-muted">총 <span id="gallery-total-count">0</span>건</div>
       <div class="d-flex gap-2 align-items-center">
         <input id="gallery-search" type="text" class="form-control form-control-sm" placeholder="제목 검색" style="min-width:220px;">
         <button id="gallery-search-btn" class="btn btn-sm btn-primary text-nowrap">검색</button>
+        <button class="btn btn-primary btn-sm d-none text-nowrap" id="gallery-write-btn">글쓰기</button>
       </div>
-      <button class="btn btn-primary btn-sm d-none text-nowrap" id="gallery-write-btn">글쓰기</button>
     </div>
 
     <div class="gallery-grid row g-3" id="gallery-grid">
@@ -698,14 +779,23 @@
       </div>
     </div>
     <article class="card border-0 shadow-sm">
-      <img id="gallery-detail-image" src="" alt="갤러리 이미지" class="img-fluid rounded-top">
       <div class="card-body p-4 p-lg-5">
         <h2 class="h4 fw-bold mb-2" id="gallery-detail-title"></h2>
-        <p class="small text-muted mb-4" id="gallery-detail-meta"></p>
+        <div class="detail-meta-card mb-4" id="gallery-detail-meta-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+            <div class="detail-meta-author" id="gallery-detail-author"></div>
+            <div class="detail-meta-date text-end" id="gallery-detail-date"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div class="detail-meta-volunteer" id="gallery-detail-volunteer"></div>
+            <div class="detail-meta-stats text-end" id="gallery-detail-stats"></div>
+          </div>
+        </div>
+        <img id="gallery-detail-image" src="" alt="갤러리 이미지" class="img-fluid rounded mb-4">
         <div id="gallery-detail-content" style="white-space: pre-wrap;"></div>
         <hr>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">👍 엄지척</button>
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-3 mt-4">
+          <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">👍 추천하기</button>
           <span class="small text-muted">추천수 <span id="gallery-recommend-count">0</span></span>
         </div>
         <div id="gallery-comments-section"></div>
@@ -744,7 +834,8 @@
             <th>글제목</th>
             <th style="width:15%">작성자</th>
             <th style="width:15%">날짜</th>
-            <th style="width:12%">조회/추천</th>
+            <th style="width:9%">조회</th>
+            <th style="width:9%">추천</th>
             <th style="width:10%">관리</th>
           </tr>
         </thead>
@@ -755,6 +846,18 @@
       <nav class="mt-3">
         <ul class="pagination justify-content-center" id="news-pagination"></ul>
       </nav>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">봉사 일정</h5>
+            <button class="btn btn-sm btn-outline-primary" id="events-refresh-btn" type="button">새로고침</button>
+          </div>
+          <div id="events-list" class="d-flex flex-column gap-2">
+            <div class="small text-muted">일정을 불러오는 중입니다...</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="faq-tab" class="news-tab-pane d-none">
@@ -822,7 +925,11 @@
   <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <button class="btn btn-outline-secondary btn-sm" id="qna-back-btn">← 목록으로</button>
-      <button class="btn btn-primary btn-sm d-none" id="qna-answer-btn">답변 작성</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm d-none" id="qna-detail-edit-btn">수정</button>
+        <button class="btn btn-danger btn-sm d-none" id="qna-detail-delete-btn">삭제</button>
+        <button class="btn btn-primary btn-sm d-none" id="qna-answer-btn">답변 작성</button>
+      </div>
     </div>
     <article class="card border-0 shadow-sm">
       <div class="card-body p-4 p-lg-5">
@@ -843,18 +950,30 @@
   <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <button class="btn btn-outline-secondary btn-sm" id="news-back-btn">← 목록으로</button>
-      <button class="btn btn-danger btn-sm d-none" id="news-detail-delete-btn">삭제</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm d-none" id="news-detail-edit-btn">수정</button>
+        <button class="btn btn-danger btn-sm d-none" id="news-detail-delete-btn">삭제</button>
+      </div>
     </div>
     <article class="card border-0 shadow-sm">
       <div class="card-body p-4 p-lg-5">
         <h2 class="h4 fw-bold mb-2" id="news-detail-title"></h2>
-        <p class="small text-muted mb-4" id="news-detail-meta"></p>
+        <div class="detail-meta-card mb-4" id="news-detail-meta-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+            <div class="detail-meta-author" id="news-detail-author"></div>
+            <div class="detail-meta-date text-end" id="news-detail-date"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div class="detail-meta-volunteer" id="news-detail-volunteer"></div>
+            <div class="detail-meta-stats text-end" id="news-detail-stats"></div>
+          </div>
+        </div>
         <img id="news-detail-image" src="" alt="소식 이미지" class="img-fluid rounded mb-4 d-none">
         <div id="news-detail-content" style="white-space: pre-wrap;"></div>
         <div id="news-detail-actions" class="mt-3"></div>
         <hr>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <button class="btn btn-sm btn-outline-primary" id="news-recommend-btn">👍 엄지척</button>
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-3 mt-4">
+          <button class="btn btn-sm btn-outline-primary" id="news-recommend-btn">👍 추천하기</button>
           <span class="small text-muted">추천수 <span id="news-recommend-count">0</span></span>
         </div>
         <div id="news-comments-section"></div>
@@ -901,15 +1020,47 @@
         </div>
 
         <div class="d-flex gap-3 justify-content-center flex-wrap">
-          <a href="mailto:weave@nyjvc.or.kr?subject=위브%20문의" class="btn btn-light btn-lg px-5 fw-bold">
-            <i class="fas fa-envelope me-2"></i>이메일 문의
-          </a>
-          <a href="tel:031-0000-0000" class="btn btn-outline-light btn-lg px-5 fw-bold">
-            <i class="fas fa-phone me-2"></i>전화 문의
-          </a>
-          <a href="#" class="btn btn-outline-light btn-lg px-5 fw-bold" onclick="return false;">
-            <i class="fas fa-hand-holding-heart me-2"></i>기부하기 (3333-32-7242838)
-          </a>
+          <button type="button" class="btn btn-light btn-lg px-5 fw-bold" id="join-inquiry-btn">
+            <i class="fas fa-comments me-2"></i>문의하기
+          </button>
+          <button type="button" class="btn btn-outline-light btn-lg px-5 fw-bold" id="join-sponsor-btn">
+            <i class="fas fa-hand-holding-heart me-2"></i>후원하기
+          </button>
+        </div>
+
+        <div class="mt-4">
+          <div id="join-inquiry-panel" class="card border-0 shadow-sm text-dark">
+            <div class="card-body text-start">
+              <h5 class="fw-bold mb-3">문의 창구</h5>
+              <div class="d-flex flex-column gap-2">
+                <a href="mailto:weave@nyjvc.or.kr?subject=위브%20문의" class="btn btn-outline-primary text-start">
+                  <i class="fas fa-envelope me-2"></i>이메일 문의: weave@nyjvc.or.kr
+                </a>
+                <a href="tel:031-0000-0000" class="btn btn-outline-primary text-start">
+                  <i class="fas fa-phone me-2"></i>전화 문의: 031-0000-0000
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div id="join-sponsor-panel" class="card border-0 shadow-sm text-dark d-none">
+            <div class="card-body text-start">
+              <h5 class="fw-bold mb-3">후원 안내</h5>
+              <p class="mb-2"><strong>기관:</strong> 남양주시자원봉사센터</p>
+              <p class="mb-2"><strong>주소:</strong> 경기도 남양주시 (상세주소는 문의 바랍니다)</p>
+              <p class="mb-2"><strong>전화:</strong> 031-0000-0000</p>
+              <p class="mb-3"><strong>이메일:</strong> weave@nyjvc.or.kr</p>
+              <div class="border rounded p-3 bg-light">
+                <p class="mb-1"><strong>후원 계좌(카카오뱅크):</strong></p>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="donation-account" value="3333-32-7242838" readonly>
+                  <button class="btn btn-primary" type="button" id="copy-donation-account-btn">복사</button>
+                </div>
+                <div id="copy-donation-account-result" class="small text-muted mt-2"></div>
+              </div>
+              <p class="mt-3 mb-0 small text-muted">현금 후원뿐 아니라 물품 후원도 가능합니다. 물품 후원은 이메일/전화로 먼저 문의해 주세요.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -929,6 +1080,15 @@
             <h3 id="profile-name" class="fw-bold mb-2"></h3>
             <p id="profile-email" class="text-muted mb-4"></p>
             <div class="text-start small text-muted mb-4" id="profile-details"></div>
+            <div class="border rounded p-3 mb-3 text-start">
+              <div class="fw-semibold mb-2">닉네임 변경 (180일 1회)</div>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="nickname-change-input" placeholder="새 닉네임" maxlength="12" autocapitalize="off" autocomplete="nickname" inputmode="text" spellcheck="false">
+                <button class="btn btn-outline-primary" id="nickname-change-btn" type="button">변경</button>
+              </div>
+              <div class="small text-muted mt-2" id="nickname-change-help">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</div>
+              <div class="small text-danger mt-1 d-none" id="nickname-change-error">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</div>
+            </div>
             <p id="profile-joindate" class="small text-muted mb-4"></p>
             <hr>
             <div class="d-flex justify-content-end gap-2 mt-3">
@@ -1099,6 +1259,15 @@
                 <form id="add-news-form">
                   <input type="hidden" name="editId">
                   <input type="hidden" name="imageData">
+                  <input type="hidden" name="imagesData" value="[]">
+                  <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="isScheduled" id="news-is-scheduled">
+                    <label class="form-check-label" for="news-is-scheduled">예약 발행</label>
+                  </div>
+                  <div class="mb-3 d-none" id="news-publish-at-wrap">
+                    <label class="form-label">예약 발행 일시</label>
+                    <input type="datetime-local" class="form-control" name="publishAt">
+                  </div>
                   <div class="mb-3">
                     <label class="form-label">제목</label>
                     <input type="text" class="form-control" name="title" required>
@@ -1110,6 +1279,10 @@
                       <option value="faq">FAQ</option>
                       <option value="qna">Q&A</option>
                     </select>
+                  </div>
+                  <div class="form-check mb-3 d-none" id="news-home-featured-wrap">
+                    <input class="form-check-input" type="checkbox" name="featuredOnHome" id="news-featured-on-home">
+                    <label class="form-check-label" for="news-featured-on-home">홈 주요공지에 노출</label>
                   </div>
                   <div class="mb-3" id="news-volunteer-date-wrap">
                     <label class="form-label">봉사 기간 (선택)</label>
@@ -1148,18 +1321,34 @@
                     <input type="hidden" name="content" required>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">이미지 파일</label>
-                    <input type="file" class="form-control" name="imageFile" accept="image/*">
-                    <div class="image-dropzone mt-2" id="news-image-dropzone">이미지를 끌어다 놓거나 클릭해서 선택하세요.</div>
-                    <img id="news-image-preview" class="img-fluid rounded mt-2 d-none" alt="소식 이미지 미리보기" style="max-height:180px;">
+                    <label class="form-label">이미지 파일 (본문 삽입)</label>
+                    <input type="file" class="form-control" name="imageFile" accept="image/*" multiple>
+                    <div class="image-dropzone mt-2 d-none" id="news-image-dropzone"></div>
+                    <img id="news-image-preview" class="img-fluid rounded mt-2 d-none" alt="소식 이미지 미리보기" style="max-height:180px;display:none;">
                   </div>
-                  <button type="submit" class="btn btn-primary">소식 추가</button>
+                  <div class="mb-3 d-none" id="news-attachments-wrap">
+                    <label class="form-label">첨부 파일 (최대 5개)</label>
+                    <input type="file" class="form-control" name="noticeAttachmentFiles" multiple>
+                    <small class="text-muted">공지사항에서만 사용됩니다. PDF/이미지/문서 파일을 최대 5개까지 첨부할 수 있습니다. 새 파일을 선택하면 기존 첨부는 교체됩니다.</small>
+                  </div>
+                  <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">소식 추가</button>
+                  </div>
                 </form>
               </div>
 
               <div class="tab-pane fade" id="gallery-admin" role="tabpanel">
                 <form id="add-gallery-form">
                   <input type="hidden" name="imageData">
+                  <input type="hidden" name="imagesData" value="[]">
+                  <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="isScheduled" id="gallery-is-scheduled">
+                    <label class="form-check-label" for="gallery-is-scheduled">예약 발행</label>
+                  </div>
+                  <div class="mb-3 d-none" id="gallery-publish-at-wrap">
+                    <label class="form-label">예약 발행 일시</label>
+                    <input type="datetime-local" class="form-control" name="publishAt">
+                  </div>
                   <div class="mb-3">
                     <label class="form-label">제목</label>
                     <input type="text" class="form-control" name="title" required>
@@ -1170,10 +1359,10 @@
                     <select class="form-control" name="year" id="gallery-year-select" required></select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">이미지 파일</label>
-                    <input type="file" class="form-control" name="imageFile" accept="image/*">
-                    <div class="image-dropzone mt-2" id="gallery-image-dropzone">이미지를 끌어다 놓거나 클릭해서 선택하세요.</div>
-                    <img id="gallery-image-preview" class="img-fluid rounded mt-2 d-none" alt="갤러리 이미지 미리보기" style="max-height:180px;">
+                    <label class="form-label">이미지 파일 (본문 삽입)</label>
+                    <input type="file" class="form-control" name="imageFile" accept="image/*" multiple>
+                    <div class="image-dropzone mt-2 d-none" id="gallery-image-dropzone"></div>
+                    <img id="gallery-image-preview" class="img-fluid rounded mt-2 d-none" alt="갤러리 이미지 미리보기" style="max-height:180px;display:none;">
                   </div>
                   <div class="mb-3">
                     <label class="form-label">내용</label>
@@ -1191,7 +1380,9 @@
                     <div id="gallery-editor" class="rich-editor" contenteditable="true"></div>
                     <input type="hidden" name="content">
                   </div>
-                  <button type="submit" class="btn btn-primary">갤러리 추가</button>
+                  <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">갤러리 추가</button>
+                  </div>
                 </form>
               </div>
 
@@ -1213,7 +1404,7 @@
 </section>
 
 <!-- LOGIN MODAL -->
-<div class="modal fade" id="loginModal" tabindex="-1">
+<div class="modal fade" id="loginModal" tabindex="-1" style="display:none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
@@ -1224,13 +1415,13 @@
         <form id="login-form">
           <div class="mb-3">
             <label class="form-label">아이디</label>
-            <input type="text" class="form-control" name="username" required>
+            <input type="text" class="form-control" name="username" required autocapitalize="off" autocomplete="username" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">비밀번호</label>
-            <input type="password" class="form-control" name="password" required>
+            <input type="password" class="form-control" name="password" required autocomplete="current-password">
           </div>
-          <button type="submit" class="btn btn-primary w-100">로그인</button>
+          <button type="submit" class="btn btn-primary w-100">로그인하기</button>
           <div class="text-center mt-3">
             <small class="text-muted d-block mb-2">계정이 없나요? <a href="#" onclick="document.querySelector('#loginModal .btn-close').click(); new bootstrap.Modal(document.getElementById('signupModal')).show(); return false;">가입하기</a></small>
             <small class="text-muted"><a href="#" onclick="findUsernameFlow(); return false;">아이디 찾기</a> · <a href="#" onclick="findPasswordFlow(); return false;">비밀번호 찾기</a></small>
@@ -1242,7 +1433,7 @@
 </div>
 
 <!-- SIGNUP MODAL -->
-<div class="modal fade" id="signupModal" tabindex="-1">
+<div class="modal fade" id="signupModal" tabindex="-1" style="display:none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
@@ -1253,52 +1444,58 @@
         <form id="signup-form">
           <div class="mb-3">
             <label class="form-label">이름</label>
-            <input type="text" class="form-control" name="name" required>
+            <input type="text" class="form-control" name="name" required autocomplete="name" autocapitalize="words">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">닉네임</label>
+            <input type="text" class="form-control" name="nickname" minlength="2" maxlength="12" placeholder="한글/영문/숫자 2~12자" required autocapitalize="off" autocomplete="nickname" inputmode="text" spellcheck="false">
+            <small class="text-muted" id="signup-nickname-help">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</small>
+            <div class="invalid-feedback" id="signup-nickname-error">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</div>
           </div>
           <div class="mb-3">
             <label class="form-label">이메일</label>
-            <input type="email" class="form-control" name="email" required>
+            <input type="email" class="form-control" name="email" required inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">생년월일 (yyyy.mm.dd)</label>
-            <input type="text" class="form-control" name="birthdate" placeholder="2000.01.31" required>
+            <input type="text" class="form-control" name="birthdate" placeholder="2000.01.31" required inputmode="numeric" pattern="\d{4}\.\d{2}\.\d{2}" autocomplete="bday" autocapitalize="off" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">연락처</label>
-            <input type="text" class="form-control" name="phone" placeholder="010-1234-5678" required>
+            <input type="text" class="form-control" name="phone" placeholder="010-1234-5678" required inputmode="tel" autocomplete="tel">
           </div>
           <div class="mb-3">
             <label class="form-label">활동 기수</label>
-            <input type="text" class="form-control" name="generation" placeholder="예: 5기">
+            <input type="text" class="form-control" name="generation" placeholder="예: 5기" autocomplete="off" autocapitalize="off" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">관심 봉사 분야</label>
-            <input type="text" class="form-control" name="interests" placeholder="예: 환경, 유기견, 취약계층">
+            <input type="text" class="form-control" name="interests" placeholder="예: 환경, 유기견, 취약계층" autocomplete="off">
           </div>
           <div class="mb-3">
             <label class="form-label">보유 자격</label>
-            <input type="text" class="form-control" name="certificates" placeholder="예: CPR, 운전면허">
+            <input type="text" class="form-control" name="certificates" placeholder="예: CPR, 운전면허" autocomplete="off">
           </div>
           <div class="mb-3">
             <label class="form-label">봉사 가능 요일/시간대</label>
-            <input type="text" class="form-control" name="availability" placeholder="예: 토요일 오전, 평일 저녁">
+            <input type="text" class="form-control" name="availability" placeholder="예: 토요일 오전, 평일 저녁" autocomplete="off">
           </div>
           <div class="mb-3">
             <label class="form-label">이메일 확인</label>
-            <input type="email" class="form-control" name="emailConfirm" required>
+            <input type="email" class="form-control" name="emailConfirm" required inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">아이디</label>
-            <input type="text" class="form-control" name="username" minlength="4" maxlength="20" required>
+            <input type="text" class="form-control" name="username" minlength="4" maxlength="20" required autocapitalize="off" autocomplete="username" spellcheck="false">
           </div>
           <div class="mb-3">
             <label class="form-label">비밀번호</label>
-            <input type="password" class="form-control" name="password" placeholder="8자 이상 / 대문자+특수문자 포함" minlength="8" required>
+            <input type="password" class="form-control" name="password" placeholder="8자 이상 / 대문자+특수문자 포함" minlength="8" required autocomplete="new-password">
             <small class="text-muted">최소 8자, 대문자 1개 이상, 특수문자 1개 이상</small>
           </div>
           <div class="mb-3">
             <label class="form-label">비밀번호 확인</label>
-            <input type="password" class="form-control" name="confirm-password" minlength="8" required>
+            <input type="password" class="form-control" name="confirm-password" minlength="8" required autocomplete="new-password">
           </div>
           <div class="mb-3 border rounded p-2" style="max-height:140px; overflow-y:auto; font-size:12px;">
             <strong>이용약관(필수)</strong>
@@ -1317,7 +1514,7 @@
             <input class="form-check-input" type="checkbox" id="privacy-agree" name="privacyAgree" required>
             <label class="form-check-label" for="privacy-agree">개인정보처리방침(필수)에 동의합니다.</label>
           </div>
-          <button type="submit" class="btn btn-secondary w-100" id="signup-submit-btn" disabled>가입</button>
+          <button type="submit" class="btn btn-secondary w-100" id="signup-submit-btn">가입</button>
           <div class="text-center mt-3">
             <small class="text-muted">이미 계정이 있나요? <a href="#" onclick="document.querySelector('#signupModal .btn-close').click(); new bootstrap.Modal(document.getElementById('loginModal')).show(); return false;">로그인하기</a></small>
           </div>
@@ -1327,8 +1524,43 @@
   </div>
 </div>
 
+<div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-hidden="true" style="display:none;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">세션 만료</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">세션이 만료되었습니다. 다시 로그인해주세요.</p>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" id="session-expired-cancel-btn" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="session-expired-login-btn">로그인하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="permissionDeniedModal" tabindex="-1" aria-hidden="true" style="display:none;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">알림</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">권한이 없습니다.</p>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FOOTER -->
-<div class="modal fade" id="recurrenceCancelModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="recurrenceCancelModal" tabindex="-1" aria-hidden="true" style="display:none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
@@ -1356,7 +1588,7 @@
   </div>
 </div>
 
-<div class="modal fade" id="calendarActivityDetailModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="calendarActivityDetailModal" tabindex="-1" aria-hidden="true" style="display:none;">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header border-0">
@@ -1368,12 +1600,15 @@
       </div>
       <div class="modal-footer border-0">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-edit-btn">수정</button>
+        <button type="button" class="btn btn-outline-danger d-none" id="calendar-activity-delete-btn">삭제</button>
+        <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-notice-btn">공지 상세 보기</button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="calendarActivityListModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="calendarActivityListModal" tabindex="-1" aria-hidden="true" style="display:none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
@@ -1389,6 +1624,33 @@
     </div>
   </div>
 </div>
+
+<nav id="mobile-bottom-nav" class="mobile-bottom-nav" aria-label="모바일 하단 탭 내비게이션">
+  <button type="button" class="mobile-tab active" data-panel="home" aria-label="홈">
+    <i class="fas fa-house"></i>
+    <span>홈</span>
+  </button>
+  <button type="button" class="mobile-tab" data-panel="news" data-news-tab="notice" aria-label="공지">
+    <i class="fas fa-bullhorn"></i>
+    <span>공지</span>
+  </button>
+  <button type="button" class="mobile-tab" data-panel="gallery" aria-label="갤러리">
+    <i class="fas fa-image"></i>
+    <span>갤러리</span>
+  </button>
+  <button type="button" class="mobile-tab" data-panel="activities" aria-label="활동">
+    <i class="fas fa-calendar-check"></i>
+    <span>활동</span>
+  </button>
+  <button type="button" class="mobile-tab" data-panel="news" data-news-tab="qna" aria-label="Q&amp;A">
+    <i class="fas fa-circle-question"></i>
+    <span>Q&amp;A</span>
+  </button>
+  <button type="button" class="mobile-tab" data-panel="myinfo" aria-label="내정보">
+    <i class="fas fa-user"></i>
+    <span>내정보</span>
+  </button>
+</nav>
 
 <!-- FOOTER -->
 <footer class="text-white py-5" style="background: #31b7ff;">
@@ -1427,207 +1689,100 @@
 <!-- SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/wow/1.1.2/wow.min.js"></script>
+<script src="js/app-core.js"></script>
+<script src="js/app-comments.js"></script>
+<script src="js/app-editor-upload.js"></script>
+<script src="js/app-activities-ops.js"></script>
+<script src="js/app-calendar-events.js"></script>
+<script src="js/app-news-gallery.js"></script>
 
 <script>
   // Initialize WOW animations
   new WOW().init();
 
-  // ============ GLOBAL STATE (localStorage) ============
-  const DATA_KEY = 'weave_content';
-  const COMMENTS_KEY = 'weave_comments';
-  const CURRENT_USER_KEY = 'weave_current_user';
-  const STATS_KEY = 'weave_stats';
-  const ADMIN_EMAILS = ['admin@weave.com', 'weave@youth.gg.kr'];
-  const API_BASE = '/api';
-
-  // ============ AUTH FUNCTIONS ============
-  function getCurrentUser() {
-    const user = localStorage.getItem(CURRENT_USER_KEY);
-    return user ? JSON.parse(user) : null;
-  }
-
-  function setCurrentUser(user) {
-    if (user) {
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(CURRENT_USER_KEY);
-    }
-    updateAuthUI();
-  }
-
-  async function apiRequest(path, options = {}) {
-    try {
-      const response = await fetch(`${API_BASE}${path}`, {
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(options.headers || {})
-        },
-        ...options
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || '요청 처리 중 오류가 발생했습니다.');
-      }
-      return data;
-    } catch (error) {
-      const errorMessage = String(error?.message || '');
-      if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(errorMessage)) {
-        throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
-      }
-      throw error;
-    }
-  }
-
-  async function hydrateCurrentUser() {
-    try {
-      const data = await apiRequest('/auth/me', { method: 'GET' });
-      setCurrentUser(data.user || null);
-    } catch (error) {
-      setCurrentUser(null);
-    }
-  }
-
-  function isAdminUser(user) {
-    return !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
-  }
-
-  function isStaffUser(user) {
-    return !!(user && (user.role === 'staff' || isAdminUser(user)));
-  }
-
-  function normalizeContact(value) {
-    return String(value || '').trim().replaceAll('-', '').toLowerCase();
-  }
-
-  async function findUsernameFlow() {
-    const contact = prompt('이메일 또는 연락처를 입력하세요.');
-    if (!contact) return;
-    try {
-      const data = await apiRequest('/auth/find-username', {
-        method: 'POST',
-        body: JSON.stringify({ contact })
-      });
-      alert(`아이디는 ${data.username} 입니다.`);
-    } catch (error) {
-      alert(error.message || '일치하는 계정을 찾지 못했습니다.');
-    }
-  }
-
-  async function findPasswordFlow() {
-    const username = prompt('아이디를 입력하세요.');
-    if (!username) return;
-    const contact = prompt('이메일 또는 연락처를 입력하세요.');
-    if (!contact) return;
-    const newPassword = prompt('새 비밀번호를 입력하세요. (8자 이상, 대문자/특수문자 포함)');
-    if (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
-      alert('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
-      return;
-    }
-    try {
-      const data = await apiRequest('/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ username, contact, newPassword })
-      });
-      alert(data.message || '비밀번호가 재설정되었습니다.');
-    } catch (error) {
-      alert(error.message || '비밀번호 재설정에 실패했습니다.');
-    }
-  }
-
-  function getStats() {
-    const defaults = {
-      generation: '5기',
-      members: '49명',
-      activities: '115회',
-      impact: '지역사회 기여'
-    };
-    const data = localStorage.getItem(STATS_KEY);
-    return data ? JSON.parse(data) : defaults;
-  }
-
-  function saveStats(stats) {
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-  }
-
-  function renderStats() {
-    const stats = getStats();
-    const generationEl = document.getElementById('stat-generation');
-    const membersEl = document.getElementById('stat-members');
-    const activitiesEl = document.getElementById('stat-activities');
-    const impactEl = document.getElementById('stat-impact');
-    const trim = (value, max = 12) => {
-      const text = String(value || '');
-      return text.length > max ? `${text.slice(0, max)}…` : text;
-    };
-    if (generationEl) generationEl.innerText = trim(stats.generation, 10);
-    if (membersEl) membersEl.innerText = trim(stats.members, 10);
-    if (activitiesEl) activitiesEl.innerText = trim(stats.activities, 10);
-    if (impactEl) impactEl.innerText = trim(stats.impact, 12);
-  }
-
-  function updateAuthUI() {
-    const user = getCurrentUser();
-    const authButtons = document.getElementById('auth-buttons');
-    const userProfile = document.getElementById('user-profile');
-    const newsWriteBtn = document.getElementById('news-write-btn');
-    const faqWriteBtn = document.getElementById('faq-write-btn');
-    const qnaWriteBtn = document.getElementById('qna-write-btn');
-    const galleryWriteBtn = document.getElementById('gallery-write-btn');
-    const opsDashboardBtn = document.getElementById('ops-dashboard-btn');
-
-    if (user) {
-      authButtons.style.display = 'none';
-      authButtons.classList.add('d-none');
-      userProfile.classList.add('show');
-      document.getElementById('profile-name').innerText = `${user.name} (${user.username})`;
-      document.getElementById('profile-email').innerText = user.email;
-      const roleLabelMap = { member: '일반 단원', staff: '운영진', admin: '관리자' };
-      const statusLabelMap = { pending: '승인대기', active: '정식단원', locked: '잠금', withdrawn: '탈퇴' };
-      document.getElementById('profile-details').innerHTML = `
-        <div>이름: ${user.name || '-'}</div>
-        <div>아이디: ${user.username || '-'}</div>
-        <div>이메일: ${user.email || '-'}</div>
-        <div>권한: ${roleLabelMap[user.role] || user.role || '-'}</div>
-        <div>상태: ${statusLabelMap[user.status] || user.status || '-'}</div>
-        <div>생년월일: ${user.birthDate || '-'}</div>
-        <div>연락처: ${user.phone || '-'}</div>
-        <div>활동 기수: ${user.generation || '-'}</div>
-        <div>관심 분야: ${user.interests || '-'}</div>
-        <div>보유 자격: ${user.certificates || '-'}</div>
-        <div>가능 시간대: ${user.availability || '-'}</div>
-      `;
-      const joinDate = new Date(user.joinDate || new Date()).toLocaleDateString('ko-KR');
-      document.getElementById('profile-joindate').innerText = `가입일: ${joinDate} | 생년월일: ${user.birthDate || '-'}`;
-      const activeMember = user.status === 'active';
-      if (opsDashboardBtn) opsDashboardBtn.classList.toggle('d-none', !isStaffUser(user));
-      if (newsWriteBtn) newsWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
-      if (faqWriteBtn) faqWriteBtn.classList.toggle('d-none', !(activeMember && isAdminUser(user)));
-      if (qnaWriteBtn) qnaWriteBtn.classList.toggle('d-none', !activeMember);
-      if (galleryWriteBtn) galleryWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
-    } else {
-      authButtons.style.display = 'flex';
-      authButtons.classList.remove('d-none');
-      userProfile.classList.remove('show');
-      if (newsWriteBtn) newsWriteBtn.classList.add('d-none');
-      if (faqWriteBtn) faqWriteBtn.classList.add('d-none');
-      if (qnaWriteBtn) qnaWriteBtn.classList.add('d-none');
-      if (galleryWriteBtn) galleryWriteBtn.classList.add('d-none');
-      if (opsDashboardBtn) opsDashboardBtn.classList.add('d-none');
-    }
-    if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
-    if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
-  }
-
-  function isValidBirthDate(value) {
-    if (!/^\d{4}\.\d{2}\.\d{2}$/.test(value)) return false;
-    const [year, month, day] = value.split('.').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-  }
+  // core state/auth/api helpers moved to static/js/app-core.js
 
   // ============ LOGIN / SIGNUP ============
   document.addEventListener('DOMContentLoaded', async function() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    initModalScrollLock();
+    renderAboutVolunteerPhoto();
+    bindAboutPhotoUploader();
+
+    const sanitizeNicknameInput = (inputEl) => {
+      if (!inputEl) return;
+      const invalidCharsPattern = /[^가-힣A-Za-z0-9]/g;
+      const inlineErrorEl = inputEl.id === 'nickname-change-input'
+        ? document.getElementById('nickname-change-error')
+        : null;
+
+      inputEl.addEventListener('beforeinput', (event) => {
+        const incoming = String(event.data || '');
+        if (!incoming) return;
+        if (invalidCharsPattern.test(incoming)) {
+          event.preventDefault();
+        }
+      });
+
+      inputEl.addEventListener('paste', (event) => {
+        const pasted = String((event.clipboardData || window.clipboardData)?.getData('text') || '');
+        if (!pasted) return;
+        const sanitized = pasted.replace(invalidCharsPattern, '');
+        if (sanitized === pasted) return;
+        event.preventDefault();
+        const start = inputEl.selectionStart ?? inputEl.value.length;
+        const end = inputEl.selectionEnd ?? start;
+        inputEl.setRangeText(sanitized, start, end, 'end');
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      inputEl.addEventListener('input', () => {
+        const next = String(inputEl.value || '').replace(invalidCharsPattern, '').slice(0, 12);
+        if (inputEl.value !== next) inputEl.value = next;
+        const check = validateNickname(next);
+        inputEl.setCustomValidity(check.ok || !next ? '' : check.message);
+        inputEl.classList.toggle('is-invalid', !!next && !check.ok);
+        if (inlineErrorEl) {
+          inlineErrorEl.classList.toggle('d-none', !(!!next && !check.ok));
+        }
+      });
+      inputEl.setAttribute('autocapitalize', 'off');
+      inputEl.setAttribute('autocomplete', 'nickname');
+      inputEl.setAttribute('inputmode', 'text');
+      inputEl.setAttribute('spellcheck', 'false');
+    };
+
+    const signupNickname = document.querySelector('#signup-form [name="nickname"]');
+    sanitizeNicknameInput(signupNickname);
+    sanitizeNicknameInput(document.getElementById('nickname-change-input'));
+
+    document.querySelectorAll('input, textarea').forEach((el) => {
+      if (!el.getAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'off');
+      if (el.type === 'email') {
+        el.setAttribute('inputmode', 'email');
+        el.setAttribute('autocomplete', el.getAttribute('name') === 'emailConfirm' ? 'email' : 'email');
+      }
+      if (el.type === 'password') {
+        el.setAttribute('autocomplete', 'current-password');
+      }
+      if (el.name === 'birthdate') el.setAttribute('inputmode', 'numeric');
+      if (el.name === 'phone') {
+        el.setAttribute('inputmode', 'tel');
+        el.setAttribute('autocomplete', 'tel');
+      }
+      if (el.name === 'username') {
+        el.setAttribute('autocorrect', 'off');
+        el.setAttribute('spellcheck', 'false');
+      }
+      if (el.name === 'author') {
+        el.setAttribute('autocomplete', 'nickname');
+        el.setAttribute('autocapitalize', 'off');
+        el.setAttribute('spellcheck', 'false');
+      }
+    });
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
       loginForm.onsubmit = async (e) => {
@@ -1642,6 +1797,15 @@
           setCurrentUser(data.user);
           const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
           if (loginModal) loginModal.hide();
+          if (PENDING_RETURN_PANEL) {
+            movePanel(PENDING_RETURN_PANEL);
+            if (PENDING_RETURN_PANEL === 'news' && PENDING_RETURN_NEWS_TAB) {
+              activateNewsTab(PENDING_RETURN_NEWS_TAB);
+            }
+            PENDING_RETURN_PANEL = '';
+            PENDING_RETURN_NEWS_TAB = '';
+          }
+          SESSION_EXPIRED_SHOWN = false;
           e.target.reset();
           alert(data.pending ? (data.message || '가입 승인 대기 중입니다.') : `${data.user.name}님 환영합니다!`);
         } catch (error) {
@@ -1656,13 +1820,19 @@
       const signupInputs = signupForm.querySelectorAll('input');
 
       function updateSignupSubmitState() {
+        const nicknameInput = signupForm.querySelector('[name="nickname"]');
+        const usernameInput = signupForm.querySelector('[name="username"]');
+        if (nicknameInput && usernameInput && !String(nicknameInput.value || '').trim()) {
+          const fallback = String(usernameInput.value || '').replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 12);
+          if (fallback) nicknameInput.value = fallback;
+        }
         const requiredFilled = Array.from(signupInputs).every(input => {
           if (!input.required) return true;
           if (input.type === 'checkbox') return input.checked;
           return String(input.value || '').trim().length > 0;
         });
         if (signupSubmitBtn) {
-          signupSubmitBtn.disabled = !requiredFilled;
+          signupSubmitBtn.disabled = false;
           signupSubmitBtn.classList.toggle('btn-secondary', !requiredFilled);
           signupSubmitBtn.classList.toggle('btn-primary', requiredFilled);
         }
@@ -1672,11 +1842,25 @@
         input.addEventListener('input', updateSignupSubmitState);
         input.addEventListener('change', updateSignupSubmitState);
       });
+
+      const passwordInput = signupForm.querySelector('[name="password"]');
+      if (passwordInput) passwordInput.setAttribute('autocomplete', 'new-password');
+      const confirmPasswordInput = signupForm.querySelector('[name="confirm-password"]');
+      if (confirmPasswordInput) confirmPasswordInput.setAttribute('autocomplete', 'new-password');
+      if (signupNickname) {
+        signupNickname.addEventListener('blur', () => {
+          const check = validateNickname(signupNickname.value);
+          signupNickname.setCustomValidity(check.ok ? '' : check.message);
+          signupNickname.classList.toggle('is-invalid', !check.ok);
+        });
+      }
+
       updateSignupSubmitState();
 
       signupForm.onsubmit = async (e) => {
         e.preventDefault();
         const name = e.target.name.value.trim();
+        const nickname = e.target.nickname.value.trim();
         const email = e.target.email.value.trim();
         const birthDate = e.target.birthdate.value.trim();
         const phone = e.target.phone.value.trim();
@@ -1688,6 +1872,12 @@
         const interests = e.target.interests.value.trim();
         const certificates = e.target.certificates.value.trim();
         const availability = e.target.availability.value.trim();
+
+        const nicknameCheck = validateNickname(nickname);
+        if (!nicknameCheck.ok) {
+          alert(nicknameCheck.message);
+          return;
+        }
 
         if (password !== confirmPassword) {
           alert('비밀번호가 일치하지 않습니다.');
@@ -1718,6 +1908,7 @@
             method: 'POST',
             body: JSON.stringify({
               name,
+              nickname,
               username,
               email,
               phone,
@@ -1760,6 +1951,38 @@
       myInfoBtn.addEventListener('click', (e) => {
         e.preventDefault();
         movePanel('myinfo');
+      });
+    }
+
+    const nicknameChangeBtn = document.getElementById('nickname-change-btn');
+    if (nicknameChangeBtn) {
+      nicknameChangeBtn.addEventListener('click', async () => {
+        const user = getCurrentUser();
+        if (!user) {
+          alert('로그인이 필요합니다.');
+          return;
+        }
+        const input = document.getElementById('nickname-change-input');
+        const help = document.getElementById('nickname-change-help');
+        const nickname = input?.value?.trim() || '';
+        const check = validateNickname(nickname);
+        if (!check.ok) {
+          alert(check.message);
+          return;
+        }
+        try {
+          const data = await apiRequest('/me/nickname', {
+            method: 'PATCH',
+            body: JSON.stringify({ nickname })
+          });
+          if (data.user) setCurrentUser(data.user);
+          if (help) help.textContent = '닉네임이 변경되었습니다.';
+          if (input) input.value = '';
+        } catch (error) {
+          const detail = /next_allowed_at/.test(String(error.message || '')) ? ` (${error.message})` : '';
+          if (help) help.textContent = `변경 실패: ${error.message || '알 수 없는 오류'}${detail}`;
+          alert(error.message || '닉네임 변경에 실패했습니다.');
+        }
       });
     }
 
@@ -1857,6 +2080,7 @@
   let calendarActivities = [];
   let focusedActivityDateKey = '';
   let pendingRecurrenceCancelGroupId = '';
+  let editingActivityId = null;
   let newsCurrentPage = 1;
   let faqCurrentPage = 1;
   let qnaCurrentPage = 1;
@@ -1873,14 +2097,30 @@
   let currentQnaAnswerId = null;
   let opsPendingPage = 1;
   const OPS_PENDING_PAGE_SIZE = 10;
+  let opsPendingSortBy = 'id';
+  let opsPendingSortDir = 'desc';
+  let homeNoticeItems = [];
+  let homeNoticeIndex = 0;
+  let homeNoticeTimer = null;
+  let homeNoticePaused = false;
+  let volunteerEvents = [];
+
+  function normalizeContent(data) {
+    const safe = (data && typeof data === 'object') ? { ...data } : {};
+    safe.news = Array.isArray(safe.news) ? safe.news : [];
+    safe.faq = Array.isArray(safe.faq) ? safe.faq : [];
+    safe.qna = Array.isArray(safe.qna) ? safe.qna : [];
+    safe.gallery = Array.isArray(safe.gallery) ? safe.gallery : [];
+    return safe;
+  }
 
   function getContent() {
     const data = localStorage.getItem(DATA_KEY);
-    return data ? JSON.parse(data) : DEFAULT_DATA;
+    return data ? normalizeContent(JSON.parse(data)) : normalizeContent(DEFAULT_DATA);
   }
 
   function saveContent(data) {
-    localStorage.setItem(DATA_KEY, JSON.stringify(data));
+    localStorage.setItem(DATA_KEY, JSON.stringify(normalizeContent(data)));
   }
 
   function getTodayString() {
@@ -1908,6 +2148,46 @@
     });
   }
 
+  function formatDetailDateTime(value) {
+    const raw = String(value || '').trim();
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw;
+    const date = normalized ? new Date(normalized) : new Date();
+    if (Number.isNaN(date.getTime())) return '-';
+    const y = date.getFullYear();
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${y}/${d}/${m} ${hh}:${mm}`;
+  }
+
+  function getAboutVolunteerPhoto() {
+    return localStorage.getItem(ABOUT_VOLUNTEER_PHOTO_KEY) || DEFAULT_ABOUT_VOLUNTEER_PHOTO;
+  }
+
+  function renderAboutVolunteerPhoto() {
+    const img = document.getElementById('about-volunteer-image');
+    if (img) img.src = getAboutVolunteerPhoto();
+  }
+
+  function updateAboutPhotoAdminControls() {
+    const tools = document.getElementById('about-photo-admin-tools');
+    const user = getCurrentUser();
+    const canManage = !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
+    if (tools) tools.classList.toggle('d-none', !canManage);
+  }
+
+  function updateDetailMeta(prefix, payload = {}) {
+    const authorEl = document.getElementById(`${prefix}-detail-author`);
+    const dateEl = document.getElementById(`${prefix}-detail-date`);
+    const volunteerEl = document.getElementById(`${prefix}-detail-volunteer`);
+    const statsEl = document.getElementById(`${prefix}-detail-stats`);
+    if (authorEl) authorEl.textContent = payload.author || '-';
+    if (dateEl) dateEl.textContent = payload.date || '-';
+    if (volunteerEl) volunteerEl.textContent = payload.volunteer || '';
+    if (statsEl) statsEl.textContent = `[조회수 ${payload.views || 0} 추천 수 ${payload.recommends || 0} 댓글 ${payload.comments || 0}]`;
+  }
+
   function expandDateRange(startDate, endDate) {
     const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
     const end = endDate ? new Date(`${endDate}T00:00:00`) : null;
@@ -1923,1665 +2203,34 @@
     return days;
   }
 
-  function getCalendarMonthLabel(baseDate = calendarBaseDate) {
-    return `${baseDate.getFullYear()}년 ${baseDate.getMonth() + 1}월`;
-  }
+  // activities/ops/home-calendar helpers moved to static/js/app-activities-ops.js
 
-  function movePanel(panelId) {
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    const target = document.getElementById(panelId);
-    if (target) target.classList.add('panel-active');
-    const statsSection = document.getElementById('home-stats');
-    const homeCalendarPreview = document.getElementById('home-calendar-preview');
-    if (statsSection) statsSection.style.display = panelId === 'home' ? 'block' : 'none';
-    if (homeCalendarPreview) homeCalendarPreview.style.display = panelId === 'home' ? 'block' : 'none';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  // calendar/event/join helpers moved to static/js/app-calendar-events.js
+  // news/gallery render & detail helpers moved to static/js/app-news-gallery.js
 
-  function activateNewsTab(tabName) {
-    const noticeTabBtn = document.getElementById('notice-tab-btn');
-    const faqTabBtn = document.getElementById('faq-tab-btn');
-    const qnaTabBtn = document.getElementById('qna-tab-btn');
-    if (tabName === 'faq' && faqTabBtn) {
-      faqTabBtn.click();
-      return;
-    }
-    if (tabName === 'qna' && qnaTabBtn) {
-      qnaTabBtn.click();
-      return;
-    }
-    if (noticeTabBtn) noticeTabBtn.click();
-  }
-
-  function openQnaAnswerEditor(id) {
-    const user = getCurrentUser();
-    if (!isStaffUser(user)) {
-      alert('Q&A 답변은 운영자만 작성할 수 있습니다.');
-      return;
-    }
-    const data = getContent();
-    const item = (data.qna || []).find(q => q.id === id);
-    if (!item) return;
-
-    currentQnaAnswerId = id;
-    const editIdEl = document.getElementById('qna-answer-edit-id');
-    const metaEl = document.getElementById('qna-answer-meta');
-    const questionEl = document.getElementById('qna-answer-question');
-    if (editIdEl) editIdEl.value = String(id);
-    if (metaEl) metaEl.textContent = `${item.author || '-'} | ${item.date || ''}`;
-    if (questionEl) questionEl.innerHTML = item.content || '';
-    setEditorHtml('qna-answer-editor', item.answer || '');
-    movePanel('qna-answer');
-  }
-
-  function openActivitiesCalendarTab() {
-    const overviewPane = document.getElementById('activities-overview-pane');
-    const calendarPane = document.getElementById('activities-calendar-pane');
-    const overviewBtn = document.getElementById('activities-overview-tab-btn');
-    const calendarBtn = document.getElementById('activities-calendar-tab-btn');
-    if (overviewPane) overviewPane.classList.add('d-none');
-    if (calendarPane) calendarPane.classList.remove('d-none');
-    if (overviewBtn) {
-      overviewBtn.classList.remove('active', 'btn-primary');
-      overviewBtn.classList.add('btn-outline-primary');
-    }
-    if (calendarBtn) {
-      calendarBtn.classList.add('active', 'btn-primary');
-      calendarBtn.classList.remove('btn-outline-primary');
-    }
-    updateCalendarCreateVisibility();
-  }
-
-  function openActivitiesOverviewTab() {
-    const overviewPane = document.getElementById('activities-overview-pane');
-    const calendarPane = document.getElementById('activities-calendar-pane');
-    const overviewBtn = document.getElementById('activities-overview-tab-btn');
-    const calendarBtn = document.getElementById('activities-calendar-tab-btn');
-    if (overviewPane) overviewPane.classList.remove('d-none');
-    if (calendarPane) calendarPane.classList.add('d-none');
-    if (overviewBtn) {
-      overviewBtn.classList.add('active', 'btn-primary');
-      overviewBtn.classList.remove('btn-outline-primary');
-    }
-    if (calendarBtn) {
-      calendarBtn.classList.remove('active', 'btn-primary');
-      calendarBtn.classList.add('btn-outline-primary');
-    }
-  }
-
-  function updateCalendarModeButtons() {
-    return;
-  }
-
-  function toIsoFromDatetimeLocal(value) {
-    if (!value) return '';
-    const dt = new Date(value);
-    if (Number.isNaN(dt.getTime())) return '';
-    return dt.toISOString();
-  }
-
-  function parseLegacyDateText(rawDate) {
-    const text = String(rawDate || '').trim();
-    if (!text || text === '미정') return null;
-    const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$/);
-    if (!match) return null;
-    const startDate = match[1];
-    const endDate = match[2] || startDate;
-    return { startDate, endDate };
-  }
-
-  function buildLegacyCalendarItems(content = getContent()) {
-    const gallery = Array.isArray(content?.gallery) ? content.gallery : [];
-    return gallery.flatMap((entry, index) => {
-      const parsed = parseLegacyDateText(entry.date);
-      if (!parsed) return [];
-      const dateKeys = expandDateRange(parsed.startDate, parsed.endDate);
-      return dateKeys.map((dateKey) => ({
-        id: `legacy-${entry.id || index}-${dateKey}`,
-        title: String(entry.title || '활동 일정'),
-        description: '',
-        startAt: `${dateKey}T09:00:00`,
-        endAt: `${dateKey}T10:00:00`,
-        place: '활동 일정',
-        supplies: '-',
-        gatherTime: '-',
-        manager: '운영진',
-        recruitmentLimit: 0,
-        recurrenceGroupId: '',
-        isCancelled: false,
-        sourceType: 'legacy-gallery',
-      }));
-    });
-  }
-
-  function updateCalendarCreateVisibility() {
-    const card = document.getElementById('calendar-create-card');
-    const user = getCurrentUser();
-    if (!card) return;
-    card.classList.toggle('d-none', !(user && user.status === 'active' && isStaffUser(user)));
-    const form = document.getElementById('calendar-create-form');
-    if (form && user) {
-      form.manager.value = user.name || user.username || '';
-    }
-  }
-
-  async function loadActivitiesCalendar() {
-    const dateParam = formatDateOnly(calendarBaseDate);
-    let data = null;
-    const content = getContent();
-    const noticeItems = (content.news || [])
-      .flatMap(item => {
-        const startDate = item.volunteerStartDate || item.volunteerDate || '';
-        const endDate = item.volunteerEndDate || item.volunteerDate || '';
-        const dateKeys = expandDateRange(startDate, endDate || startDate);
-        return dateKeys.map(dateKey => ({
-          id: `notice-${item.id}-${dateKey}`,
-          title: item.title,
-          description: item.content || '',
-          startAt: `${dateKey}T09:00:00`,
-          endAt: `${dateKey}T10:00:00`,
-          place: '공지사항',
-          supplies: '-',
-          gatherTime: '-',
-          manager: item.author || '관리자',
-          recruitmentLimit: 0,
-          recurrenceGroupId: '',
-          isCancelled: false,
-          sourceType: 'notice',
-          sourceNoticeId: item.id,
-          sourceNoticeStartDate: startDate,
-          sourceNoticeEndDate: endDate || startDate,
-        }));
-      });
-    const legacyItems = buildLegacyCalendarItems(content);
-
-    const toMonthItems = (items) => items
-      .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-
-    const dedupeByTitleDate = (items) => {
-      const seen = new Set();
-      return items.filter((item) => {
-        const key = `${formatDateOnly(item.startAt)}|${String(item.title || '').trim()}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    };
-
-    try {
-      data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
-      const baseItems = Array.isArray(data.items) ? data.items : [];
-      const merged = dedupeByTitleDate([...baseItems, ...noticeItems, ...legacyItems]);
-      calendarActivities = toMonthItems(merged);
-    } catch (_) {
-      const fallback = dedupeByTitleDate([...noticeItems, ...legacyItems]);
-      calendarActivities = toMonthItems(fallback);
-      data = { range: null };
-    }
-    renderActivitiesCalendarGrid(data.range || null);
-    if (!calendarSelectedDate) {
-      calendarSelectedDate = dateParam;
-    }
-    await renderActivitiesDayList(calendarSelectedDate);
-    renderHomeCalendarPreview();
-  }
-
-  function renderActivitiesCalendarGrid(range) {
-    const grid = document.getElementById('calendar-grid');
-    const label = document.getElementById('calendar-current-label');
-    if (!grid || !label) return;
-
-    const monthLabel = getCalendarMonthLabel(calendarBaseDate);
-    label.innerText = monthLabel;
-
-    const mapByDate = {};
-    calendarActivities.forEach(item => {
-      const key = formatDateOnly(item.startAt);
-      if (!mapByDate[key]) mapByDate[key] = [];
-      mapByDate[key].push(item);
-    });
-
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-    const headers = dayNames.map(name => `<div class="weave-calendar-cell header">${name}</div>`).join('');
-
-    const buildDayCell = (dayNumber, key, items) => {
-      const selected = calendarSelectedDate === key ? 'selected' : '';
-      const hasActivity = items.length > 0 ? 'has-activity' : '';
-      const title = items.length > 0
-        ? (items.length > 1 ? `${items[0].title || '제목 없음'} 외 ${items.length - 1}건` : (items[0].title || '제목 없음'))
-        : '';
-      return `<button class="weave-calendar-cell day ${selected} ${hasActivity}" data-date="${key}"><span class="day-main"><span class="day-num">${dayNumber}</span><span class="day-title">${escapeHtml(title)}</span></span><span class="day-count">${items.length ? `${items.length}건` : ''}</span></button>`;
-    };
-
-    let cells = '';
-    const first = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
-    const last = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 0);
-    const firstDay = first.getDay();
-    const totalDays = last.getDate();
-    for (let i = 0; i < firstDay; i++) {
-      cells += '<div class="weave-calendar-cell empty"></div>';
-    }
-    for (let day = 1; day <= totalDays; day++) {
-      const current = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), day);
-      const key = formatDateOnly(current);
-      const items = mapByDate[key] || [];
-      cells += buildDayCell(day, key, items);
-    }
-
-    grid.innerHTML = `<div class="weave-calendar-table">${headers}${cells}</div>`;
-    grid.querySelectorAll('[data-date]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const dateKey = btn.dataset.date;
-        calendarSelectedDate = dateKey;
-        const dateItems = mapByDate[dateKey] || [];
-        renderActivitiesCalendarGrid(range);
-        await renderActivitiesDayList(calendarSelectedDate);
-        await openCalendarDatePopup(dateKey, dateItems);
-      });
-    });
-  }
-
-  function getModalInstanceById(modalId) {
-    const modalEl = document.getElementById(modalId);
-    if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) return null;
-    return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-  }
-
-  function buildActivityActionButtons(item, user, currentStatus) {
-    if (item && item.sourceType === 'notice') return '';
-    if (!user || user.status !== 'active') return '';
-    const canApply = !currentStatus || ['cancelled', 'noshow'].includes(currentStatus);
-    const canCancel = ['waiting', 'confirmed'].includes(currentStatus || '');
-    const canBulkCancel = isStaffUser(user) && !!item.recurrenceGroupId;
-    return `
-      <div class="d-flex gap-2 mt-2">
-        ${canApply ? `<button class="btn btn-sm btn-primary" onclick="applyActivity(${item.id})">신청</button>` : ''}
-        ${canCancel ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelActivity(${item.id})">취소</button>` : ''}
-        ${canBulkCancel ? `<button class="btn btn-sm btn-outline-warning" onclick="openRecurrenceCancelModal('${item.recurrenceGroupId}')">반복 일괄취소</button>` : ''}
-      </div>
-    `;
-  }
-
-  async function getMyActivityHistoryMap(user = getCurrentUser()) {
-    const map = {};
-    if (!user || user.status !== 'active') return map;
-    try {
-      const my = await apiRequest('/me/history', { method: 'GET' });
-      (my.items || []).forEach(entry => {
-        map[String(entry.activityId)] = entry.status;
-      });
-    } catch (_) {}
-    return map;
-  }
-
-  function buildActivityDetailMarkup(item, user, status = '', extraClass = '') {
-    const statusLabel = status ? `<span class="badge text-bg-light border">${status}</span>` : '';
-    const isNoticeSource = item && item.sourceType === 'notice';
-    const noticeLink = isNoticeSource
-      ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="openNotice(${Number(item.sourceNoticeId || 0)}); return false;">공지 상세 보기</button>`
-      : '';
-    return `
-      <div class="border rounded p-3 bg-white${extraClass}">
-        <div class="d-flex justify-content-between align-items-start gap-2">
-          <div>
-            <div class="fw-bold">${escapeHtml(item.title || '제목 없음')}</div>
-            <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
-          </div>
-          ${statusLabel}
-        </div>
-        ${item.recurrenceGroupId ? `<div class="small mt-1"><span class="badge text-bg-light border">반복그룹: ${escapeHtml(item.recurrenceGroupId)}</span></div>` : ''}
-        <div class="small mt-2">장소: ${escapeHtml(item.place || '-')} / 집결: ${escapeHtml(item.gatherTime || '-')} / 담당자: ${escapeHtml(item.manager || '-')} / 모집: ${item.recruitmentLimit || 0}명</div>
-        <div class="small text-muted">준비물: ${escapeHtml(item.supplies || '-')}</div>
-        ${isNoticeSource ? `<div class="small mt-2" style="white-space: pre-wrap;">${escapeHtml(item.description || '')}</div>` : ''}
-        ${noticeLink}
-        ${buildActivityActionButtons(item, user, status)}
-      </div>
-    `;
-  }
-
-  function openCalendarActivityDetailModal(item, user, status = '') {
-    const body = document.getElementById('calendar-activity-detail-body');
-    if (!body || !item) return;
-    body.innerHTML = buildActivityDetailMarkup(item, user, status);
-    const detailModal = getModalInstanceById('calendarActivityDetailModal');
-    if (detailModal) detailModal.show();
-  }
-
-  function openCalendarActivityListModal(dateKey, items, user, historyMap) {
-    const titleEl = document.getElementById('calendar-activity-list-title');
-    const listEl = document.getElementById('calendar-activity-list');
-    if (!titleEl || !listEl) return;
-
-    titleEl.innerText = `${dateKey} 일정 목록 (${items.length}건)`;
-    listEl.innerHTML = items.map(item => `
-      <button class="btn btn-outline-primary text-start" data-calendar-activity-id="${item.id}">
-        <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
-        <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
-      </button>
-    `).join('');
-
-    const listModal = getModalInstanceById('calendarActivityListModal');
-    if (listModal) listModal.show();
-
-    const itemMap = {};
-    items.forEach(item => {
-      itemMap[String(item.id)] = item;
-    });
-
-    listEl.querySelectorAll('[data-calendar-activity-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const selected = itemMap[String(btn.dataset.calendarActivityId)];
-        if (!selected) return;
-        const status = historyMap[String(selected.id)] || '';
-        if (listModal) listModal.hide();
-        setTimeout(() => {
-          openCalendarActivityDetailModal(selected, user, status);
-        }, 160);
-      });
-    });
-  }
-
-  async function openCalendarDatePopup(dateKey, items) {
-    if (!Array.isArray(items) || !items.length) return;
-    const user = getCurrentUser();
-    const historyMap = await getMyActivityHistoryMap(user);
-    if (items.length === 1) {
-      const onlyItem = items[0];
-      openCalendarActivityDetailModal(onlyItem, user, historyMap[String(onlyItem.id)] || '');
-      return;
-    }
-    openCalendarActivityListModal(dateKey, items, user, historyMap);
-  }
-
-  async function renderActivitiesDayList(dateKey) {
-    const dayDetail = document.getElementById('calendar-day-detail');
-    const dayList = document.getElementById('calendar-day-list');
-    if (!dayDetail || !dayList) return;
-
-    dayDetail.innerText = `${dateKey} 일정`;
-    const user = getCurrentUser();
-    const items = calendarActivities.filter(item => formatDateOnly(item.startAt) === dateKey);
-    if (!items.length) {
-      dayList.innerHTML = '<div class="text-muted small">등록된 활동이 없습니다.</div>';
-      return;
-    }
-
-    const myHistoryMap = await getMyActivityHistoryMap(user);
-
-    dayList.innerHTML = items.map(item => {
-      const status = myHistoryMap[String(item.id)] || '';
-      const highlightClass = focusedActivityDateKey && formatDateOnly(item.startAt) === focusedActivityDateKey
-        ? ' activity-focus-highlight'
-        : '';
-      return buildActivityDetailMarkup(item, user, status, highlightClass);
-    }).join('');
-
-    if (focusedActivityDateKey === dateKey) {
-      setTimeout(() => {
-        dayList.querySelectorAll('.activity-focus-highlight').forEach(el => {
-          el.classList.remove('activity-focus-highlight');
-        });
-        focusedActivityDateKey = '';
-      }, 2500);
-    }
-  }
-
-  async function applyActivity(activityId) {
-    try {
-      const data = await apiRequest(`/activities/${activityId}/apply`, { method: 'POST' });
-      alert(`신청 완료 (${data.status})`);
-      await loadActivitiesCalendar();
-    } catch (error) {
-      alert(error.message || '신청에 실패했습니다.');
-    }
-  }
-
-  async function cancelActivity(activityId) {
-    try {
-      await apiRequest(`/activities/${activityId}/cancel`, { method: 'POST' });
-      alert('신청을 취소했습니다.');
-      await loadActivitiesCalendar();
-    } catch (error) {
-      alert(error.message || '취소에 실패했습니다.');
-    }
-  }
-
-  function renderHomeCalendarPreview() {
-    const monthLabelEl = document.getElementById('home-calendar-current-label');
-    const summaryEl = document.getElementById('home-calendar-summary');
-    const listEl = document.getElementById('home-calendar-list');
-    const miniGrid = document.getElementById('home-calendar-mini-grid');
-    if (!summaryEl || !listEl) return;
-
-    if (monthLabelEl) {
-      monthLabelEl.innerText = getCalendarMonthLabel(calendarBaseDate);
-    }
-
-    if (miniGrid) {
-      const mapByDate = {};
-      calendarActivities.forEach(item => {
-        const key = formatDateOnly(item.startAt);
-        if (!mapByDate[key]) mapByDate[key] = [];
-        mapByDate[key].push(item);
-      });
-      const base = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
-      const firstDay = base.getDay();
-      const totalDays = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
-      let cells = '';
-      for (let i = 0; i < firstDay; i++) {
-        cells += '<div class="weave-calendar-cell empty"></div>';
-      }
-      for (let day = 1; day <= totalDays; day++) {
-        const current = new Date(base.getFullYear(), base.getMonth(), day);
-        const key = formatDateOnly(current);
-        const items = mapByDate[key] || [];
-        const title = items.length > 0
-          ? (items.length > 1 ? `${items[0].title || '제목 없음'} 외 ${items.length - 1}건` : (items[0].title || '제목 없음'))
-          : '';
-        const hasActivity = items.length > 0 ? 'has-activity' : '';
-        if (items.length > 0) {
-          cells += `<button class="weave-calendar-cell day ${hasActivity}" data-home-calendar-date="${key}"><span class="day-main"><span class="day-num">${day}</span><span class="day-title">${escapeHtml(title)}</span></span><span class="day-count">${items.length}건</span></button>`;
-        } else {
-          cells += `<div class="weave-calendar-cell day"><span class="day-main"><span class="day-num">${day}</span><span class="day-title"></span></span><span class="day-count"></span></div>`;
-        }
-      }
-      miniGrid.innerHTML = `<div class="weave-calendar-table">${['일','월','화','수','목','금','토'].map(name => `<div class="weave-calendar-cell header">${name}</div>`).join('')}${cells}</div>`;
-      miniGrid.querySelectorAll('[data-home-calendar-date]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const dateKey = btn.dataset.homeCalendarDate;
-          const items = mapByDate[dateKey] || [];
-          calendarSelectedDate = dateKey;
-          await openCalendarDatePopup(dateKey, items);
-        });
-      });
-    }
-
-    const upcoming = [...calendarActivities]
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
-      .slice(0, 5);
-
-    summaryEl.innerText = `이번 기간 활동 ${calendarActivities.length}건`;
-    if (!upcoming.length) {
-      listEl.innerHTML = '<div class="text-muted small">예정된 활동이 없습니다.</div>';
-      return;
-    }
-
-    listEl.innerHTML = upcoming.map(item => `
-      <button class="btn btn-light text-start border" data-home-activity-date="${formatDateOnly(item.startAt)}">
-        <div class="fw-semibold">${item.title}</div>
-        <div class="small text-muted">${formatKoreanDate(item.startAt)} · ${item.place || '-'}</div>
-      </button>
-    `).join('');
-
-    listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        movePanel('activities');
-        openActivitiesCalendarTab();
-        calendarSelectedDate = btn.dataset.homeActivityDate;
-        await loadActivitiesCalendar();
-      });
-    });
-  }
-
-  async function focusCalendarDate(dateValue) {
-    if (!dateValue) return;
-    const target = new Date(dateValue);
-    if (Number.isNaN(target.getTime())) return;
-
-    calendarBaseDate = new Date(target.getFullYear(), target.getMonth(), 1);
-    calendarSelectedDate = formatDateOnly(target);
-    focusedActivityDateKey = calendarSelectedDate;
-    movePanel('activities');
-    openActivitiesCalendarTab();
-    await loadActivitiesCalendar();
-  }
-
-  async function loadOpsDashboard(page = opsPendingPage) {
-    opsPendingPage = Math.max(1, Number(page) || 1);
-    try {
-      const [dash, pending] = await Promise.all([
-        apiRequest('/admin/dashboard', { method: 'GET' }),
-        apiRequest(`/admin/pending-users?page=${opsPendingPage}&pageSize=${OPS_PENDING_PAGE_SIZE}`, { method: 'GET' })
-      ]);
-      const info = dash.dashboard || {};
-      const setText = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = String(value ?? 0);
-      };
-      setText('ops-card-today', info.todaySchedule);
-      setText('ops-card-pending', info.pendingApprovals);
-      setText('ops-card-waiting', info.waitingApplications);
-      setText('ops-card-noshow', info.noshowCount);
-      setText('ops-card-notices', info.scheduledNotices);
-      setText('ops-card-qna', info.qnaUnanswered);
-      setText('ops-card-expense', info.expenseAlerts);
-
-      const rows = pending.items || [];
-      const tbody = document.getElementById('ops-pending-users-body');
-      const count = document.getElementById('ops-pending-count');
-      const pagination = pending.pagination || {};
-      const total = Number(pagination.total ?? rows.length);
-      const pageNo = Number(pagination.page ?? opsPendingPage);
-      const totalPages = Number(pagination.totalPages ?? 1);
-      const prevBtn = document.getElementById('ops-pending-prev-btn');
-      const nextBtn = document.getElementById('ops-pending-next-btn');
-      const pageLabel = document.getElementById('ops-pending-page-label');
-
-      if (count) count.innerText = `${total}건`;
-      if (pageLabel) pageLabel.innerText = `${pageNo} / ${totalPages}`;
-      if (prevBtn) prevBtn.disabled = !pagination.hasPrev;
-      if (nextBtn) nextBtn.disabled = !pagination.hasNext;
-      opsPendingPage = pageNo;
-
-      if (tbody) {
-        tbody.innerHTML = rows.length ? rows.map(user => `
-          <tr>
-            <td>${user.name || '-'}</td>
-            <td>${user.username || '-'}</td>
-            <td>${user.generation || '-'}</td>
-            <td>${user.interests || '-'}</td>
-            <td>${user.status || '-'}</td>
-            <td>
-              <div class="d-flex gap-1">
-                <button class="btn btn-sm btn-outline-success" onclick="approvePendingUser(${user.id}, 'member')">단원 승인</button>
-                <button class="btn btn-sm btn-outline-primary" onclick="approvePendingUser(${user.id}, 'staff')">운영진 승인</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="rejectPendingUser(${user.id})">반려</button>
-              </div>
-            </td>
-          </tr>
-        `).join('') : '<tr><td colspan="6" class="text-center text-muted">승인 대기 사용자가 없습니다.</td></tr>';
-      }
-    } catch (error) {
-      const tbody = document.getElementById('ops-pending-users-body');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${error.message || '대시보드를 불러오지 못했습니다.'}</td></tr>`;
-    }
-  }
-
-  async function approvePendingUser(userId, role = 'member') {
-    if (!confirm('해당 사용자를 승인하시겠습니까?')) return;
-    try {
-      await apiRequest(`/admin/users/${userId}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ role })
-      });
-      await loadOpsDashboard(opsPendingPage);
-    } catch (error) {
-      alert(error.message || '승인에 실패했습니다.');
-    }
-  }
-
-  async function rejectPendingUser(userId) {
-    if (!confirm('해당 가입 신청을 반려하시겠습니까?')) return;
-    try {
-      await apiRequest(`/admin/users/${userId}/reject`, { method: 'POST' });
-      await loadOpsDashboard(opsPendingPage);
-    } catch (error) {
-      alert(error.message || '반려에 실패했습니다.');
-    }
-  }
-
-  async function createActivityFromCalendar(event) {
-    event.preventDefault();
-    const user = getCurrentUser();
-    if (!user || user.status !== 'active' || !isStaffUser(user)) {
-      alert('운영진/관리자 권한이 필요합니다.');
-      return;
-    }
-
-    const form = event.target;
-    const payload = {
-      title: form.title.value.trim(),
-      startAt: toIsoFromDatetimeLocal(form.startAt.value),
-      endAt: toIsoFromDatetimeLocal(form.endAt.value),
-      place: form.place.value.trim(),
-      gatherTime: form.gatherTime.value.trim(),
-      supplies: form.supplies.value.trim(),
-      manager: form.manager.value.trim() || (user.name || user.username || ''),
-      recruitmentLimit: Number(form.recruitmentLimit.value || 0)
-    };
-    const repeatWeeks = Number(form.repeatWeeks.value || 0);
-    const recurrenceGroupId = repeatWeeks > 0
-      ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-      : '';
-
-    if (!payload.title || !payload.startAt || !payload.endAt) {
-      alert('제목/시작/종료 시간을 입력해주세요.');
-      return;
-    }
-    if (payload.title.length > 120) {
-      alert('활동 제목은 120자 이하여야 합니다.');
-      return;
-    }
-    if (new Date(payload.endAt).getTime() <= new Date(payload.startAt).getTime()) {
-      alert('종료 시간은 시작 시간보다 늦어야 합니다.');
-      return;
-    }
-    if (payload.recruitmentLimit < 0 || payload.recruitmentLimit > 1000) {
-      alert('모집 인원은 0~1000 범위여야 합니다.');
-      return;
-    }
-    if (repeatWeeks < 0 || repeatWeeks > 12) {
-      alert('반복 주 수는 0~12 사이로 입력해주세요.');
-      return;
-    }
-
-    try {
-      const startDate = new Date(payload.startAt);
-      const endDate = new Date(payload.endAt);
-      const requests = [];
-      for (let week = 0; week <= repeatWeeks; week++) {
-        const shiftedStart = new Date(startDate);
-        const shiftedEnd = new Date(endDate);
-        shiftedStart.setDate(shiftedStart.getDate() + week * 7);
-        shiftedEnd.setDate(shiftedEnd.getDate() + week * 7);
-        requests.push(
-          apiRequest('/activities', {
-            method: 'POST',
-            body: JSON.stringify({
-              ...payload,
-              recurrenceGroupId,
-              startAt: shiftedStart.toISOString(),
-              endAt: shiftedEnd.toISOString()
-            })
-          })
-        );
-      }
-      await Promise.all(requests);
-      calendarBaseDate = new Date(payload.startAt);
-      calendarSelectedDate = formatDateOnly(payload.startAt);
-      form.reset();
-      form.manager.value = user.name || user.username || '';
-      await loadActivitiesCalendar();
-      alert(`일정이 등록되었습니다. (총 ${repeatWeeks + 1}건) 같은 화면에서 바로 신청할 수 있습니다.`);
-    } catch (error) {
-      alert(error.message || '일정 등록에 실패했습니다.');
-    }
-  }
-
-  async function openRecurrenceCancelModal(groupId) {
-    const user = getCurrentUser();
-    if (!user || user.status !== 'active' || !isStaffUser(user)) {
-      alert('운영진/관리자만 일괄 취소할 수 있습니다.');
-      return;
-    }
-    if (!groupId) return;
-    pendingRecurrenceCancelGroupId = groupId;
-
-    const summary = document.getElementById('recurrence-cancel-summary');
-    const confirmBtn = document.getElementById('recurrence-cancel-confirm-btn');
-    const previewList = document.getElementById('recurrence-cancel-preview-list');
-    if (summary) summary.innerText = '영향도를 불러오는 중입니다...';
-    if (confirmBtn) confirmBtn.disabled = true;
-    if (previewList) previewList.innerHTML = '<li class="text-muted">불러오는 중...</li>';
-
-    try {
-      const impact = await apiRequest(`/activities/recurrence/${groupId}/impact`, { method: 'GET' });
-      const activityCount = impact?.impact?.activityCount ?? 0;
-      const applicationCount = impact?.impact?.applicationCount ?? 0;
-      const previewItems = impact?.impact?.previewItems || [];
-      if (summary) {
-        summary.innerText = `반복 그룹 ${groupId} 취소 시, 일정 ${activityCount}건 / 신청 ${applicationCount}건이 함께 취소됩니다.`;
-      }
-      if (confirmBtn) confirmBtn.disabled = activityCount <= 0;
-      if (previewList) {
-        if (!previewItems.length) {
-          previewList.innerHTML = '<li class="text-muted">표시할 일정이 없습니다.</li>';
-        } else {
-          previewList.innerHTML = previewItems.map(item => {
-            const startAt = formatKoreanDate(item.startAt);
-            const dateKey = formatDateOnly(item.startAt);
-            return `
-              <li>
-                <button type="button" class="btn btn-link btn-sm p-0 text-start" data-impact-date="${dateKey}">
-                  ${item.title} · ${startAt} · 신청 ${item.applicationCount}건
-                </button>
-              </li>
-            `;
-          }).join('');
-
-          previewList.querySelectorAll('[data-impact-date]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              const dateKey = btn.dataset.impactDate;
-              const modalEl = document.getElementById('recurrenceCancelModal');
-              if (modalEl) {
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
-              }
-              await focusCalendarDate(dateKey);
-            });
-          });
-        }
-      }
-    } catch (error) {
-      if (summary) {
-        summary.innerText = error.message || '영향도를 확인하지 못했습니다.';
-      }
-      if (confirmBtn) confirmBtn.disabled = true;
-      if (previewList) previewList.innerHTML = '<li class="text-danger">목록을 불러오지 못했습니다.</li>';
-    }
-
-    const modalEl = document.getElementById('recurrenceCancelModal');
-    if (modalEl) {
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
-    }
-  }
-
-  async function executeRecurrenceCancel() {
-    if (!pendingRecurrenceCancelGroupId) return;
-    try {
-      const data = await apiRequest(`/activities/recurrence/${pendingRecurrenceCancelGroupId}/cancel`, { method: 'POST' });
-      const modalEl = document.getElementById('recurrenceCancelModal');
-      if (modalEl) {
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-      }
-      pendingRecurrenceCancelGroupId = '';
-      await loadActivitiesCalendar();
-      alert(data.message || '반복 그룹이 취소되었습니다.');
-    } catch (error) {
-      alert(error.message || '일괄 취소에 실패했습니다.');
-    }
-  }
-
-  function getPostKey(type, id) {
-    return `${type}-${id}`;
-  }
-
-  function getComments(itemId) {
-    const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
-    return all[itemId] || { comments: [], recommendUsers: [] };
-  }
-
-  function saveComments(itemId, comments) {
-    const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
-    all[itemId] = comments;
-    localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
-  }
-
-  function getRecommendCount(itemKey) {
-    const info = getComments(itemKey);
-    return (info.recommendUsers || []).length;
-  }
-
-  function addRecommendation(itemKey) {
-    const user = getCurrentUser();
-    if (!user) {
-      alert('추천하려면 로그인이 필요합니다.');
-      return false;
-    }
-    const info = getComments(itemKey);
-    if (!Array.isArray(info.recommendUsers)) info.recommendUsers = [];
-    if (info.recommendUsers.includes(user.username)) {
-      alert('이미 추천하셨습니다.');
-      return false;
-    }
-    info.recommendUsers.push(user.username);
-    saveComments(itemKey, info);
-    return true;
-  }
-
-  function hasChildReplies(allComments, commentId) {
-    return allComments.some(c => c.parentId === commentId);
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-
-  function renderPostComments(containerId, itemKey) {
-    const wrap = document.getElementById(containerId);
-    if (!wrap) return;
-    const user = getCurrentUser();
-    const isAdmin = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
-    const commentData = getComments(itemKey);
-    const comments = Array.isArray(commentData.comments) ? commentData.comments : [];
-    const roots = comments.filter(c => !c.parentId);
-    const count = comments.length;
-
-    const renderComment = (comment, isReply = false) => {
-      const canDelete = !!(user && (isAdmin || comment.username === user.username));
-      const canEdit = !!(user && comment.username === user.username && !hasChildReplies(comments, comment.id));
-      const replies = comments.filter(c => c.parentId === comment.id);
-      return `
-        <div class="comment-item ${isReply ? 'comment-reply' : ''}" data-id="${comment.id}">
-          <div class="comment-author">${escapeHtml(comment.name || comment.username || '사용자')}</div>
-          <div class="comment-text">${escapeHtml(comment.text)}</div>
-          <div class="comment-time d-flex justify-content-between align-items-center gap-2 flex-wrap">
-            <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
-            <div class="d-flex gap-1">
-              ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">대댓글</button>` : ''}
-              ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">수정</button>` : ''}
-              ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
-            </div>
-          </div>
-          ${replies.map(r => renderComment(r, true)).join('')}
-        </div>
-      `;
-    };
-
-    wrap.innerHTML = `
-      <h6 class="fw-bold mb-3">댓글 (${count})</h6>
-      <form class="comment-form mb-3" onsubmit="submitPostComment(event, '${itemKey}', '${containerId}')">
-        <div class="input-group">
-          <input type="text" class="form-control" name="comment" placeholder="댓글을 입력하세요" required>
-          <input type="hidden" name="parentId" value="">
-          <input type="hidden" name="editId" value="">
-          <button class="btn btn-primary" type="submit">등록</button>
-        </div>
-      </form>
-      <div class="comment-list">
-        ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
-      </div>
-    `;
-  }
-
-  function submitPostComment(event, itemKey, containerId) {
-    event.preventDefault();
-    const user = getCurrentUser();
-    if (!user) {
-      alert('댓글을 작성하려면 로그인이 필요합니다.');
-      return;
-    }
-    const form = event.target;
-    const text = form.comment.value.trim();
-    if (!text) return;
-    const parentId = Number(form.parentId.value || 0);
-    const editId = Number(form.editId.value || 0);
-    const info = getComments(itemKey);
-    if (!Array.isArray(info.comments)) info.comments = [];
-
-    if (editId) {
-      const target = info.comments.find(c => c.id === editId);
-      if (target && target.username === user.username) {
-        target.text = text;
-        target.editedAt = new Date().toISOString();
-      }
-    } else {
-      const newId = Math.max(0, ...info.comments.map(c => c.id || 0)) + 1;
-      info.comments.push({
-        id: newId,
-        parentId: parentId || null,
-        username: user.username,
-        name: user.name,
-        text,
-        time: new Date().toISOString()
-      });
-    }
-
-    saveComments(itemKey, info);
-    renderPostComments(containerId, itemKey);
-  }
-
-  function startReplyComment(itemKey, parentId, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const form = container.querySelector('.comment-form');
-    if (!form) return;
-    form.parentId.value = String(parentId);
-    form.editId.value = '';
-    form.comment.focus();
-  }
-
-  function startEditComment(itemKey, commentId, containerId) {
-    const info = getComments(itemKey);
-    const target = (info.comments || []).find(c => c.id === commentId);
-    if (!target) return;
-    if (hasChildReplies(info.comments || [], commentId)) return;
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const form = container.querySelector('.comment-form');
-    if (!form) return;
-    form.comment.value = target.text || '';
-    form.parentId.value = '';
-    form.editId.value = String(commentId);
-    form.comment.focus();
-  }
-
-  function deletePostComment(itemKey, commentId, containerId) {
-    const user = getCurrentUser();
-    if (!user) return;
-    const isAdmin = !!(user.isAdmin || ADMIN_EMAILS.includes(user.email));
-    const info = getComments(itemKey);
-    const target = (info.comments || []).find(c => c.id === commentId);
-    if (!target) return;
-    if (!isAdmin && target.username !== user.username) {
-      alert('본인 댓글 또는 관리자만 삭제할 수 있습니다.');
-      return;
-    }
-    if (!confirm('댓글을 삭제하시겠습니까?')) return;
-
-    const toDelete = new Set([commentId]);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      (info.comments || []).forEach(c => {
-        if (c.parentId && toDelete.has(c.parentId) && !toDelete.has(c.id)) {
-          toDelete.add(c.id);
-          changed = true;
-        }
-      });
-    }
-    info.comments = (info.comments || []).filter(c => !toDelete.has(c.id));
-    saveComments(itemKey, info);
-    renderPostComments(containerId, itemKey);
-  }
-
-  // ============ NEWS SECTION ============
-  function getFilteredNewsItems() {
-    const content = getContent();
-    return content.news
-      .filter(item => item.title.toLowerCase().includes(newsSearchKeyword.toLowerCase()))
-      .sort((a, b) => b.id - a.id);
-  }
-
-  function getFilteredFaqItems() {
-    const content = getContent();
-    return (content.faq || [])
-      .filter(item => item.title.toLowerCase().includes(faqSearchKeyword.toLowerCase()))
-      .sort((a, b) => b.id - a.id);
-  }
-
-  function getFilteredQnaItems() {
-    const content = getContent();
-    return (content.qna || [])
-      .filter(item => item.title.toLowerCase().includes(qnaSearchKeyword.toLowerCase()))
-      .sort((a, b) => b.id - a.id);
-  }
-
-  function renderNews() {
-    const tbody = document.getElementById('news-table-body');
-    const pagination = document.getElementById('news-pagination');
-    const totalCount = document.getElementById('news-total-count');
-    if (!tbody || !pagination || !totalCount) return;
-
-    const filtered = getFilteredNewsItems();
-    totalCount.textContent = filtered.length;
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / NEWS_PAGE_SIZE));
-    if (newsCurrentPage > totalPages) newsCurrentPage = totalPages;
-
-    const start = (newsCurrentPage - 1) * NEWS_PAGE_SIZE;
-    const pageItems = filtered.slice(start, start + NEWS_PAGE_SIZE);
-    tbody.innerHTML = '';
-
-    pageItems.forEach(item => {
-      const user = getCurrentUser();
-      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-      const recommendCount = getRecommendCount(getPostKey('news', item.id));
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${item.id}</td>
-        <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a></td>
-        <td>${item.author || '관리자'}</td>
-        <td>${item.date}</td>
-        <td>${item.views || 0} / ${recommendCount}</td>
-        <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id})">수정</button>` : ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    pagination.innerHTML = '';
-    const prevLi = document.createElement('li');
-    prevLi.className = `page-item ${newsCurrentPage === 1 ? 'disabled' : ''}`;
-    prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
-    prevLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (newsCurrentPage > 1) {
-        newsCurrentPage -= 1;
-        renderNews();
-      }
-    });
-    pagination.appendChild(prevLi);
-
-    for (let page = 1; page <= totalPages; page++) {
-      const li = document.createElement('li');
-      li.className = `page-item ${page === newsCurrentPage ? 'active' : ''}`;
-      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
-      li.addEventListener('click', (e) => {
-        e.preventDefault();
-        newsCurrentPage = page;
-        renderNews();
-      });
-      pagination.appendChild(li);
-    }
-
-    const nextLi = document.createElement('li');
-    nextLi.className = `page-item ${newsCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
-    nextLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (newsCurrentPage < totalPages) {
-        newsCurrentPage += 1;
-        renderNews();
-      }
-    });
-    pagination.appendChild(nextLi);
-  }
-
-  function renderFaq() {
-    const tbody = document.getElementById('faq-table-body');
-    const pagination = document.getElementById('faq-pagination');
-    const totalCount = document.getElementById('faq-total-count');
-    if (!tbody || !pagination || !totalCount) return;
-
-    const items = getFilteredFaqItems();
-    totalCount.textContent = items.length;
-    const totalPages = Math.max(1, Math.ceil(items.length / FAQ_PAGE_SIZE));
-    if (faqCurrentPage > totalPages) faqCurrentPage = totalPages;
-    const start = (faqCurrentPage - 1) * FAQ_PAGE_SIZE;
-    const pageItems = items.slice(start, start + FAQ_PAGE_SIZE);
-    const user = getCurrentUser();
-    const admin = isAdminUser(user);
-
-    tbody.innerHTML = '';
-    pageItems.forEach(item => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${item.id}</td>
-        <td><a href="#" onclick="openFaqDetail(${item.id}); return false;">${item.title}</a></td>
-        <td>${item.author || '관리자'}</td>
-        <td>${item.date || ''}</td>
-        <td>${item.views || 0}</td>
-        <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'faq')">수정</button>` : ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    pagination.innerHTML = '';
-    const prevLi = document.createElement('li');
-    prevLi.className = `page-item ${faqCurrentPage === 1 ? 'disabled' : ''}`;
-    prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
-    prevLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (faqCurrentPage > 1) {
-        faqCurrentPage -= 1;
-        renderFaq();
-      }
-    });
-    pagination.appendChild(prevLi);
-
-    for (let page = 1; page <= totalPages; page++) {
-      const li = document.createElement('li');
-      li.className = `page-item ${page === faqCurrentPage ? 'active' : ''}`;
-      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
-      li.addEventListener('click', (e) => {
-        e.preventDefault();
-        faqCurrentPage = page;
-        renderFaq();
-      });
-      pagination.appendChild(li);
-    }
-
-    const nextLi = document.createElement('li');
-    nextLi.className = `page-item ${faqCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
-    nextLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (faqCurrentPage < totalPages) {
-        faqCurrentPage += 1;
-        renderFaq();
-      }
-    });
-    pagination.appendChild(nextLi);
-  }
-
-  function renderQna() {
-    const tbody = document.getElementById('qna-table-body');
-    const pagination = document.getElementById('qna-pagination');
-    const totalCount = document.getElementById('qna-total-count');
-    if (!tbody || !pagination || !totalCount) return;
-
-    const items = getFilteredQnaItems();
-    totalCount.textContent = items.length;
-    const totalPages = Math.max(1, Math.ceil(items.length / QNA_PAGE_SIZE));
-    if (qnaCurrentPage > totalPages) qnaCurrentPage = totalPages;
-    const start = (qnaCurrentPage - 1) * QNA_PAGE_SIZE;
-    const pageItems = items.slice(start, start + QNA_PAGE_SIZE);
-    const user = getCurrentUser();
-    const admin = isAdminUser(user);
-
-    tbody.innerHTML = '';
-    pageItems.forEach(item => {
-      const canRead = !item.isSecret || admin;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${item.id}</td>
-        <td>${canRead ? `<a href="#" onclick="openQnaDetail(${item.id}); return false;">${item.title}${item.isSecret ? ' 🔒' : ''}</a>` : `비밀글 🔒`}</td>
-        <td>${item.author || ''}</td>
-        <td>${item.date || ''}</td>
-        <td>${item.answer ? '답변완료' : '대기'}</td>
-        <td>${user && item.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'qna')">수정</button>` : ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    pagination.innerHTML = '';
-    const prevLi = document.createElement('li');
-    prevLi.className = `page-item ${qnaCurrentPage === 1 ? 'disabled' : ''}`;
-    prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
-    prevLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (qnaCurrentPage > 1) {
-        qnaCurrentPage -= 1;
-        renderQna();
-      }
-    });
-    pagination.appendChild(prevLi);
-
-    for (let page = 1; page <= totalPages; page++) {
-      const li = document.createElement('li');
-      li.className = `page-item ${page === qnaCurrentPage ? 'active' : ''}`;
-      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
-      li.addEventListener('click', (e) => {
-        e.preventDefault();
-        qnaCurrentPage = page;
-        renderQna();
-      });
-      pagination.appendChild(li);
-    }
-
-    const nextLi = document.createElement('li');
-    nextLi.className = `page-item ${qnaCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
-    nextLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (qnaCurrentPage < totalPages) {
-        qnaCurrentPage += 1;
-        renderQna();
-      }
-    });
-    pagination.appendChild(nextLi);
-  }
-
-  function setNewsWriteButtons() {
-    const user = getCurrentUser();
-    const activeMember = !!(user && user.status === 'active');
-    const admin = activeMember && isAdminUser(user);
-    const staff = activeMember && isStaffUser(user);
-    const noticeBtn = document.getElementById('news-write-btn');
-    const faqBtn = document.getElementById('faq-write-btn');
-    const qnaBtn = document.getElementById('qna-write-btn');
-    if (noticeBtn) noticeBtn.classList.toggle('d-none', !staff || currentNewsTab !== 'notice');
-    if (faqBtn) faqBtn.classList.toggle('d-none', !admin || currentNewsTab !== 'faq');
-    if (qnaBtn) qnaBtn.classList.toggle('d-none', !activeMember || currentNewsTab !== 'qna');
-  }
-
-  function openFaqDetail(id) {
-    const data = getContent();
-    const item = (data.faq || []).find(f => f.id === id);
-    if (!item) return;
-    item.views = (item.views || 0) + 1;
-    saveContent(data);
-    renderFaq();
-
-    document.getElementById('news-detail-title').textContent = item.title;
-    document.getElementById('news-detail-meta').textContent = `${item.author || '관리자'} | ${item.date || ''} | 조회수 ${item.views || 0}`;
-    document.getElementById('news-detail-content').innerHTML = item.content || '';
-    document.getElementById('news-detail-image').classList.add('d-none');
-    document.getElementById('news-recommend-btn').parentElement.classList.add('d-none');
-    document.getElementById('news-detail-delete-btn').classList.add('d-none');
-    document.getElementById('news-comments-section').innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
-
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    document.getElementById('news-detail').classList.add('panel-active');
-  }
-
-  function openQnaDetail(id) {
-    const user = getCurrentUser();
-    const operator = isStaffUser(user);
-    const data = getContent();
-    const item = (data.qna || []).find(q => q.id === id);
-    if (!item) return;
-    if (item.isSecret && !operator) {
-      alert('비밀글은 운영자만 열람할 수 있습니다.');
-      return;
-    }
-
-    document.getElementById('qna-detail-title').textContent = item.title;
-    document.getElementById('qna-detail-meta').textContent = `${item.author || ''} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
-    document.getElementById('qna-detail-question').innerHTML = item.content || '';
-    document.getElementById('qna-detail-answer').innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
-    const answerBtn = document.getElementById('qna-answer-btn');
-    answerBtn.classList.toggle('d-none', !operator);
-    answerBtn.onclick = () => {
-      openQnaAnswerEditor(id);
-    };
-
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    document.getElementById('qna-detail').classList.add('panel-active');
-  }
-
-  function openNotice(id) {
-    const data = getContent();
-    const notice = data.news.find(n => n.id === id);
-    if (!notice) return;
-    notice.views = (notice.views || 0) + 1;
-    saveContent(data);
-    renderNews();
-
-    const user = getCurrentUser();
-    const titleEl = document.getElementById('news-detail-title');
-    const metaEl = document.getElementById('news-detail-meta');
-    const contentEl = document.getElementById('news-detail-content');
-    const imageEl = document.getElementById('news-detail-image');
-    const actionsEl = document.getElementById('news-detail-actions');
-    const deleteBtn = document.getElementById('news-detail-delete-btn');
-    const recommendBtn = document.getElementById('news-recommend-btn');
-    const recommendCountEl = document.getElementById('news-recommend-count');
-    const itemKey = getPostKey('news', id);
-    currentNewsDetailId = id;
-
-    titleEl.textContent = notice.title;
-    const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
-    const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
-    const volunteerMeta = volunteerStart
-      ? ` | 봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? `~${volunteerEnd}` : ''}`
-      : '';
-    metaEl.textContent = `${notice.author || '관리자'} | ${notice.date}${volunteerMeta} | 조회수 ${notice.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
-    contentEl.innerHTML = notice.content || '';
-    if (actionsEl) {
-      if (volunteerStart) {
-        actionsEl.innerHTML = `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">캘린더로 이동</button>`;
-        const btn = document.getElementById('notice-go-calendar-btn');
-        if (btn) {
-          btn.onclick = async () => {
-            await focusCalendarDate(volunteerStart);
-          };
-        }
-      } else {
-        actionsEl.innerHTML = '';
-      }
-    }
-    document.getElementById('news-recommend-btn').parentElement.classList.remove('d-none');
-    if (notice.image) {
-      imageEl.src = notice.image;
-      imageEl.classList.remove('d-none');
-    } else {
-      imageEl.classList.add('d-none');
-    }
-
-    if (user && (user.isAdmin || ADMIN_EMAILS.includes(user.email))) {
-      deleteBtn.classList.remove('d-none');
-      deleteBtn.onclick = () => {
-        if (!confirm('이 공지글을 삭제하시겠습니까?')) return;
-        const next = getContent();
-        next.news = next.news.filter(n => n.id !== id);
-        saveContent(next);
-        deleteBtn.classList.add('d-none');
-        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-        document.getElementById('news').classList.add('panel-active');
-        renderNews();
-      };
-    } else {
-      deleteBtn.classList.add('d-none');
-      deleteBtn.onclick = null;
-    }
-
-    if (recommendBtn && recommendCountEl) {
-      recommendCountEl.textContent = String(getRecommendCount(itemKey));
-      recommendBtn.onclick = () => {
-        if (addRecommendation(itemKey)) {
-          recommendCountEl.textContent = String(getRecommendCount(itemKey));
-          openNotice(id);
-        }
-      };
-    }
-
-    renderPostComments('news-comments-section', itemKey);
-
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    document.getElementById('news-detail').classList.add('panel-active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  // ============ GALLERY SECTION ============
-  function renderGallery() {
-    const content = getContent();
-    const grid = document.getElementById('gallery-grid');
-    const pagination = document.getElementById('gallery-pagination');
-    grid.innerHTML = '';
-
-    const filtered = content.gallery.filter(item => {
-      const byYear = galleryCurrentFilter === '*' || item.category === galleryCurrentFilter.replace('.', '');
-      const byKeyword = !gallerySearchKeyword || item.title.toLowerCase().includes(gallerySearchKeyword.toLowerCase());
-      return byYear && byKeyword;
-    });
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / GALLERY_PAGE_SIZE));
-    if (galleryCurrentPage > totalPages) galleryCurrentPage = totalPages;
-    const start = (galleryCurrentPage - 1) * GALLERY_PAGE_SIZE;
-    const pageItems = filtered.slice(start, start + GALLERY_PAGE_SIZE);
-
-    pageItems.forEach(item => {
-      const user = getCurrentUser();
-      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-      const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
-      const div = document.createElement('div');
-      div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
-      div.innerHTML = `
-        <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${item.id})">
-          <img src="${item.image}" alt="${item.title}">
-          <div class="gallery-caption p-3 bg-white border-top">
-            <h6 class="mb-1">${item.title}</h6>
-            <small class="text-muted">${item.date || ''} · ${item.year}</small>
-            <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
-            ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${item.id});">수정</button></div>` : ''}
-          </div>
-          <div class="gallery-overlay">
-            <i class="fas fa-search-plus"></i>
-          </div>
-        </div>
-      `;
-      grid.appendChild(div);
-    });
-
-    if (pagination) {
-      pagination.innerHTML = '';
-      const prevLi = document.createElement('li');
-      prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
-      prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
-      prevLi.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (galleryCurrentPage > 1) {
-          galleryCurrentPage -= 1;
-          renderGallery();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-      pagination.appendChild(prevLi);
-
-      for (let page = 1; page <= totalPages; page++) {
-        const li = document.createElement('li');
-        li.className = `page-item ${page === galleryCurrentPage ? 'active' : ''}`;
-        li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
-        li.addEventListener('click', (e) => {
-          e.preventDefault();
-          galleryCurrentPage = page;
-          renderGallery();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-        pagination.appendChild(li);
-      }
-
-      const nextLi = document.createElement('li');
-      nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
-      nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
-      nextLi.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (galleryCurrentPage < totalPages) {
-          galleryCurrentPage += 1;
-          renderGallery();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-      pagination.appendChild(nextLi);
-    }
-  }
-
-  function openGalleryDetail(id) {
-    const content = getContent();
-    const item = content.gallery.find(x => x.id === id);
-    if (!item) return;
-
-    item.views = (item.views || 0) + 1;
-    saveContent(content);
-    renderGallery();
-
-    const user = getCurrentUser();
-    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-    const itemKey = getPostKey('gallery', id);
-    currentGalleryDetailId = id;
-    document.getElementById('gallery-detail-image').src = item.image;
-    document.getElementById('gallery-detail-title').innerText = item.title;
-    document.getElementById('gallery-detail-meta').innerText = `${item.author || '작성자 미상'} | ${item.date || ''} | ${item.year || ''} | 조회수 ${item.views || 0} | 추천수 ${getRecommendCount(itemKey)}`;
-    document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
-
-    const editBtn = document.getElementById('gallery-detail-edit-btn');
-    const deleteBtn = document.getElementById('gallery-detail-delete-btn');
-    if (canEdit) {
-      editBtn.classList.remove('d-none');
-      deleteBtn.classList.remove('d-none');
-      editBtn.onclick = () => startEditGallery(id);
-      deleteBtn.onclick = () => {
-        if (!confirm('이 글을 삭제하시겠습니까?')) return;
-        const data = getContent();
-        data.gallery = data.gallery.filter(g => g.id !== id);
-        saveContent(data);
-        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-        document.getElementById('gallery').classList.add('panel-active');
-        renderGallery();
-      };
-    } else {
-      editBtn.classList.add('d-none');
-      deleteBtn.classList.add('d-none');
-      editBtn.onclick = null;
-      deleteBtn.onclick = null;
-    }
-
-    const recommendBtn = document.getElementById('gallery-recommend-btn');
-    const recommendCountEl = document.getElementById('gallery-recommend-count');
-    if (recommendBtn && recommendCountEl) {
-      recommendCountEl.textContent = String(getRecommendCount(itemKey));
-      recommendBtn.onclick = () => {
-        if (addRecommendation(itemKey)) {
-          recommendCountEl.textContent = String(getRecommendCount(itemKey));
-          openGalleryDetail(id);
-        }
-      };
-    }
-
-    renderPostComments('gallery-comments-section', itemKey);
-
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    document.getElementById('gallery-detail').classList.add('panel-active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function startEditNews(id) {
-    const user = getCurrentUser();
-    if (!user) return alert('로그인이 필요합니다.');
-    const type = arguments[1] || 'notice';
-    const data = getContent();
-    const source = type === 'faq' ? (data.faq || []) : (type === 'qna' ? (data.qna || []) : data.news);
-    const item = source.find(n => n.id === id);
-    if (!item) return;
-    const form = document.getElementById('add-news-form');
-    form.editId.value = item.id;
-    form.title.value = item.title || '';
-    form.author.value = item.author || '';
-    form.postTab.value = type;
-    if (form.volunteerStartDate) {
-      form.volunteerStartDate.value = type === 'notice' ? (item.volunteerStartDate || item.volunteerDate || '') : '';
-    }
-    if (form.volunteerEndDate) {
-      form.volunteerEndDate.value = type === 'notice' ? (item.volunteerEndDate || item.volunteerDate || '') : '';
-    }
-    form.isSecret.checked = !!item.isSecret;
-    form.content.value = item.content || '';
-    setEditorHtml('news-editor', item.content || '');
-    form.imageData.value = item.image || '';
-    setImagePreview('news-image-preview', item.image || '');
-    openWritePanel('news-admin');
-  }
-
-  function startEditGallery(id) {
-    const user = getCurrentUser();
-    if (!user) return alert('로그인이 필요합니다.');
-    const data = getContent();
-    const item = data.gallery.find(g => g.id === id);
-    if (!item) return;
-    const form = document.getElementById('add-gallery-form');
-    form.editId.value = item.id;
-    form.title.value = item.title || '';
-    form.year.value = String(item.year || 2026);
-    ensureGalleryYearOptions(String(item.year || 2026));
-    form.imageData.value = item.image || '';
-    setImagePreview('gallery-image-preview', item.image || '');
-    form.content.value = item.content || '';
-    setEditorHtml('gallery-editor', item.content || '');
-    openWritePanel('gallery-admin');
-  }
-
-  function setEditorHtml(editorId, html) {
-    const editor = document.getElementById(editorId);
-    if (editor) editor.innerHTML = html || '';
-  }
-
-  function syncEditorToInput(form, editorId) {
-    const editor = document.getElementById(editorId);
-    if (!editor) return;
-    form.content.value = editor.innerHTML.trim();
-  }
-
-  function setImagePreview(previewId, src) {
-    const preview = document.getElementById(previewId);
-    if (!preview) return;
-    if (src) {
-      preview.src = src;
-      preview.classList.remove('d-none');
-    } else {
-      preview.removeAttribute('src');
-      preview.classList.add('d-none');
-    }
-  }
-
-  function readImageFileToDataUrl(file, onDone) {
-    if (!file || !file.type.startsWith('image/')) {
-      alert('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => onDone(String(reader.result || ''));
-    reader.readAsDataURL(file);
-  }
-
-  function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenName }) {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    const input = form.elements[inputName];
-    const dropzone = document.getElementById(dropzoneId);
-    const hidden = form.elements[hiddenName];
-    const applyFile = (file) => {
-      readImageFileToDataUrl(file, (dataUrl) => {
-        hidden.value = dataUrl;
-        setImagePreview(previewId, dataUrl);
-      });
-    };
-
-    if (input) {
-      input.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) applyFile(file);
-      });
-    }
-    if (!dropzone) return;
-    dropzone.addEventListener('click', () => input && input.click());
-    dropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropzone.classList.add('dragover');
-    });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-    dropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      const file = e.dataTransfer?.files?.[0];
-      if (file) applyFile(file);
-    });
-  }
-
-  function initRichEditorToolbars() {
-    document.querySelectorAll('.editor-toolbar').forEach(toolbar => {
-      const targetId = toolbar.dataset.editorTarget;
-      const editor = document.getElementById(targetId);
-      if (!editor) return;
-      toolbar.querySelectorAll('[data-cmd]').forEach(control => {
-        control.addEventListener('click', (e) => {
-          e.preventDefault();
-          editor.focus();
-          const cmd = control.dataset.cmd;
-          const value = control.type === 'color' ? control.value : null;
-          document.execCommand(cmd, false, value);
-        });
-      });
-    });
-  }
-
-  function ensureGalleryYearOptions(selectedYear) {
-    const select = document.getElementById('gallery-year-select');
-    if (!select) return;
-    const years = [...new Set(getContent().gallery.map(g => Number(g.year)).filter(Boolean))].sort((a, b) => b - a);
-    select.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-    if (selectedYear && years.includes(Number(selectedYear))) {
-      select.value = String(selectedYear);
-    }
-  }
-
-  function showWriteTab(tabId) {
-    const trigger = document.querySelector(`[data-bs-target="#${tabId}"]`);
-    if (trigger) {
-      const tab = new bootstrap.Tab(trigger);
-      tab.show();
-    }
-  }
-
-  function openWritePanel(tabId = 'news-admin') {
-    document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-    const writePanel = document.getElementById('write');
-    if (writePanel) writePanel.classList.add('panel-active');
-    const statsSection = document.getElementById('home-stats');
-    if (statsSection) statsSection.style.display = 'none';
-    showWriteTab(tabId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function resetWriteForms() {
-    const newsForm = document.getElementById('add-news-form');
-    const galleryForm = document.getElementById('add-gallery-form');
-    if (newsForm) {
-      newsForm.reset();
-      newsForm.editId.value = '';
-      newsForm.imageData.value = '';
-      if (newsForm.volunteerStartDate) newsForm.volunteerStartDate.value = '';
-      if (newsForm.volunteerEndDate) newsForm.volunteerEndDate.value = '';
-      setEditorHtml('news-editor', '');
-      setImagePreview('news-image-preview', '');
-    }
-    if (galleryForm) {
-      galleryForm.reset();
-      galleryForm.editId.value = '';
-      galleryForm.imageData.value = '';
-      setEditorHtml('gallery-editor', '');
-      setImagePreview('gallery-image-preview', '');
-      ensureGalleryYearOptions();
-    }
-  }
-
-  // ============ ADMIN FORMS ============
-
-  function updateVolunteerDateFieldVisibility(form) {
-    if (!form || !form.postTab) return;
-    const wrap = document.getElementById('news-volunteer-date-wrap');
-    if (!wrap) return;
-    const isNotice = form.postTab.value === 'notice';
-    wrap.classList.toggle('d-none', !isNotice);
-    if (!isNotice) {
-      if (form.volunteerStartDate) form.volunteerStartDate.value = '';
-      if (form.volunteerEndDate) form.volunteerEndDate.value = '';
-    }
-  }
+  // editor/upload/write-form helpers moved to static/js/app-editor-upload.js
 
   // ============ ADMIN FORMS ============
   document.addEventListener('DOMContentLoaded', function() {
     initRichEditorToolbars();
-    bindImageUploader({ formId: 'add-news-form', inputName: 'imageFile', dropzoneId: 'news-image-dropzone', previewId: 'news-image-preview', hiddenName: 'imageData' });
-    bindImageUploader({ formId: 'add-gallery-form', inputName: 'imageFile', dropzoneId: 'gallery-image-dropzone', previewId: 'gallery-image-preview', hiddenName: 'imageData' });
+    bindImageUploader({
+      formId: 'add-news-form',
+      inputName: 'imageFile',
+      dropzoneId: 'news-image-dropzone',
+      previewId: 'news-image-preview',
+      hiddenName: 'imageData',
+      imagesHiddenName: 'imagesData',
+      editorId: 'news-editor'
+    });
+    bindImageUploader({
+      formId: 'add-gallery-form',
+      inputName: 'imageFile',
+      dropzoneId: 'gallery-image-dropzone',
+      previewId: 'gallery-image-preview',
+      hiddenName: 'imageData',
+      imagesHiddenName: 'imagesData',
+      editorId: 'gallery-editor'
+    });
     ensureGalleryYearOptions();
 
     // News Form
@@ -3590,8 +2239,15 @@
       if (newsForm.postTab) {
         newsForm.postTab.addEventListener('change', () => updateVolunteerDateFieldVisibility(newsForm));
       }
+      if (newsForm.isScheduled) {
+        newsForm.isScheduled.addEventListener('change', () => {
+          const publishWrap = document.getElementById('news-publish-at-wrap');
+          if (publishWrap) publishWrap.classList.toggle('d-none', !newsForm.isScheduled.checked);
+          if (!newsForm.isScheduled.checked && newsForm.publishAt) newsForm.publishAt.value = '';
+        });
+      }
       updateVolunteerDateFieldVisibility(newsForm);
-      newsForm.onsubmit = (e) => {
+      newsForm.onsubmit = async (e) => {
         e.preventDefault();
         const user = getCurrentUser();
         if (!user) {
@@ -3599,16 +2255,29 @@
           return;
         }
 
-        syncEditorToInput(e.target, 'news-editor');
+        syncEditorToInput(e.target, 'news-editor', { markRepresentative: true });
         const data = getContent();
         const editId = Number(e.target.editId.value || 0);
         const newDate = getTodayString();
-        const imageData = e.target.imageData.value || '';
+        const editorImages = getEditorImageSources('news-editor');
+        const coverImage = editorImages[0] || '';
         const tabType = e.target.postTab.value;
         const isSecret = !!e.target.isSecret.checked;
         const volunteerStartDate = (e.target.volunteerStartDate?.value || '').trim();
         const volunteerEndDateRaw = (e.target.volunteerEndDate?.value || '').trim();
         const volunteerEndDate = volunteerEndDateRaw || volunteerStartDate;
+        const featuredOnHome = tabType === 'notice' ? !!e.target.featuredOnHome?.checked : false;
+        const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+        let noticeAttachments = null;
+
+        if (tabType === 'notice') {
+          try {
+            noticeAttachments = await buildNoticeAttachments(e.target.noticeAttachmentFiles?.files || []);
+          } catch (error) {
+            alert(error.message || '첨부 파일 처리 중 오류가 발생했습니다.');
+            return;
+          }
+        }
 
         if (tabType === 'notice' && volunteerStartDate && volunteerEndDate && volunteerEndDate < volunteerStartDate) {
           alert('봉사 종료일은 시작일보다 빠를 수 없습니다.');
@@ -3625,12 +2294,23 @@
           const target = source.find(n => n.id === editId);
           if (target) {
             target.title = e.target.title.value;
-            target.author = e.target.author.value || user.username || user.name;
+            target.author = e.target.author.value || user.nickname || user.username || user.name;
             target.date = target.date || newDate;
-            target.image = imageData || target.image || '';
+            const existingImages = Array.isArray(target.images)
+              ? target.images
+              : (target.image ? [target.image] : []);
+            const nextImages = editorImages.length ? editorImages : existingImages;
+            target.images = [];
+            target.image = coverImage || nextImages[0] || target.image || '';
             target.content = e.target.content.value;
+            target.publishAt = publishAt || '';
             if (tabType === 'qna') target.isSecret = isSecret;
             if (tabType === 'notice') {
+              target.featuredOnHome = featuredOnHome;
+              if (Array.isArray(noticeAttachments)) {
+                target.attachments = noticeAttachments;
+                target.files = noticeAttachments;
+              }
               target.volunteerStartDate = volunteerStartDate || '';
               target.volunteerEndDate = volunteerStartDate ? volunteerEndDate : '';
               if (!target.volunteerStartDate) {
@@ -3639,6 +2319,7 @@
               }
               delete target.volunteerDate;
             } else {
+              delete target.featuredOnHome;
               delete target.volunteerDate;
               delete target.volunteerStartDate;
               delete target.volunteerEndDate;
@@ -3646,18 +2327,26 @@
           }
         } else {
           const newId = Math.max(...source.map(x => x.id), 0) + 1;
+          const nextImages = editorImages.length ? editorImages : [];
           const newItem = {
             id: newId,
             title: e.target.title.value,
-            author: e.target.author.value || user.username || user.name,
+            author: e.target.author.value || user.nickname || user.username || user.name,
             date: newDate,
-            image: tabType === 'notice' ? imageData : '',
+            image: coverImage || nextImages[0] || '',
+            images: [],
             content: e.target.content.value,
+            publishAt: publishAt || '',
             views: 0,
             isSecret: tabType === 'qna' ? isSecret : false,
             answer: ''
           };
           if (tabType === 'notice') {
+            newItem.featuredOnHome = featuredOnHome;
+            if (Array.isArray(noticeAttachments)) {
+              newItem.attachments = noticeAttachments;
+              newItem.files = noticeAttachments;
+            }
             if (volunteerStartDate) {
               newItem.volunteerStartDate = volunteerStartDate;
               newItem.volunteerEndDate = volunteerEndDate;
@@ -3679,6 +2368,13 @@
     // Gallery Form
     const galleryForm = document.getElementById('add-gallery-form');
     if (galleryForm) {
+      if (galleryForm.isScheduled) {
+        galleryForm.isScheduled.addEventListener('change', () => {
+          const publishWrap = document.getElementById('gallery-publish-at-wrap');
+          if (publishWrap) publishWrap.classList.toggle('d-none', !galleryForm.isScheduled.checked);
+          if (!galleryForm.isScheduled.checked && galleryForm.publishAt) galleryForm.publishAt.value = '';
+        });
+      }
       galleryForm.onsubmit = (e) => {
         e.preventDefault();
         const user = getCurrentUser();
@@ -3687,12 +2383,15 @@
           return;
         }
 
-        syncEditorToInput(e.target, 'gallery-editor');
+        syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true });
         const data = getContent();
+        if (!Array.isArray(data.gallery)) data.gallery = [];
         const year = Number(e.target.year.value || 2026);
         const editId = Number(e.target.editId.value || 0);
         const newDate = getTodayString();
-        const imageData = e.target.imageData.value || '';
+        const editorImages = getEditorImageSources('gallery-editor');
+        const coverImage = editorImages[0] || '';
+        const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
         if (editId) {
           const target = data.gallery.find(g => g.id === editId);
           if (target) {
@@ -3700,20 +2399,29 @@
             target.date = target.date || newDate;
             target.year = year;
             target.category = `y${year}`;
-            target.image = imageData || target.image || 'logo.png';
+            const existingImages = Array.isArray(target.images)
+              ? target.images
+              : (target.image ? [target.image] : []);
+            const nextImages = editorImages.length ? editorImages : existingImages;
+            target.images = [];
+            target.image = coverImage || nextImages[0] || target.image || 'logo.png';
             target.content = e.target.content.value || '';
+            target.publishAt = publishAt || '';
           }
         } else {
-          const newId = Math.max(...data.gallery.map(x => x.id), 0) + 1;
+          const newId = Math.max(...data.gallery.map(x => Number(x.id) || 0), 0) + 1;
+          const nextImages = editorImages.length ? editorImages : [];
           data.gallery.unshift({
             id: newId,
             title: e.target.title.value,
             date: newDate,
             year,
             category: `y${year}`,
-            image: imageData || 'logo.png',
+            image: coverImage || nextImages[0] || 'logo.png',
+            images: [],
             content: e.target.content.value || '',
-            author: user.username || user.name,
+            publishAt: publishAt || '',
+            author: user.nickname || user.username || user.name,
             views: 0
           });
         }
@@ -3722,7 +2430,7 @@
         resetWriteForms();
         ensureGalleryYearOptions();
         movePanel('gallery');
-        alert('갤러리가 추가되었습니다!');
+        alert(editId ? '갤러리가 수정되었습니다!' : '갤러리가 추가되었습니다!');
       };
     }
 
@@ -3759,7 +2467,7 @@
         }
         target.answer = answerHtml;
         target.answerDate = getTodayString();
-        target.answerAuthor = user.username || user.name || '운영자';
+        target.answerAuthor = user.nickname || user.username || user.name || '운영자';
         saveContent(next);
         renderQna();
         openQnaDetail(editId);
@@ -3882,7 +2590,7 @@
         resetWriteForms();
         const form = document.getElementById('add-news-form');
         form.editId.value = '';
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'notice';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);
@@ -3900,7 +2608,7 @@
         }
         resetWriteForms();
         const form = document.getElementById('add-news-form');
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'faq';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);
@@ -3918,7 +2626,7 @@
         }
         resetWriteForms();
         const form = document.getElementById('add-news-form');
-        form.author.value = user.username || user.name;
+        form.author.value = user.nickname || user.username || user.name;
         form.postTab.value = 'qna';
         form.isSecret.checked = false;
         updateVolunteerDateFieldVisibility(form);
@@ -3968,6 +2676,11 @@
     const qnaSearchBtn = document.getElementById('qna-search-btn');
     const gallerySearchInput = document.getElementById('gallery-search');
     const gallerySearchBtn = document.getElementById('gallery-search-btn');
+    const eventsRefreshBtn = document.getElementById('events-refresh-btn');
+    const eventDetailBackBtn = document.getElementById('event-detail-back-btn');
+    const joinInquiryBtn = document.getElementById('join-inquiry-btn');
+    const joinSponsorBtn = document.getElementById('join-sponsor-btn');
+    const copyDonationAccountBtn = document.getElementById('copy-donation-account-btn');
     const noticeTabBtn = document.getElementById('notice-tab-btn');
     const faqTabBtn = document.getElementById('faq-tab-btn');
     const qnaTabBtn = document.getElementById('qna-tab-btn');
@@ -4045,6 +2758,35 @@
       });
     }
 
+    if (eventsRefreshBtn) {
+      eventsRefreshBtn.addEventListener('click', async () => {
+        await loadVolunteerEvents();
+      });
+    }
+
+    if (eventDetailBackBtn) {
+      eventDetailBackBtn.addEventListener('click', () => {
+        movePanel('news');
+        activateNewsTab('notice');
+      });
+    }
+
+    if (joinInquiryBtn) {
+      joinInquiryBtn.addEventListener('click', () => {
+        setJoinActionPanel('inquiry');
+      });
+    }
+    if (joinSponsorBtn) {
+      joinSponsorBtn.addEventListener('click', () => {
+        setJoinActionPanel('sponsor');
+      });
+    }
+    if (copyDonationAccountBtn) {
+      copyDonationAccountBtn.addEventListener('click', async () => {
+        await copyDonationAccount();
+      });
+    }
+
     if (noticeTabBtn && faqTabBtn && qnaTabBtn && noticeTab && faqTab && qnaTab) {
       noticeTabBtn.addEventListener('click', () => {
         currentNewsTab = 'notice';
@@ -4054,7 +2796,9 @@
         noticeTab.classList.remove('d-none');
         faqTab.classList.add('d-none');
         qnaTab.classList.add('d-none');
+        loadVolunteerEvents().catch(() => {});
         setNewsWriteButtons();
+        setActiveNavStates('news');
       });
       faqTabBtn.addEventListener('click', () => {
         currentNewsTab = 'faq';
@@ -4066,6 +2810,7 @@
         qnaTab.classList.add('d-none');
         renderFaq();
         setNewsWriteButtons();
+        setActiveNavStates('news');
       });
       qnaTabBtn.addEventListener('click', () => {
         currentNewsTab = 'qna';
@@ -4077,6 +2822,7 @@
         faqTab.classList.add('d-none');
         renderQna();
         setNewsWriteButtons();
+        setActiveNavStates('news');
       });
     }
 
@@ -4120,6 +2866,8 @@
     renderGallery();
     renderStats();
     setNewsWriteButtons();
+    setJoinActionPanel('inquiry');
+    loadVolunteerEvents().catch(() => {});
 
     const activitiesOverviewTabBtn = document.getElementById('activities-overview-tab-btn');
     const activitiesCalendarTabBtn = document.getElementById('activities-calendar-tab-btn');
@@ -4153,6 +2901,7 @@
     const homeCalendarGoBtn = document.getElementById('home-calendar-go-btn');
     const homeCalendarPrevBtn = document.getElementById('home-calendar-prev-btn');
     const homeCalendarNextBtn = document.getElementById('home-calendar-next-btn');
+    const homeNoticeToggleBtn = document.getElementById('home-notice-toggle-btn');
     if (homeCalendarPrevBtn) {
       homeCalendarPrevBtn.addEventListener('click', async () => {
         calendarBaseDate = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
@@ -4173,6 +2922,17 @@
         await loadActivitiesCalendar();
       });
     }
+    if (homeNoticeToggleBtn) {
+      homeNoticeToggleBtn.addEventListener('click', () => {
+        homeNoticePaused = !homeNoticePaused;
+        if (homeNoticePaused) {
+          stopHomeNoticeAutoRotate();
+        } else {
+          startHomeNoticeAutoRotate();
+        }
+        renderHomeNoticeCarousel();
+      });
+    }
 
     const opsRefreshBtn = document.getElementById('ops-dashboard-refresh-btn');
     if (opsRefreshBtn) {
@@ -4181,20 +2941,19 @@
       });
     }
 
-    const opsPendingPrevBtn = document.getElementById('ops-pending-prev-btn');
-    const opsPendingNextBtn = document.getElementById('ops-pending-next-btn');
-    if (opsPendingPrevBtn) {
-      opsPendingPrevBtn.addEventListener('click', async () => {
-        if (opsPendingPage > 1) {
-          await loadOpsDashboard(opsPendingPage - 1);
+    document.querySelectorAll('[data-ops-sort]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const nextSortBy = String(btn.getAttribute('data-ops-sort') || 'id');
+        if (opsPendingSortBy === nextSortBy) {
+          opsPendingSortDir = opsPendingSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          opsPendingSortBy = nextSortBy;
+          opsPendingSortDir = 'asc';
         }
+        await loadOpsDashboard(1);
       });
-    }
-    if (opsPendingNextBtn) {
-      opsPendingNextBtn.addEventListener('click', async () => {
-        await loadOpsDashboard(opsPendingPage + 1);
-      });
-    }
+    });
 
     const opsBtn = document.getElementById('ops-dashboard-btn');
     if (opsBtn) {
@@ -4208,6 +2967,35 @@
     const calendarCreateForm = document.getElementById('calendar-create-form');
     if (calendarCreateForm) {
       calendarCreateForm.addEventListener('submit', createActivityFromCalendar);
+      if (calendarCreateForm.activityAttachmentFiles) {
+        calendarCreateForm.activityAttachmentFiles.addEventListener('change', async (event) => {
+          const files = event.target.files;
+          if (!files || !files.length) return;
+          try {
+            await insertActivityFilesToEditor(files);
+          } catch (error) {
+            alert(error.message || '첨부 삽입 중 오류가 발생했습니다.');
+          } finally {
+            event.target.value = '';
+          }
+        });
+      }
+      const activityEditor = document.getElementById('activity-editor');
+      if (activityEditor) {
+        activityEditor.addEventListener('dragover', (event) => {
+          event.preventDefault();
+        });
+        activityEditor.addEventListener('drop', async (event) => {
+          event.preventDefault();
+          const files = event.dataTransfer?.files;
+          if (!files || !files.length) return;
+          try {
+            await insertActivityFilesToEditor(files);
+          } catch (error) {
+            alert(error.message || '첨부 삽입 중 오류가 발생했습니다.');
+          }
+        });
+      }
     }
 
     const recurrenceConfirmBtn = document.getElementById('recurrence-cancel-confirm-btn');
@@ -4227,8 +3015,12 @@
       if (!statsSection) return;
       statsSection.style.display = panelId === 'home' ? 'block' : 'none';
       const homeCalendarPreview = document.getElementById('home-calendar-preview');
+      const homeNoticeCarousel = document.getElementById('home-notice-carousel');
       if (homeCalendarPreview) {
         homeCalendarPreview.style.display = panelId === 'home' ? 'block' : 'none';
+      }
+      if (homeNoticeCarousel) {
+        homeNoticeCarousel.style.display = panelId === 'home' && getHomeNoticeItems().length ? 'block' : 'none';
       }
     }
     
@@ -4258,26 +3050,78 @@
         
         navLinks.forEach(l => l.classList.remove('active'));
         link.classList.add('active');
+        setActiveNavStates(panelId);
+      });
+    });
+
+    const sessionLoginBtn = document.getElementById('session-expired-login-btn');
+    const sessionCancelBtn = document.getElementById('session-expired-cancel-btn');
+    if (sessionLoginBtn) {
+      sessionLoginBtn.addEventListener('click', () => {
+        const sessionModal = bootstrap.Modal.getInstance(document.getElementById('sessionExpiredModal'));
+        if (sessionModal) sessionModal.hide();
+        const loginModalEl = document.getElementById('loginModal');
+        if (loginModalEl) {
+          const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
+          loginModal.show();
+        }
+      });
+    }
+    if (sessionCancelBtn) {
+      sessionCancelBtn.addEventListener('click', () => {
+        SESSION_EXPIRED_SHOWN = false;
+      });
+    }
+    const sessionModalEl = document.getElementById('sessionExpiredModal');
+    if (sessionModalEl) {
+      sessionModalEl.addEventListener('hidden.bs.modal', () => {
+        SESSION_EXPIRED_SHOWN = false;
+      });
+    }
+
+    document.querySelectorAll('#mobile-bottom-nav .mobile-tab').forEach((tabBtn) => {
+      tabBtn.addEventListener('click', async () => {
+        const panelId = tabBtn.dataset.panel;
+        if (!panelId) return;
+        movePanel(panelId);
+        if (panelId === 'news') {
+          const tabType = tabBtn.dataset.newsTab || 'notice';
+          activateNewsTab(tabType);
+        }
+        if (panelId === 'activities') {
+          openActivitiesOverviewTab();
+          await loadVolunteerEvents().catch(() => {});
+        }
+        if (panelId === 'myinfo' && !getCurrentUser()) {
+          const loginModalEl = document.getElementById('loginModal');
+          if (loginModalEl) {
+            const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
+            loginModal.show();
+          }
+        }
       });
     });
 
     document.getElementById('home').classList.add('panel-active');
+    setActiveNavStates('home');
     syncHomeStats('home');
     // About sub-tab handling
     const btnLogo = document.getElementById('btn-logo');
     const btnAwards = document.getElementById('btn-awards');
     const btnRules = document.getElementById('btn-rules');
     const btnHistory = document.getElementById('btn-history');
+    const btnRelatedSites = document.getElementById('btn-relatedsites');
     const btnFees = document.getElementById('btn-fees');
     const logoPanel = document.getElementById('logo-panel');
+    const relatedSitesPanel = document.getElementById('relatedsites-panel');
     const awardsPanel = document.getElementById('awards-panel');
     const rulesPanel = document.getElementById('rules-panel');
     const historyPanel = document.getElementById('history-panel');
     const feesPanel = document.getElementById('fees-panel');
 
     function hideAllAbout() {
-      [logoPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
-      [btnLogo, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
+      [logoPanel, relatedSitesPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
+      [btnLogo, btnRelatedSites, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
     }
 
     function showLogo() {
@@ -4290,6 +3134,12 @@
       hideAllAbout();
       awardsPanel.classList.remove('d-none');
       btnAwards.classList.add('active');
+    }
+
+    function showRelatedSites() {
+      hideAllAbout();
+      relatedSitesPanel.classList.remove('d-none');
+      btnRelatedSites.classList.add('active');
     }
 
     function showRules() {
@@ -4310,8 +3160,9 @@
       btnFees.classList.add('active');
     }
 
-    if (btnLogo && btnAwards && btnRules && btnHistory && btnFees) {
+    if (btnLogo && btnRelatedSites && btnAwards && btnRules && btnHistory && btnFees) {
       btnLogo.addEventListener('click', showLogo);
+      btnRelatedSites.addEventListener('click', showRelatedSites);
       btnAwards.addEventListener('click', showAwards);
       btnRules.addEventListener('click', showRules);
       btnHistory.addEventListener('click', showHistory);
@@ -4328,6 +3179,7 @@
         document.getElementById('about').classList.add('panel-active');
         syncHomeStats('about');
         if (tab === 'logo') showLogo();
+        if (tab === 'relatedsites') showRelatedSites();
         if (tab === 'awards') showAwards();
         if (tab === 'rules') showRules();
         if (tab === 'history') showHistory();

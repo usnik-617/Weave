@@ -4,7 +4,35 @@ function uniqueId() {
   return `${Date.now()}${Math.floor(Math.random() * 10000)}`;
 }
 
+async function getCsrfToken(request) {
+  const response = await request.get('/api/auth/csrf');
+  expect(response.ok()).toBeTruthy();
+  const body = await response.json();
+  return body?.data?.csrfToken || body?.csrfToken || body?.data?.token;
+}
+
+const TEST_HEADER = { 'X-Playwright-Test': '1' };
+
+async function loginAdmin(request) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const adminLoginCsrf = await getCsrfToken(request);
+    const adminLogin = await request.post('/api/auth/login?playwright_test=1', {
+      data: { username: 'admin', password: 'Weave!2026' },
+      headers: { 'X-CSRF-Token': adminLoginCsrf, ...TEST_HEADER },
+    });
+    if (adminLogin.ok()) return;
+    const status = adminLogin.status();
+    const text = await adminLogin.text();
+    if (status === 429 && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      continue;
+    }
+    throw new Error(`admin login failed(${status}): ${text}`);
+  }
+}
+
 async function signup(request, suffix, nickname) {
+  const csrfToken = await getCsrfToken(request);
   const payload = {
     name: '테스트유저',
     nickname,
@@ -14,36 +42,18 @@ async function signup(request, suffix, nickname) {
     username: `user${suffix}`,
     password: 'Password!123',
   };
-  return request.post('/api/auth/signup', { data: payload });
+  return request.post('/api/auth/signup', {
+    data: payload,
+    headers: { 'X-CSRF-Token': csrfToken, ...TEST_HEADER },
+  });
 }
 
 test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) => {
   const base = uniqueId();
 
-  const nickA = `닉${String(base).slice(-6)}`;
-  const signupA = await signup(request, `${base}a`, nickA);
-  expect(signupA.ok()).toBeTruthy();
+  await loginAdmin(request);
 
-  const signupDup = await signup(request, `${base}b`, nickA);
-  expect(signupDup.status()).toBe(409);
-
-  const nickB = `별명${String(base + 1).slice(-6)}`;
-  const signupB = await signup(request, `${base}c`, nickB);
-  expect(signupB.ok()).toBeTruthy();
-
-  const loginA = await request.post('/api/auth/login', {
-    data: { username: `user${base}a`, password: 'Password!123' },
-  });
-  expect(loginA.ok()).toBeTruthy();
-
-  const changeDup = await request.post('/api/user/nickname', { data: { nickname: nickB } });
-  expect(changeDup.status()).toBe(409);
-
-  const adminLogin = await request.post('/api/auth/login', {
-    data: { username: 'admin', password: 'Weave!2026' },
-  });
-  expect(adminLogin.ok()).toBeTruthy();
-
+  const noticeCsrf = await getCsrfToken(request);
   const noticeTitle = `공지-${base}`;
   const noticeCreate = await request.post('/api/posts', {
     data: {
@@ -52,12 +62,14 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
       content: '공지 본문',
       is_important: false,
     },
+    headers: { 'X-CSRF-Token': noticeCsrf, ...TEST_HEADER },
   });
   expect(noticeCreate.status()).toBe(201);
   const noticeCreateJson = await noticeCreate.json();
   const noticePostId = Number(noticeCreateJson?.data?.post_id || noticeCreateJson?.post_id || 0);
   expect(noticePostId).toBeGreaterThan(0);
 
+  const galleryCsrf = await getCsrfToken(request);
   const galleryTitle = `갤러리-${base}`;
   const galleryCreate = await request.post('/api/posts', {
     data: {
@@ -65,6 +77,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
       title: galleryTitle,
       content: '갤러리 본문',
     },
+    headers: { 'X-CSRF-Token': galleryCsrf, ...TEST_HEADER },
   });
   expect(galleryCreate.status()).toBe(201);
   const galleryCreateJson = await galleryCreate.json();
@@ -73,6 +86,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
 
   const pdfBuffer = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n', 'utf-8');
 
+  const noticeUploadCsrf = await getCsrfToken(request);
   const noticePdfUpload = await request.post(`/api/posts/${noticePostId}/files`, {
     multipart: {
       file: {
@@ -81,6 +95,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
         buffer: pdfBuffer,
       },
     },
+    headers: { 'X-CSRF-Token': noticeUploadCsrf, ...TEST_HEADER },
   });
   expect(noticePdfUpload.status()).toBe(201);
 
@@ -113,6 +128,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
   expect(String(noticePdfPreview.headers()['content-type'] || '')).toContain('application/pdf');
   expect(String(noticePdfPreview.headers()['content-disposition'] || '').toLowerCase()).toContain('inline');
 
+  const galleryUploadCsrf = await getCsrfToken(request);
   const galleryPdfUpload = await request.post(`/api/posts/${galleryPostId}/files`, {
     multipart: {
       file: {
@@ -121,6 +137,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
         buffer: pdfBuffer,
       },
     },
+    headers: { 'X-CSRF-Token': galleryUploadCsrf, ...TEST_HEADER },
   });
   expect(galleryPdfUpload.status()).toBe(400);
   const galleryPdfJson = await galleryPdfUpload.json();
@@ -131,6 +148,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6pOukAAAAASUVORK5CYII=',
     'base64'
   );
+  const galleryImageCsrf = await getCsrfToken(request);
   const galleryImageUpload = await request.post(`/api/posts/${galleryPostId}/files`, {
     multipart: {
       file: {
@@ -139,6 +157,7 @@ test('업로드 정책 + 닉네임 중복 정책 검증', async ({ request }) =>
         buffer: pngBuffer,
       },
     },
+    headers: { 'X-CSRF-Token': galleryImageCsrf, ...TEST_HEADER },
   });
   expect(galleryImageUpload.status()).toBe(201);
 

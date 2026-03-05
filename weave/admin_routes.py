@@ -10,16 +10,28 @@ def admin_pending_users():
 
     page = int(request.args.get("page", "1") or 1)
     page_size = int(request.args.get("pageSize", "10") or 10)
+    sort_by = str(request.args.get("sortBy", "id") or "id").strip().lower()
+    sort_dir = str(request.args.get("sortDir", "desc") or "desc").strip().lower()
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
     offset = (page - 1) * page_size
+    sort_map = {
+        "id": "id",
+        "name": "name",
+        "username": "username",
+        "generation": "generation",
+        "interests": "interests",
+        "status": "status",
+    }
+    sort_column = sort_map.get(sort_by, "id")
+    sort_direction = "ASC" if sort_dir == "asc" else "DESC"
 
     conn = get_db_connection()
     total = conn.execute(
         "SELECT COUNT(*) AS c FROM users WHERE status = 'pending'"
     ).fetchone()["c"]
     rows = conn.execute(
-        "SELECT * FROM users WHERE status = 'pending' ORDER BY id DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM users WHERE status = 'pending' ORDER BY {sort_column} {sort_direction}, id DESC LIMIT ? OFFSET ?",
         (page_size, offset),
     ).fetchall()
     conn.close()
@@ -35,6 +47,8 @@ def admin_pending_users():
                 "totalPages": total_pages,
                 "hasPrev": page > 1,
                 "hasNext": page < total_pages,
+                "sortBy": sort_column,
+                "sortDir": sort_direction.lower(),
             },
         }
     )
@@ -79,7 +93,7 @@ def admin_approve_user(user_id):
     conn.close()
     write_app_log("info", "admin_approve_user", user_id=me["id"], extra={"target_user_id": user_id, "role": role})
     payload = {"ok": True, "message": "가입이 승인되었습니다.", "user": user_row_to_dict(row)}
-    return jsonify({"success": True, "data": payload, **payload})
+    return success_response_legacy(payload)
 
 
 def admin_reject_user(user_id):
