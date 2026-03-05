@@ -506,7 +506,13 @@ function renderGallery() {
     const user = getCurrentUser();
     const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
     const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
-    const thumbImage = item.thumb_url || item.thumbnail_url || item.thumb || 'logo.png';
+    const thumbImage = item.thumb_url
+      || item.thumbnail_url
+      || item.thumb
+      || item.image_url
+      || (Array.isArray(item.images) ? item.images[0] : '')
+      || item.image
+      || 'logo.png';
     const div = document.createElement('div');
     div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
     div.innerHTML = `
@@ -587,9 +593,18 @@ function openGalleryDetail(id) {
   currentGalleryDetailId = id;
   const originalImage = item.image_url || (Array.isArray(item.images) && item.images[0]) || item.image || item.thumb_url || item.thumbnail_url || item.thumb || 'logo.png';
   const detailImage = document.getElementById('gallery-detail-image');
+  const detailContentHtml = String(item.content || '');
+  const contentImageMatch = detailContentHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+  const contentFirstImage = contentImageMatch ? String(contentImageMatch[1] || '').trim() : '';
+  const normalizeImageForCompare = (value) => String(value || '').trim().replace(/^https?:\/\/[^/]+/i, '');
+  const isDuplicateRepresentative = !!(
+    originalImage
+    && contentFirstImage
+    && normalizeImageForCompare(originalImage) === normalizeImageForCompare(contentFirstImage)
+  );
   if (detailImage) {
     detailImage.src = originalImage;
-    detailImage.classList.toggle('d-none', !originalImage);
+    detailImage.classList.toggle('d-none', !originalImage || isDuplicateRepresentative);
   }
   document.getElementById('gallery-detail-title').innerText = item.title;
   updateDetailMeta('gallery', {
@@ -600,7 +615,7 @@ function openGalleryDetail(id) {
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
+  document.getElementById('gallery-detail-content').innerHTML = detailContentHtml || '내용이 없습니다.';
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
     const linkedActivityId = Number(item.activityId || item.activity_id || 0);
