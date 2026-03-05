@@ -1369,6 +1369,21 @@ hr {
   display: none;
 }
 
+body.modal-scroll-lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.modal,
+.modal-dialog,
+.modal-content {
+  overscroll-behavior: contain;
+}
+
 #event-detail-cta-wrap {
   display: none;
 }

@@ -1456,19 +1456,27 @@
   }
 
   async function apiRequest(path, options = {}) {
-    const response = await fetch(`${API_BASE}${path}`, {
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      },
-      ...options
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.message || '요청 처리 중 오류가 발생했습니다.');
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        },
+        ...options
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || '요청 처리 중 오류가 발생했습니다.');
+      }
+      return data;
+    } catch (error) {
+      const errorMessage = String(error?.message || '');
+      if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(errorMessage)) {
+        throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+      }
+      throw error;
     }
-    return data;
   }
 
   async function hydrateCurrentUser() {
@@ -2012,6 +2020,40 @@
     return dt.toISOString();
   }
 
+  function parseLegacyDateText(rawDate) {
+    const text = String(rawDate || '').trim();
+    if (!text || text === '미정') return null;
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$/);
+    if (!match) return null;
+    const startDate = match[1];
+    const endDate = match[2] || startDate;
+    return { startDate, endDate };
+  }
+
+  function buildLegacyCalendarItems(content = getContent()) {
+    const gallery = Array.isArray(content?.gallery) ? content.gallery : [];
+    return gallery.flatMap((entry, index) => {
+      const parsed = parseLegacyDateText(entry.date);
+      if (!parsed) return [];
+      const dateKeys = expandDateRange(parsed.startDate, parsed.endDate);
+      return dateKeys.map((dateKey) => ({
+        id: `legacy-${entry.id || index}-${dateKey}`,
+        title: String(entry.title || '활동 일정'),
+        description: '',
+        startAt: `${dateKey}T09:00:00`,
+        endAt: `${dateKey}T10:00:00`,
+        place: '활동 일정',
+        supplies: '-',
+        gatherTime: '-',
+        manager: '운영진',
+        recruitmentLimit: 0,
+        recurrenceGroupId: '',
+        isCancelled: false,
+        sourceType: 'legacy-gallery',
+      }));
+    });
+  }
+
   function updateCalendarCreateVisibility() {
     const card = document.getElementById('calendar-create-card');
     const user = getCurrentUser();
@@ -2026,39 +2068,55 @@
   async function loadActivitiesCalendar() {
     const dateParam = formatDateOnly(calendarBaseDate);
     let data = null;
+    const content = getContent();
+    const noticeItems = (content.news || [])
+      .flatMap(item => {
+        const startDate = item.volunteerStartDate || item.volunteerDate || '';
+        const endDate = item.volunteerEndDate || item.volunteerDate || '';
+        const dateKeys = expandDateRange(startDate, endDate || startDate);
+        return dateKeys.map(dateKey => ({
+          id: `notice-${item.id}-${dateKey}`,
+          title: item.title,
+          description: item.content || '',
+          startAt: `${dateKey}T09:00:00`,
+          endAt: `${dateKey}T10:00:00`,
+          place: '공지사항',
+          supplies: '-',
+          gatherTime: '-',
+          manager: item.author || '관리자',
+          recruitmentLimit: 0,
+          recurrenceGroupId: '',
+          isCancelled: false,
+          sourceType: 'notice',
+          sourceNoticeId: item.id,
+          sourceNoticeStartDate: startDate,
+          sourceNoticeEndDate: endDate || startDate,
+        }));
+      });
+    const legacyItems = buildLegacyCalendarItems(content);
+
+    const toMonthItems = (items) => items
+      .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+    const dedupeByTitleDate = (items) => {
+      const seen = new Set();
+      return items.filter((item) => {
+        const key = `${formatDateOnly(item.startAt)}|${String(item.title || '').trim()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
     try {
       data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
       const baseItems = Array.isArray(data.items) ? data.items : [];
-      const content = getContent();
-      const noticeItems = (content.news || [])
-        .flatMap(item => {
-          const startDate = item.volunteerStartDate || item.volunteerDate || '';
-          const endDate = item.volunteerEndDate || item.volunteerDate || '';
-          const dateKeys = expandDateRange(startDate, endDate || startDate);
-          return dateKeys.map(dateKey => ({
-            id: `notice-${item.id}-${dateKey}`,
-            title: item.title,
-            description: item.content || '',
-            startAt: `${dateKey}T09:00:00`,
-            endAt: `${dateKey}T10:00:00`,
-            place: '공지사항',
-            supplies: '-',
-            gatherTime: '-',
-            manager: item.author || '관리자',
-            recruitmentLimit: 0,
-            recurrenceGroupId: '',
-            isCancelled: false,
-            sourceType: 'notice',
-            sourceNoticeId: item.id,
-            sourceNoticeStartDate: startDate,
-            sourceNoticeEndDate: endDate || startDate,
-          }));
-        });
-      calendarActivities = [...baseItems, ...noticeItems]
-        .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
-        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+      const merged = dedupeByTitleDate([...baseItems, ...noticeItems, ...legacyItems]);
+      calendarActivities = toMonthItems(merged);
     } catch (_) {
-      calendarActivities = [];
+      const fallback = dedupeByTitleDate([...noticeItems, ...legacyItems]);
+      calendarActivities = toMonthItems(fallback);
       data = { range: null };
     }
     renderActivitiesCalendarGrid(data.range || null);

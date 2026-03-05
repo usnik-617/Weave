@@ -1057,6 +1057,7 @@
                 <button class="btn btn-outline-primary" id="nickname-change-btn" type="button">변경</button>
               </div>
               <div class="small text-muted mt-2" id="nickname-change-help">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</div>
+              <div class="small text-danger mt-1 d-none" id="nickname-change-error">닉네임은 2~12자 한글/영문/숫자만 가능합니다. (띄어쓰기/특수문자 불가)</div>
             </div>
             <p id="profile-joindate" class="small text-muted mb-4"></p>
             <hr>
@@ -1660,6 +1661,8 @@
   let PENDING_RETURN_PANEL = '';
   let PENDING_RETURN_NEWS_TAB = '';
   let ACTIVE_MODAL_ID = '';
+  let MODAL_OPEN_COUNT = 0;
+  let MODAL_LOCK_SCROLL_TOP = 0;
   let currentEventDetailId = null;
 
   // ============ AUTH FUNCTIONS ============
@@ -1690,16 +1693,25 @@
     return active?.id || 'home';
   }
 
+  function resolveNavPanelId(panelId) {
+    const value = String(panelId || 'home');
+    if (['news-detail', 'qna-detail', 'qna-answer'].includes(value)) return 'news';
+    if (value === 'gallery-detail') return 'gallery';
+    if (value === 'event-detail') return 'activities';
+    return value;
+  }
+
   function setActiveNavStates(panelId) {
+    const resolvedPanelId = resolveNavPanelId(panelId);
     document.querySelectorAll('[data-panel].active').forEach((el) => el.classList.remove('active'));
-    const desktopCandidates = Array.from(document.querySelectorAll(`.nav-link[data-panel="${panelId}"]`));
+    const desktopCandidates = Array.from(document.querySelectorAll(`.nav-link[data-panel="${resolvedPanelId}"]`));
     if (desktopCandidates.length) desktopCandidates[0].classList.add('active');
 
     const mobileTabs = document.querySelectorAll('#mobile-bottom-nav .mobile-tab');
     mobileTabs.forEach((tab) => {
       const tabPanel = tab.dataset.panel;
       const tabNews = tab.dataset.newsTab || '';
-      const active = tabPanel === panelId && (panelId !== 'news' || !tabNews || tabNews === currentNewsTab);
+      const active = tabPanel === resolvedPanelId && (resolvedPanelId !== 'news' || !tabNews || tabNews === currentNewsTab);
       tab.classList.toggle('active', active);
     });
   }
@@ -1731,6 +1743,24 @@
   }
 
   function initModalScrollLock() {
+    const lockScroll = () => {
+      if (MODAL_OPEN_COUNT > 0) return;
+      MODAL_LOCK_SCROLL_TOP = window.scrollY || window.pageYOffset || 0;
+      document.body.classList.add('modal-scroll-lock');
+      document.body.style.top = `-${MODAL_LOCK_SCROLL_TOP}px`;
+      document.documentElement.style.overscrollBehavior = 'none';
+    };
+
+    const unlockScroll = () => {
+      if (MODAL_OPEN_COUNT > 0) return;
+      document.body.classList.remove('modal-scroll-lock');
+      document.body.style.top = '';
+      document.body.style.overflow = '';
+      document.documentElement.style.overscrollBehavior = '';
+      window.scrollTo(0, MODAL_LOCK_SCROLL_TOP || 0);
+      MODAL_LOCK_SCROLL_TOP = 0;
+    };
+
     document.querySelectorAll('.modal').forEach((modalEl) => {
       modalEl.addEventListener('show.bs.modal', () => {
         if (ACTIVE_MODAL_ID && ACTIVE_MODAL_ID !== modalEl.id) {
@@ -1741,13 +1771,16 @@
           }
         }
         ACTIVE_MODAL_ID = modalEl.id;
-        document.body.style.overflow = 'hidden';
+        MODAL_OPEN_COUNT += 1;
+        lockScroll();
       });
       modalEl.addEventListener('hidden.bs.modal', () => {
         if (ACTIVE_MODAL_ID === modalEl.id) ACTIVE_MODAL_ID = '';
+        MODAL_OPEN_COUNT = Math.max(0, MODAL_OPEN_COUNT - 1);
         const anyOpen = document.querySelector('.modal.show');
         if (!anyOpen) {
-          document.body.style.overflow = '';
+          MODAL_OPEN_COUNT = 0;
+          unlockScroll();
         }
       });
     });
@@ -1794,7 +1827,11 @@
       return data;
     } catch (error) {
       if (error && error.name === 'AbortError') {
-        throw new Error('네트워크 오류가 발생했습니다.');
+        throw new Error('서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
+      }
+      const errorMessage = String(error?.message || '');
+      if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(errorMessage)) {
+        throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
       }
       throw error;
     } finally {
@@ -1993,12 +2030,40 @@
 
     const sanitizeNicknameInput = (inputEl) => {
       if (!inputEl) return;
+      const invalidCharsPattern = /[^가-힣A-Za-z0-9]/g;
+      const inlineErrorEl = inputEl.id === 'nickname-change-input'
+        ? document.getElementById('nickname-change-error')
+        : null;
+
+      inputEl.addEventListener('beforeinput', (event) => {
+        const incoming = String(event.data || '');
+        if (!incoming) return;
+        if (invalidCharsPattern.test(incoming)) {
+          event.preventDefault();
+        }
+      });
+
+      inputEl.addEventListener('paste', (event) => {
+        const pasted = String((event.clipboardData || window.clipboardData)?.getData('text') || '');
+        if (!pasted) return;
+        const sanitized = pasted.replace(invalidCharsPattern, '');
+        if (sanitized === pasted) return;
+        event.preventDefault();
+        const start = inputEl.selectionStart ?? inputEl.value.length;
+        const end = inputEl.selectionEnd ?? start;
+        inputEl.setRangeText(sanitized, start, end, 'end');
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
       inputEl.addEventListener('input', () => {
-        const next = String(inputEl.value || '').replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 12);
+        const next = String(inputEl.value || '').replace(invalidCharsPattern, '').slice(0, 12);
         if (inputEl.value !== next) inputEl.value = next;
         const check = validateNickname(next);
         inputEl.setCustomValidity(check.ok || !next ? '' : check.message);
         inputEl.classList.toggle('is-invalid', !!next && !check.ok);
+        if (inlineErrorEl) {
+          inlineErrorEl.classList.toggle('d-none', !(!!next && !check.ok));
+        }
       });
       inputEl.setAttribute('autocapitalize', 'off');
       inputEl.setAttribute('autocomplete', 'nickname');
@@ -2537,6 +2602,40 @@
     return dt.toISOString();
   }
 
+  function parseLegacyDateText(rawDate) {
+    const text = String(rawDate || '').trim();
+    if (!text || text === '미정') return null;
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$/);
+    if (!match) return null;
+    const startDate = match[1];
+    const endDate = match[2] || startDate;
+    return { startDate, endDate };
+  }
+
+  function buildLegacyCalendarItems(content = getContent()) {
+    const gallery = Array.isArray(content?.gallery) ? content.gallery : [];
+    return gallery.flatMap((entry, index) => {
+      const parsed = parseLegacyDateText(entry.date);
+      if (!parsed) return [];
+      const dateKeys = expandDateRange(parsed.startDate, parsed.endDate);
+      return dateKeys.map((dateKey) => ({
+        id: `legacy-${entry.id || index}-${dateKey}`,
+        title: String(entry.title || '활동 일정'),
+        description: '',
+        startAt: `${dateKey}T09:00:00`,
+        endAt: `${dateKey}T10:00:00`,
+        place: '활동 일정',
+        supplies: '-',
+        gatherTime: '-',
+        manager: '운영진',
+        recruitmentLimit: 0,
+        recurrenceGroupId: '',
+        isCancelled: false,
+        sourceType: 'legacy-gallery',
+      }));
+    });
+  }
+
   function updateCalendarCreateVisibility() {
     const card = document.getElementById('calendar-create-card');
     const user = getCurrentUser();
@@ -2551,39 +2650,55 @@
   async function loadActivitiesCalendar() {
     const dateParam = formatDateOnly(calendarBaseDate);
     let data = null;
+    const content = getContent();
+    const noticeItems = (content.news || [])
+      .flatMap(item => {
+        const startDate = item.volunteerStartDate || item.volunteerDate || '';
+        const endDate = item.volunteerEndDate || item.volunteerDate || '';
+        const dateKeys = expandDateRange(startDate, endDate || startDate);
+        return dateKeys.map(dateKey => ({
+          id: `notice-${item.id}-${dateKey}`,
+          title: item.title,
+          description: item.content || '',
+          startAt: `${dateKey}T09:00:00`,
+          endAt: `${dateKey}T10:00:00`,
+          place: '공지사항',
+          supplies: '-',
+          gatherTime: '-',
+          manager: item.author || '관리자',
+          recruitmentLimit: 0,
+          recurrenceGroupId: '',
+          isCancelled: false,
+          sourceType: 'notice',
+          sourceNoticeId: item.id,
+          sourceNoticeStartDate: startDate,
+          sourceNoticeEndDate: endDate || startDate,
+        }));
+      });
+    const legacyItems = buildLegacyCalendarItems(content);
+
+    const toMonthItems = (items) => items
+      .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+    const dedupeByTitleDate = (items) => {
+      const seen = new Set();
+      return items.filter((item) => {
+        const key = `${formatDateOnly(item.startAt)}|${String(item.title || '').trim()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
     try {
       data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
       const baseItems = Array.isArray(data.items) ? data.items : [];
-      const content = getContent();
-      const noticeItems = (content.news || [])
-        .flatMap(item => {
-          const startDate = item.volunteerStartDate || item.volunteerDate || '';
-          const endDate = item.volunteerEndDate || item.volunteerDate || '';
-          const dateKeys = expandDateRange(startDate, endDate || startDate);
-          return dateKeys.map(dateKey => ({
-            id: `notice-${item.id}-${dateKey}`,
-            title: item.title,
-            description: item.content || '',
-            startAt: `${dateKey}T09:00:00`,
-            endAt: `${dateKey}T10:00:00`,
-            place: '공지사항',
-            supplies: '-',
-            gatherTime: '-',
-            manager: item.author || '관리자',
-            recruitmentLimit: 0,
-            recurrenceGroupId: '',
-            isCancelled: false,
-            sourceType: 'notice',
-            sourceNoticeId: item.id,
-            sourceNoticeStartDate: startDate,
-            sourceNoticeEndDate: endDate || startDate,
-          }));
-        });
-      calendarActivities = [...baseItems, ...noticeItems]
-        .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
-        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+      const merged = dedupeByTitleDate([...baseItems, ...noticeItems, ...legacyItems]);
+      calendarActivities = toMonthItems(merged);
     } catch (_) {
-      calendarActivities = [];
+      const fallback = dedupeByTitleDate([...noticeItems, ...legacyItems]);
+      calendarActivities = toMonthItems(fallback);
       data = { range: null };
     }
     renderActivitiesCalendarGrid(data.range || null);
@@ -3305,11 +3420,22 @@
           <input type="hidden" name="editId" value="">
           <button class="btn btn-primary" type="submit">등록</button>
         </div>
+        <div class="invalid-feedback d-block d-none" data-comment-error>댓글을 입력해주세요.</div>
       </form>
       <div class="comment-list">
         ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
       </div>
     `;
+
+    const commentInput = wrap.querySelector('.comment-form [name="comment"]');
+    const commentError = wrap.querySelector('[data-comment-error]');
+    if (commentInput && commentError) {
+      commentInput.addEventListener('input', () => {
+        const hasText = !!String(commentInput.value || '').trim();
+        commentInput.classList.toggle('is-invalid', !hasText);
+        commentError.classList.toggle('d-none', hasText);
+      });
+    }
 
     const [postType, rawId] = String(itemKey || '').split('-');
     const postId = Number(rawId || 0);
@@ -3353,7 +3479,15 @@
     }
     const form = event.target;
     const text = form.comment.value.trim();
-    if (!text) return;
+    const errorEl = form.querySelector('[data-comment-error]');
+    if (!text) {
+      form.comment.classList.add('is-invalid');
+      if (errorEl) errorEl.classList.remove('d-none');
+      form.comment.focus();
+      return;
+    }
+    form.comment.classList.remove('is-invalid');
+    if (errorEl) errorEl.classList.add('d-none');
     const parentId = Number(form.parentId.value || 0);
     const editId = Number(form.editId.value || 0);
     const info = getComments(itemKey);
@@ -3942,21 +4076,29 @@
       const attachments = Array.isArray(notice.attachments)
         ? notice.attachments
         : (Array.isArray(notice.files) ? notice.files : []);
+      const appendInlineQuery = (url) => {
+        const raw = String(url || '').trim();
+        if (!raw || raw === '#') return '#';
+        if (raw.includes('inline=')) return raw;
+        return `${raw}${raw.includes('?') ? '&' : '?'}inline=1`;
+      };
       const attachmentHtml = attachments.map((file) => {
         const fileUrl = file.file_url || file.url || '#';
         const downloadUrl = file.download_url || file.downloadUrl || fileUrl;
+        const previewUrl = file.preview_url || file.inline_url || appendInlineQuery(fileUrl);
         const mimeType = String(file.mime_type || '').toLowerCase();
         const fileName = String(file.original_name || file.name || '첨부파일');
         const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
         if (isPdf) {
           return `
-            <a class="btn btn-sm btn-outline-secondary mt-2 me-2" href="${downloadUrl}?inline=1" target="_blank" rel="noopener">PDF 미리보기</a>
-            <a class="btn btn-sm btn-outline-primary mt-2 me-2" href="${downloadUrl}" download>다운로드</a>
+            <a class="btn btn-sm btn-outline-secondary mt-2 me-2" href="${previewUrl}" target="_blank" rel="noopener">PDF 미리보기</a>
+            <a class="btn btn-sm btn-outline-primary mt-2 me-2" href="${downloadUrl}" download target="_blank" rel="noopener">다운로드</a>
           `;
         }
+        const imageThumb = file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl;
         return `
           <a class="d-inline-block mt-2 me-2" href="${fileUrl}" target="_blank" rel="noopener">
-            <img src="${fileUrl}" alt="${escapeHtml(fileName)}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
+            <img src="${imageThumb}" alt="${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
           </a>
         `;
       }).join('');
@@ -4044,7 +4186,7 @@
       const user = getCurrentUser();
       const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
       const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
-      const thumbImage = item.thumb_url || item.thumbnail_url || item.thumb || item.image_url || item.image || 'logo.png';
+      const thumbImage = item.thumb_url || item.thumbnail_url || item.thumb || 'logo.png';
       const div = document.createElement('div');
       div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
       div.innerHTML = `
