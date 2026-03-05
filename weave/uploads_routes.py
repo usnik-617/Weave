@@ -1,4 +1,22 @@
-from weave.core import *
+from weave import core
+
+UPLOAD_DIR = core.UPLOAD_DIR
+compute_file_sha256_from_filestorage = core.compute_file_sha256_from_filestorage
+error_response = core.error_response
+get_current_user_row = core.get_current_user_row
+get_db_connection = core.get_db_connection
+log_audit = core.log_audit
+now_iso = core.now_iso
+parse_iso_datetime = core.parse_iso_datetime
+remove_file_safely = core.remove_file_safely
+request = core.request
+role_at_least = core.role_at_least
+save_uploaded_file = core.save_uploaded_file
+send_file = core.send_file
+success_response = core.success_response
+Path = core.Path
+os = core.os
+shutil = core.shutil
 
 
 GALLERY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -55,7 +73,9 @@ def _generate_gallery_thumbnail(original_file_info):
         return {
             "stored_path": thumb_path,
             "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
-            "size": int(os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0),
+            "size": int(
+                os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0
+            ),
             "url": _stored_path_to_upload_url(thumb_path),
         }, None
 
@@ -99,7 +119,9 @@ def upload_post_file(post_id):
     if not role_at_least(me["role"], "MEMBER"):
         conn.close()
         return error_response("단원 이상만 파일을 업로드할 수 있습니다.", 403)
-    post = conn.execute("SELECT id, category FROM posts WHERE id = ?", (post_id,)).fetchone()
+    post = conn.execute(
+        "SELECT id, category FROM posts WHERE id = ?", (post_id,)
+    ).fetchone()
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
@@ -111,13 +133,24 @@ def upload_post_file(post_id):
     mime_type = str(file_storage.mimetype or "").lower() if file_storage else ""
 
     if post_category == "gallery":
-        if extension not in GALLERY_IMAGE_EXTENSIONS or mime_type not in GALLERY_IMAGE_MIME_TYPES:
+        if (
+            extension not in GALLERY_IMAGE_EXTENSIONS
+            or mime_type not in GALLERY_IMAGE_MIME_TYPES
+        ):
             conn.close()
-            return error_response("갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)", 400)
+            return error_response(
+                "갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)",
+                400,
+            )
     elif post_category == "notice":
-        if extension not in NOTICE_ALLOWED_EXTENSIONS or mime_type not in NOTICE_ALLOWED_MIME_TYPES:
+        if (
+            extension not in NOTICE_ALLOWED_EXTENSIONS
+            or mime_type not in NOTICE_ALLOWED_MIME_TYPES
+        ):
             conn.close()
-            return error_response("공지사항에는 이미지 또는 PDF만 첨부할 수 있습니다.", 400)
+            return error_response(
+                "공지사항에는 이미지 또는 PDF만 첨부할 수 있습니다.", 400
+            )
 
     expires_at = str(request.form.get("expires_at", "")).strip() if request.form else ""
     expires_at = expires_at or None
@@ -185,7 +218,11 @@ def upload_post_file(post_id):
     if post_category == "gallery":
         conn.execute(
             "UPDATE posts SET image_url = ?, thumb_url = ? WHERE id = ?",
-            (_stored_path_to_upload_url(file_info["stored_path"]), thumb_info["url"], post_id),
+            (
+                _stored_path_to_upload_url(file_info["stored_path"]),
+                thumb_info["url"],
+                post_id,
+            ),
         )
     log_audit(conn, "upload_post_file", "post", post_id, me["id"])
     conn.commit()
@@ -241,13 +278,20 @@ def download_post_file(file_id):
         return error_response("저장된 파일이 없습니다.", 404)
     inline = str(request.args.get("inline", "")).strip().lower() in {"1", "true", "yes"}
     if inline and str(row["mime_type"] or "").lower() == "application/pdf":
-        response = send_file(row["stored_path"], mimetype="application/pdf", as_attachment=False)
-        original_name = secure_filename(str(row["original_name"] or "document.pdf")) or "document.pdf"
+        response = send_file(
+            row["stored_path"], mimetype="application/pdf", as_attachment=False
+        )
+        original_name = (
+            secure_filename(str(row["original_name"] or "document.pdf"))
+            or "document.pdf"
+        )
         if not original_name.lower().endswith(".pdf"):
             original_name = f"{original_name}.pdf"
         response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
         return response
-    return send_file(row["stored_path"], as_attachment=True, download_name=row["original_name"])
+    return send_file(
+        row["stored_path"], as_attachment=True, download_name=row["original_name"]
+    )
 
 
 def serve_uploaded_file(filename):
@@ -295,7 +339,10 @@ def serve_uploaded_file(filename):
 
     if row and str(row["mime_type"] or "").lower() == "application/pdf":
         response = send_file(full_path, mimetype="application/pdf", conditional=True)
-        original_name = secure_filename(str(row["original_name"] or "document.pdf")) or "document.pdf"
+        original_name = (
+            secure_filename(str(row["original_name"] or "document.pdf"))
+            or "document.pdf"
+        )
         if not original_name.lower().endswith(".pdf"):
             original_name = f"{original_name}.pdf"
         response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
@@ -308,7 +355,11 @@ def cleanup_orphan_files():
     conn = get_db_connection()
     db_rows = conn.execute("SELECT DISTINCT stored_path FROM post_files").fetchall()
     conn.close()
-    referenced = {os.path.abspath(str(row["stored_path"])) for row in db_rows if row["stored_path"]}
+    referenced = {
+        os.path.abspath(str(row["stored_path"]))
+        for row in db_rows
+        if row["stored_path"]
+    }
 
     removed = 0
     kept = 0
@@ -325,5 +376,3 @@ def cleanup_orphan_files():
             except Exception:
                 pass
     return {"removed": removed, "kept": kept}
-
-

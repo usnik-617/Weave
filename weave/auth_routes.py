@@ -1,10 +1,40 @@
-from weave.core import *
+from weave import core
+
+DB_PATH = core.DB_PATH
+clear_rate_limit = core.clear_rate_limit
+error_response = core.error_response
+get_client_ip = core.get_client_ip
+get_current_user_row = core.get_current_user_row
+get_db_connection = core.get_db_connection
+increase_login_failure = core.increase_login_failure
+is_rate_limited = core.is_rate_limited
+jsonify = core.jsonify
+log_audit = core.log_audit
+mark_rate_limit_failure = core.mark_rate_limit_failure
+normalize_contact = core.normalize_contact
+now_iso = core.now_iso
+request = core.request
+reset_login_failures = core.reset_login_failures
+send_email = core.send_email
+session = core.session
+success_response = core.success_response
+success_response_legacy = core.success_response_legacy
+to_list_text = core.to_list_text
+touch_user_activity = core.touch_user_activity
+try_unlock_expired_user = core.try_unlock_expired_user
+user_row_to_dict = core.user_row_to_dict
+validate_nickname = core.validate_nickname
+validate_password_policy = core.validate_password_policy
+validate_signup_payload = core.validate_signup_payload
+write_app_log = core.write_app_log
 
 
 def auth_me():
     row = get_current_user_row()
     if not row:
-        return success_response_legacy({"user": None, "csrfToken": session.get("csrf_token")})
+        return success_response_legacy(
+            {"user": None, "csrfToken": session.get("csrf_token")}
+        )
     data = {"user": user_row_to_dict(row), "csrfToken": session.get("csrf_token")}
     return success_response_legacy(data)
 
@@ -22,7 +52,11 @@ def auth_signup():
     blocked, blocked_until = is_rate_limited("signup", payload.get("username", ""))
     if blocked:
         blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
-        return error_response("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429, {"blocked_until": blocked_until_text})
+        return error_response(
+            "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+            429,
+            {"blocked_until": blocked_until_text},
+        )
 
     valid, message = validate_signup_payload(payload)
     if not valid:
@@ -37,18 +71,24 @@ def auth_signup():
 
     conn = get_db_connection()
     cur = conn.cursor()
-    exists_email = cur.execute("SELECT id FROM users WHERE email = ?", (payload["email"],)).fetchone()
+    exists_email = cur.execute(
+        "SELECT id FROM users WHERE email = ?", (payload["email"],)
+    ).fetchone()
     if exists_email:
         conn.close()
         return error_response("이미 등록된 이메일입니다.", 409)
 
-    exists_username = cur.execute("SELECT id FROM users WHERE username = ?", (payload["username"],)).fetchone()
+    exists_username = cur.execute(
+        "SELECT id FROM users WHERE username = ?", (payload["username"],)
+    ).fetchone()
     if exists_username:
         conn.close()
         mark_rate_limit_failure("signup", payload.get("username", ""))
         return error_response("이미 사용 중인 아이디입니다.", 409)
 
-    exists_nickname = cur.execute("SELECT id FROM users WHERE nickname = ?", (nickname,)).fetchone()
+    exists_nickname = cur.execute(
+        "SELECT id FROM users WHERE nickname = ?", (nickname,)
+    ).fetchone()
     if exists_nickname:
         conn.close()
         mark_rate_limit_failure("signup", payload.get("username", ""))
@@ -115,13 +155,24 @@ def auth_login():
     password = str(payload.get("password", ""))
     client_ip = get_client_ip()
 
-    is_playwright_db = str(DB_PATH).replace('\\', '/').endswith('/instance/playwright.db')
-    test_bypass = request.headers.get("X-Playwright-Test", "") == "1" or str(request.args.get("playwright_test", "")) == "1"
+    is_playwright_db = (
+        str(DB_PATH).replace("\\", "/").endswith("/instance/playwright.db")
+    )
+    test_bypass = (
+        request.headers.get("X-Playwright-Test", "") == "1"
+        or str(request.args.get("playwright_test", "")) == "1"
+    )
     if not (test_bypass or is_playwright_db):
         blocked, blocked_until = is_rate_limited("login", username)
         if blocked:
-            blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
-            write_app_log("warning", "login_rate_limited", extra={"blocked_until": blocked_until_text})
+            blocked_until_text = (
+                blocked_until.isoformat() if blocked_until else now_iso()
+            )
+            write_app_log(
+                "warning",
+                "login_rate_limited",
+                extra={"blocked_until": blocked_until_text},
+            )
             return error_response(
                 f"로그인 시도가 너무 많습니다. {blocked_until_text} 이후 다시 시도하세요.",
                 429,
@@ -137,7 +188,9 @@ def auth_login():
     if not row:
         conn.close()
         mark_rate_limit_failure("login", username)
-        write_app_log("warning", "login_failed_unknown_user", extra={"username": username})
+        write_app_log(
+            "warning", "login_failed_unknown_user", extra={"username": username}
+        )
         return error_response("아이디 또는 비밀번호가 틀렸습니다.", 401)
 
     try_unlock_expired_user(conn, row)
@@ -227,7 +280,11 @@ def auth_reset_password():
     blocked, blocked_until = is_rate_limited("reset-password", username)
     if blocked:
         blocked_until_text = blocked_until.isoformat() if blocked_until else now_iso()
-        return error_response("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429, {"blocked_until": blocked_until_text})
+        return error_response(
+            "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+            429,
+            {"blocked_until": blocked_until_text},
+        )
 
     if not username or not contact or not new_password:
         mark_rate_limit_failure("reset-password", username)
@@ -263,7 +320,11 @@ def auth_reset_password():
         (generate_password_hash(new_password), row["id"]),
     )
     log_audit(conn, "password_reset", "user", row["id"], row["id"])
-    send_email(row["email"], "[Weave] 비밀번호 재설정 안내", "비밀번호가 재설정되었습니다. 본인이 요청하지 않았다면 즉시 운영진에 문의하세요.")
+    send_email(
+        row["email"],
+        "[Weave] 비밀번호 재설정 안내",
+        "비밀번호가 재설정되었습니다. 본인이 요청하지 않았다면 즉시 운영진에 문의하세요.",
+    )
     conn.commit()
     conn.close()
     clear_rate_limit("reset-password", username)
@@ -278,15 +339,24 @@ def auth_unlock_account():
     contact = normalize_contact(payload.get("contact", ""))
 
     if not username or not contact:
-        return jsonify({"ok": False, "message": "아이디와 휴대폰/이메일이 필요합니다."}), 400
+        return (
+            jsonify({"ok": False, "message": "아이디와 휴대폰/이메일이 필요합니다."}),
+            400,
+        )
 
     conn = get_db_connection()
     row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     if not row:
         conn.close()
-        return jsonify({"ok": False, "message": "일치하는 계정을 찾지 못했습니다."}), 404
+        return (
+            jsonify({"ok": False, "message": "일치하는 계정을 찾지 못했습니다."}),
+            404,
+        )
 
-    if contact not in (normalize_contact(row["email"]), normalize_contact(row["phone"])):
+    if contact not in (
+        normalize_contact(row["email"]),
+        normalize_contact(row["phone"]),
+    ):
         conn.close()
         return jsonify({"ok": False, "message": "인증 정보가 일치하지 않습니다."}), 403
 
@@ -297,7 +367,9 @@ def auth_unlock_account():
     )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "message": "계정 잠금이 해제되었습니다."})
+    return success_response_legacy(
+        {"ok": True, "message": "계정 잠금이 해제되었습니다."}
+    )
 
 
 def auth_withdraw():
@@ -358,6 +430,9 @@ def auth_withdraw():
     conn.close()
     session.pop("user_id", None)
     write_app_log("info", "user_withdraw", user_id=me["id"])
-    return success_response({"ok": True, "message": f"탈퇴 완료. 데이터는 {retention_days}일 보관 후 파기됩니다."})
-
-
+    return success_response(
+        {
+            "ok": True,
+            "message": f"탈퇴 완료. 데이터는 {retention_days}일 보관 후 파기됩니다.",
+        }
+    )

@@ -5,7 +5,28 @@ from datetime import datetime, timedelta
 from weave import core
 
 
+def _is_health_access_allowed():
+    token = str(core.os.environ.get("WEAVE_HEALTH_TOKEN", "")).strip()
+    allowed_ips_text = str(core.os.environ.get("WEAVE_HEALTH_ALLOW_IPS", "")).strip()
+    allowed_ips = {ip.strip() for ip in allowed_ips_text.split(",") if ip.strip()}
+
+    if token:
+        supplied = str(core.request.headers.get("X-Weave-Health-Token", "")).strip()
+        if supplied != token:
+            return False
+
+    if allowed_ips:
+        client_ip = core.get_client_ip()
+        if client_ip not in allowed_ips:
+            return False
+
+    return True
+
+
 def metrics():
+    if not _is_health_access_allowed():
+        return core.error_response("Forbidden", 403)
+
     active_users_last_hour = 0
     total_posts = 0
     total_comments = 0
@@ -45,6 +66,9 @@ def metrics():
 
 
 def healthz():
+    if not _is_health_access_allowed():
+        return core.error_response("Forbidden", 403)
+
     try:
         conn = core.get_db_connection()
         conn.execute("SELECT 1")

@@ -1,11 +1,35 @@
-from weave.core import *
+from weave import core
+
+UPLOAD_DIR = core.UPLOAD_DIR
+build_annual_report = core.build_annual_report
+delete_file_if_unreferenced = core.delete_file_if_unreferenced
+error_response = core.error_response
+get_cache = core.get_cache
+get_current_user_row = core.get_current_user_row
+get_db_connection = core.get_db_connection
+invalidate_cache = core.invalidate_cache
+jsonify = core.jsonify
+log_audit = core.log_audit
+make_thumbnail_like = core.make_thumbnail_like
+normalize_role = core.normalize_role
+now_iso = core.now_iso
+parse_iso_datetime = core.parse_iso_datetime
+post_visibility_status = core.post_visibility_status
+record_user_activity = core.record_user_activity
+remove_file_safely = core.remove_file_safely
+request = core.request
+role_at_least = core.role_at_least
+role_to_icon = core.role_to_icon
+role_to_label = core.role_to_label
+set_cache = core.set_cache
+success_response = core.success_response
+success_response_legacy = core.success_response_legacy
+upload_url_to_path = core.upload_url_to_path
 
 
 def list_gallery_albums():
     conn = get_db_connection()
-    rows = conn.execute(
-        "SELECT * FROM gallery_albums ORDER BY id DESC"
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM gallery_albums ORDER BY id DESC").fetchall()
     conn.close()
     return success_response_legacy(
         {
@@ -45,7 +69,14 @@ def create_gallery_album():
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO gallery_albums (title, activity_id, visibility, portrait_consent, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (title, payload.get("activityId"), visibility, 1 if portrait_consent else 0, me["id"], now_iso()),
+        (
+            title,
+            payload.get("activityId"),
+            visibility,
+            1 if portrait_consent else 0,
+            me["id"],
+            now_iso(),
+        ),
     )
     album_id = cur.lastrowid
     conn.commit()
@@ -60,7 +91,9 @@ def add_gallery_photos(album_id):
         return jsonify({"ok": False, "message": "photos 배열이 필요합니다."}), 400
 
     conn = get_db_connection()
-    album = conn.execute("SELECT id FROM gallery_albums WHERE id = ?", (album_id,)).fetchone()
+    album = conn.execute(
+        "SELECT id FROM gallery_albums WHERE id = ?", (album_id,)
+    ).fetchone()
     if not album:
         conn.close()
         return jsonify({"ok": False, "message": "앨범을 찾을 수 없습니다."}), 404
@@ -90,7 +123,9 @@ def delete_gallery_photo(photo_id):
         conn.close()
         return error_response("Unauthorized", 401)
 
-    row = conn.execute("SELECT * FROM gallery_photos WHERE id = ?", (photo_id,)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM gallery_photos WHERE id = ?", (photo_id,)
+    ).fetchone()
     if not row:
         conn.close()
         return error_response("사진을 찾을 수 없습니다.", 404)
@@ -151,7 +186,12 @@ def create_rules_version():
     content = str(payload.get("content", "")).strip()
 
     if not version or not effective_date or not summary:
-        return jsonify({"ok": False, "message": "version/effectiveDate/summary는 필수입니다."}), 400
+        return (
+            jsonify(
+                {"ok": False, "message": "version/effectiveDate/summary는 필수입니다."}
+            ),
+            400,
+        )
 
     conn = get_db_connection()
     conn.execute(
@@ -160,7 +200,9 @@ def create_rules_version():
     )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "message": "개정 이력이 등록되었습니다."})
+    return success_response_legacy(
+        {"ok": True, "message": "개정 이력이 등록되었습니다."}
+    )
 
 
 def get_annual_report(year):
@@ -226,13 +268,19 @@ def list_posts():
     page = max(1, int(request.args.get("page", "1") or 1))
     page_size = min(100, max(1, int(request.args.get("pageSize", "10") or 10)))
     offset = (page - 1) * page_size
-    category = str(request.args.get("type", request.args.get("category", ""))).strip().lower()
+    category = (
+        str(request.args.get("type", request.args.get("category", ""))).strip().lower()
+    )
     keyword = str(request.args.get("query", request.args.get("q", ""))).strip()
-    include_scheduled = str(request.args.get("include_scheduled", "")).strip().lower() in {"1", "true", "yes"}
+    include_scheduled = str(
+        request.args.get("include_scheduled", "")
+    ).strip().lower() in {"1", "true", "yes"}
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
-    can_include_scheduled = bool(me and role_at_least(me["role"], "VICE_LEADER") and include_scheduled)
+    can_include_scheduled = bool(
+        me and role_at_least(me["role"], "VICE_LEADER") and include_scheduled
+    )
 
     where = ["1=1"]
     params = []
@@ -249,14 +297,18 @@ def list_posts():
 
     where_sql = " AND ".join(where)
     should_cache = category in ("notice", "gallery") and not keyword
-    cache_key = f"posts:list:{category}:{page}:{page_size}:{int(bool(can_include_scheduled))}"
+    cache_key = (
+        f"posts:list:{category}:{page}:{page_size}:{int(bool(can_include_scheduled))}"
+    )
     if should_cache:
         cached = get_cache(cache_key)
         if cached is not None:
             conn.close()
             return success_response(cached)
 
-    total = conn.execute(f"SELECT COUNT(*) AS c FROM posts p WHERE {where_sql}", params).fetchone()["c"]
+    total = conn.execute(
+        f"SELECT COUNT(*) AS c FROM posts p WHERE {where_sql}", params
+    ).fetchone()["c"]
     rows = conn.execute(
         f"""
          SELECT p.*, u.username AS author_username, u.nickname AS author_nickname, u.role AS author_role,
@@ -321,7 +373,9 @@ def create_post():
     payload = request.get_json(silent=True) or {}
     category = str(payload.get("category", "")).strip().lower()
     if category not in ("notice", "review", "recruit", "qna", "gallery"):
-        return error_response("type(category)는 notice|review|recruit|qna|gallery만 허용됩니다.", 400)
+        return error_response(
+            "type(category)는 notice|review|recruit|qna|gallery만 허용됩니다.", 400
+        )
     title = str(payload.get("title", "")).strip()
     if not title:
         return error_response("title은 필수입니다.", 400)
@@ -396,7 +450,11 @@ def create_post():
                 str(payload.get("place", "")).strip(),
                 str(payload.get("supplies", "")).strip(),
                 "",
-                me["nickname"] if "nickname" in me.keys() and me["nickname"] else me["username"],
+                (
+                    me["nickname"]
+                    if "nickname" in me.keys() and me["nickname"]
+                    else me["username"]
+                ),
                 int(payload.get("recruitment_limit", 0) or 0),
                 me["id"],
                 now_iso(),
@@ -404,7 +462,9 @@ def create_post():
         )
 
     log_audit(conn, "create_post", "post", post_id, me["id"], {"category": category})
-    record_user_activity(conn, me["id"], "post_create", "post", post_id, {"category": category})
+    record_user_activity(
+        conn, me["id"], "post_create", "post", post_id, {"category": category}
+    )
     conn.commit()
     conn.close()
     invalidate_cache("posts:list:notice:")
@@ -444,7 +504,9 @@ def get_post(post_id):
         """,
         (post_id,),
     ).fetchall()
-    recommend_count = conn.execute("SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    recommend_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)
+    ).fetchone()["c"]
     files = conn.execute(
         """
         SELECT id, original_name, mime_type, size, uploaded_at, stored_path
@@ -527,7 +589,9 @@ def update_post(post_id):
     if not category:
         conn.close()
         return error_response("category는 필수입니다.", 400)
-    publish_at = str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
+    publish_at = (
+        str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
+    )
     if publish_at and not parse_iso_datetime(publish_at):
         conn.close()
         return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
@@ -568,16 +632,23 @@ def delete_post(post_id):
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
-    if not (role_at_least(me["role"], "EXECUTIVE") or int(post["author_id"] or 0) == int(me["id"])):
+    if not (
+        role_at_least(me["role"], "EXECUTIVE")
+        or int(post["author_id"] or 0) == int(me["id"])
+    ):
         conn.close()
         return error_response("작성자 또는 운영권한이 필요합니다.", 403)
-    files = conn.execute("SELECT * FROM post_files WHERE post_id = ?", (post_id,)).fetchall()
+    files = conn.execute(
+        "SELECT * FROM post_files WHERE post_id = ?", (post_id,)
+    ).fetchall()
     for file_row in files:
         conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
         delete_file_if_unreferenced(conn, file_row["stored_path"])
     remove_file_safely(upload_url_to_path(post["thumb_url"]))
     conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-    log_audit(conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]})
+    log_audit(
+        conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]}
+    )
     conn.commit()
     conn.close()
     invalidate_cache("posts:list:notice:")
@@ -599,11 +670,15 @@ def create_post_comment(post_id):
     if me["status"] == "suspended":
         conn.close()
         return error_response("정지된 계정은 댓글을 작성할 수 없습니다.", 403)
-    post = conn.execute("SELECT id, category FROM posts WHERE id = ?", (post_id,)).fetchone()
+    post = conn.execute(
+        "SELECT id, category FROM posts WHERE id = ?", (post_id,)
+    ).fetchone()
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
-    if post["category"] in ("notice", "gallery") and not role_at_least(me["role"], "MEMBER"):
+    if post["category"] in ("notice", "gallery") and not role_at_least(
+        me["role"], "MEMBER"
+    ):
         conn.close()
         return error_response("공지/갤러리 댓글은 단원 이상만 가능합니다.", 403)
 
@@ -624,7 +699,9 @@ def create_post_comment(post_id):
     )
     comment_id = cur.lastrowid
     log_audit(conn, "create_comment", "post", post_id, me["id"])
-    record_user_activity(conn, me["id"], "comment_create", "comment", comment_id, {"post_id": post_id})
+    record_user_activity(
+        conn, me["id"], "comment_create", "comment", comment_id, {"post_id": post_id}
+    )
     conn.commit()
     conn.close()
     return success_response({"ok": True}, 201)
@@ -655,7 +732,9 @@ def recommend_post(post_id):
     )
     log_audit(conn, "recommend_post", "post", post_id, me["id"])
     conn.commit()
-    count = conn.execute("SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    count = conn.execute(
+        "SELECT COUNT(*) AS c FROM recommends WHERE post_id = ?", (post_id,)
+    ).fetchone()["c"]
     conn.close()
     return success_response({"recommend_count": int(count or 0)})
 
@@ -675,5 +754,3 @@ def important_notices():
     ).fetchall()
     conn.close()
     return success_response({"items": [dict(row) for row in rows]})
-
-

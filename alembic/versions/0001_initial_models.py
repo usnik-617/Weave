@@ -1,7 +1,7 @@
 """initial models
 
 Revision ID: 0001_initial_models
-Revises: 
+Revises:
 Create Date: 2026-03-04
 """
 
@@ -34,7 +34,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("event_id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("status", sa.String(length=30), nullable=False, server_default="registered"),
+        sa.Column(
+            "status", sa.String(length=30), nullable=False, server_default="registered"
+        ),
         sa.Column("created_at", sa.String(length=40), nullable=False),
         sa.Column("updated_at", sa.String(length=40), nullable=False),
     )
@@ -46,11 +48,19 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("content", sa.Text(), nullable=False, server_default=""),
         sa.Column("is_pinned", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("is_important", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "is_important", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
         sa.Column("publish_at", sa.String(length=40), nullable=True),
-        sa.Column("status", sa.String(length=20), nullable=False, server_default="published"),
-        sa.Column("image_url", sa.String(length=500), nullable=False, server_default=""),
-        sa.Column("thumb_url", sa.String(length=500), nullable=False, server_default=""),
+        sa.Column(
+            "status", sa.String(length=20), nullable=False, server_default="published"
+        ),
+        sa.Column(
+            "image_url", sa.String(length=500), nullable=False, server_default=""
+        ),
+        sa.Column(
+            "thumb_url", sa.String(length=500), nullable=False, server_default=""
+        ),
         sa.Column("volunteer_start_date", sa.String(length=40), nullable=True),
         sa.Column("volunteer_end_date", sa.String(length=40), nullable=True),
         sa.Column("author_id", sa.Integer(), nullable=True),
@@ -66,7 +76,9 @@ def upgrade() -> None:
         sa.Column("original_name", sa.String(length=255), nullable=False),
         sa.Column("mime_type", sa.String(length=120), nullable=False),
         sa.Column("size", sa.Integer(), nullable=False),
-        sa.Column("hash_sha256", sa.String(length=64), nullable=False, server_default=""),
+        sa.Column(
+            "hash_sha256", sa.String(length=64), nullable=False, server_default=""
+        ),
         sa.Column("expires_at", sa.String(length=40), nullable=True),
         sa.Column("created_at", sa.String(length=40), nullable=False),
     )
@@ -76,10 +88,14 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("event_id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("status", sa.String(length=20), nullable=False, server_default="registered"),
+        sa.Column(
+            "status", sa.String(length=20), nullable=False, server_default="registered"
+        ),
         sa.Column("attended_at", sa.String(length=40), nullable=True),
         sa.Column("duration_minutes", sa.Integer(), nullable=False, server_default="0"),
-        sa.UniqueConstraint("event_id", "user_id", name="uq_event_attendance_event_user"),
+        sa.UniqueConstraint(
+            "event_id", "user_id", name="uq_event_attendance_event_user"
+        ),
     )
 
     op.create_table(
@@ -96,10 +112,14 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("actor_user_id", sa.Integer(), nullable=True),
         sa.Column("action", sa.String(length=100), nullable=False),
-        sa.Column("target_type", sa.String(length=50), nullable=False, server_default=""),
+        sa.Column(
+            "target_type", sa.String(length=50), nullable=False, server_default=""
+        ),
         sa.Column("target_id", sa.Integer(), nullable=True),
         sa.Column("ip", sa.String(length=100), nullable=False, server_default=""),
-        sa.Column("user_agent", sa.String(length=500), nullable=False, server_default=""),
+        sa.Column(
+            "user_agent", sa.String(length=500), nullable=False, server_default=""
+        ),
         sa.Column("created_at", sa.String(length=40), nullable=False),
     )
 

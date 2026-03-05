@@ -18,8 +18,12 @@ def sqlite_backup(src_db: Path, dest_db: Path):
 
 def rotate_backups(backup_dir: Path):
     now = datetime.now()
-    daily_files = sorted(backup_dir.glob("daily-*.db"), key=lambda p: p.name, reverse=True)
-    weekly_files = sorted(backup_dir.glob("weekly-*.db"), key=lambda p: p.name, reverse=True)
+    daily_files = sorted(
+        backup_dir.glob("daily-*.db"), key=lambda p: p.name, reverse=True
+    )
+    weekly_files = sorted(
+        backup_dir.glob("weekly-*.db"), key=lambda p: p.name, reverse=True
+    )
 
     for old in daily_files[7:]:
         old.unlink(missing_ok=True)

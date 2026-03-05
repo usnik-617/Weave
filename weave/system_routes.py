@@ -20,7 +20,6 @@ from weave.rate_limit import (
     validate_endpoint_rate_limit as _validate_endpoint_rate_limit,
 )
 from weave.security_headers import set_security_headers
-from weave.spa import root, static_proxy
 
 
 def begin_request_context():

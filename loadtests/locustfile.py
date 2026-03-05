@@ -21,17 +21,23 @@ class WeaveUser(HttpUser):
             catch_response=True,
         ) as response:
             if response.status_code != 200:
-                response.failure(f"login failed: {response.status_code} {response.text}")
+                response.failure(
+                    f"login failed: {response.status_code} {response.text}"
+                )
 
     @task(3)
     def healthz(self):
-        with self.client.get("/healthz", name="GET /healthz", catch_response=True) as response:
+        with self.client.get(
+            "/healthz", name="GET /healthz", catch_response=True
+        ) as response:
             if response.status_code != 200:
                 response.failure(f"healthz failed: {response.status_code}")
 
     @task(4)
     def auth_me(self):
-        with self.client.get("/api/auth/me", name="GET /api/auth/me", catch_response=True) as response:
+        with self.client.get(
+            "/api/auth/me", name="GET /api/auth/me", catch_response=True
+        ) as response:
             if response.status_code != 200:
                 response.failure(f"auth/me failed: {response.status_code}")
 
@@ -52,4 +58,6 @@ class WeaveUser(HttpUser):
             catch_response=True,
         ) as response:
             if response.status_code not in (200, 201):
-                response.failure(f"signup failed: {response.status_code} {response.text}")
+                response.failure(
+                    f"signup failed: {response.status_code} {response.text}"
+                )

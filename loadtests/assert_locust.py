@@ -35,7 +35,7 @@ def main():
 
     aggregate_row = None
     for row in rows:
-        if (row.get("Name", "").strip().lower() == "aggregated"):
+        if row.get("Name", "").strip().lower() == "aggregated":
             aggregate_row = row
             break
 
@@ -43,14 +43,22 @@ def main():
         print("[FAIL] Aggregated row not found in stats CSV")
         return 2
 
-    p95 = to_float(aggregate_row.get("95%") or aggregate_row.get("95%ile") or aggregate_row.get("95 percentile"))
+    p95 = to_float(
+        aggregate_row.get("95%")
+        or aggregate_row.get("95%ile")
+        or aggregate_row.get("95 percentile")
+    )
     total_requests = int(float(aggregate_row.get("Request Count") or 0))
     failure_count = int(float(aggregate_row.get("Failure Count") or 0))
-    failure_ratio = to_float(aggregate_row.get("Failure Ratio") or aggregate_row.get("failure_ratio"))
+    failure_ratio = to_float(
+        aggregate_row.get("Failure Ratio") or aggregate_row.get("failure_ratio")
+    )
     if failure_ratio is None:
         failure_ratio = (failure_count / total_requests) if total_requests > 0 else 1.0
 
-    print(f"[INFO] total_requests={total_requests}, p95_ms={p95}, failure_ratio={failure_ratio}")
+    print(
+        f"[INFO] total_requests={total_requests}, p95_ms={p95}, failure_ratio={failure_ratio}"
+    )
 
     failures = []
     if total_requests < args.min_total_requests:

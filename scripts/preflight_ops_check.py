@@ -114,7 +114,9 @@ def check_production_env(effective_env: str, checks: CheckCollector):
         checks.fail("WEAVE_PROXY_HOPS가 정수가 아님")
 
 
-def check_default_admin_password(base_dir: Path, effective_env: str, checks: CheckCollector):
+def check_default_admin_password(
+    base_dir: Path, effective_env: str, checks: CheckCollector
+):
     app_py = (base_dir / "app.py").read_text(encoding="utf-8")
     if DEFAULT_ADMIN_PASSWORD in app_py:
         if effective_env == "production":
@@ -171,7 +173,11 @@ def check_health(health_url: str, checks: CheckCollector):
             except json.JSONDecodeError:
                 payload = None
 
-            if response.status == 200 and isinstance(payload, dict) and bool(payload.get("ok")) is True:
+            if (
+                response.status == 200
+                and isinstance(payload, dict)
+                and bool(payload.get("ok")) is True
+            ):
                 checks.ok(f"헬스체크 정상: {health_url}")
             elif response.status == 200:
                 checks.warn(f"헬스체크 응답 200이나 JSON 본문 확인 필요: {health_url}")
@@ -185,7 +191,11 @@ def main():
     parser = argparse.ArgumentParser(description="Weave 운영 시작 기본 점검")
     parser.add_argument("--env", default=os.environ.get("WEAVE_ENV", "development"))
     parser.add_argument("--health-url", default="http://127.0.0.1:5000/healthz")
-    parser.add_argument("--start-local", action="store_true", help="점검 전에 로컬 Waitress 서버를 임시로 실행")
+    parser.add_argument(
+        "--start-local",
+        action="store_true",
+        help="점검 전에 로컬 Waitress 서버를 임시로 실행",
+    )
     args = parser.parse_args()
 
     base_dir = Path(__file__).resolve().parent.parent
@@ -209,7 +219,9 @@ def main():
             "--port=5000",
             "app:app",
         ]
-        server_proc = subprocess.Popen(cmd, cwd=str(base_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        server_proc = subprocess.Popen(
+            cmd, cwd=str(base_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         ok, _ = wait_for_healthz(args.health_url, timeout_sec=15)
         if not ok:
             checks.fail("로컬 서버 기동 실패 또는 healthz 응답 없음")

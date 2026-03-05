@@ -1,4 +1,19 @@
-from weave.core import *
+from weave import core
+
+error_response = core.error_response
+get_current_user_row = core.get_current_user_row
+get_db_connection = core.get_db_connection
+jsonify = core.jsonify
+log_audit = core.log_audit
+normalize_role = core.normalize_role
+now_iso = core.now_iso
+request = core.request
+role_at_least = core.role_at_least
+send_email = core.send_email
+success_response = core.success_response
+success_response_legacy = core.success_response_legacy
+user_row_to_dict = core.user_row_to_dict
+write_app_log = core.write_app_log
 
 
 def admin_pending_users():
@@ -88,21 +103,42 @@ def admin_approve_user(user_id):
         "UPDATE users SET status = 'active', role = ?, is_admin = CASE WHEN ? = 'ADMIN' THEN 1 ELSE is_admin END, approved_at = ?, approved_by = ? WHERE id = ?",
         (role, role, now_iso(), me["id"], user_id),
     )
-    audit_action = "approve_member" if role == "MEMBER" else ("approve_executive" if role == "EXECUTIVE" else "role_change")
+    audit_action = (
+        "approve_member"
+        if role == "MEMBER"
+        else ("approve_executive" if role == "EXECUTIVE" else "role_change")
+    )
     log_audit(me["id"], audit_action, "user", user_id, {"role": role})
     if role == "ADMIN":
         log_audit(me["id"], "assign_admin_role", "user", user_id, {"role": role})
     conn.commit()
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if role == "MEMBER":
-        send_email(row["email"], "[Weave] 단원 승인 안내", "단원 승인이 완료되었습니다.")
+        send_email(
+            row["email"], "[Weave] 단원 승인 안내", "단원 승인이 완료되었습니다."
+        )
     elif role == "EXECUTIVE":
-        send_email(row["email"], "[Weave] 임원 승인 안내", "임원 승인이 완료되었습니다.")
+        send_email(
+            row["email"], "[Weave] 임원 승인 안내", "임원 승인이 완료되었습니다."
+        )
     else:
-        send_email(row["email"], "[Weave] 가입 승인 안내", f"가입이 승인되었습니다. 현재 권한: {role}")
+        send_email(
+            row["email"],
+            "[Weave] 가입 승인 안내",
+            f"가입이 승인되었습니다. 현재 권한: {role}",
+        )
     conn.close()
-    write_app_log("info", "admin_approve_user", user_id=me["id"], extra={"target_user_id": user_id, "role": role})
-    payload = {"ok": True, "message": "가입이 승인되었습니다.", "user": user_row_to_dict(row)}
+    write_app_log(
+        "info",
+        "admin_approve_user",
+        user_id=me["id"],
+        extra={"target_user_id": user_id, "role": role},
+    )
+    payload = {
+        "ok": True,
+        "message": "가입이 승인되었습니다.",
+        "user": user_row_to_dict(row),
+    }
     return success_response_legacy(payload)
 
 
@@ -120,11 +156,19 @@ def admin_reject_user(user_id):
         conn.close()
         return error_response("대상을 찾을 수 없습니다.", 404)
 
-    conn.execute("UPDATE users SET status = 'deleted', deleted_at = ? WHERE id = ?", (now_iso(), user_id))
+    conn.execute(
+        "UPDATE users SET status = 'deleted', deleted_at = ? WHERE id = ?",
+        (now_iso(), user_id),
+    )
     log_audit(me["id"] if me else None, "delete_user", "user", user_id)
     conn.commit()
     conn.close()
-    write_app_log("warning", "admin_reject_user", user_id=me["id"] if me else None, extra={"target_user_id": user_id})
+    write_app_log(
+        "warning",
+        "admin_reject_user",
+        user_id=me["id"] if me else None,
+        extra={"target_user_id": user_id},
+    )
     return success_response({"ok": True, "message": "가입 신청이 반려되었습니다."})
 
 
@@ -178,7 +222,9 @@ def admin_stats():
     conn = get_db_connection()
     total_users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
     total_events = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
-    total_participants = conn.execute("SELECT COUNT(*) AS c FROM participants WHERE status='registered'").fetchone()["c"]
+    total_participants = conn.execute(
+        "SELECT COUNT(*) AS c FROM participants WHERE status='registered'"
+    ).fetchone()["c"]
     upcoming_events = conn.execute(
         "SELECT COUNT(*) AS c FROM events WHERE event_date >= ?",
         (datetime.now().isoformat(),),
@@ -210,7 +256,9 @@ def get_audit_logs():
     offset = (page - 1) * page_size
     action = str(request.args.get("action", "")).strip()
     target_type = str(request.args.get("target_type", "")).strip()
-    actor_user_id = str(request.args.get("actor_user_id", request.args.get("user_id", ""))).strip()
+    actor_user_id = str(
+        request.args.get("actor_user_id", request.args.get("user_id", ""))
+    ).strip()
     created_from = str(request.args.get("created_from", "")).strip()
     created_to = str(request.args.get("created_to", "")).strip()
 
@@ -234,7 +282,9 @@ def get_audit_logs():
 
     where_sql = " AND ".join(where)
     conn = get_db_connection()
-    total = conn.execute(f"SELECT COUNT(*) AS c FROM audit_logs WHERE {where_sql}", params).fetchone()["c"]
+    total = conn.execute(
+        f"SELECT COUNT(*) AS c FROM audit_logs WHERE {where_sql}", params
+    ).fetchone()["c"]
     rows = conn.execute(
         f"""
         SELECT a.*,
@@ -260,5 +310,3 @@ def get_audit_logs():
             },
         }
     )
-
-

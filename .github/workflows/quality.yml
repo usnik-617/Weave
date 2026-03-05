@@ -1,0 +1,42 @@
+name: quality
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt black
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Black check
+        run: python -m black --check weave app.py wsgi.py models.py db_repository.py
+
+      - name: Playwright smoke
+        run: npx playwright test tests/routing-smoke.spec.js tests/auth-and-write.spec.js tests/notice-calendar-link.spec.js --reporter=line

@@ -3,7 +3,7 @@ import os
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from weave import system_routes
+from weave import spa, system_routes
 from weave.blueprints import ALL_BLUEPRINTS
 from weave.config import load_config
 from weave.db import init_db
@@ -28,10 +28,8 @@ def create_app():
     for bp in ALL_BLUEPRINTS:
         app.register_blueprint(bp)
 
-    app.add_url_rule("/", view_func=system_routes.root, methods=["GET"])
-    app.add_url_rule(
-        "/<path:path>", view_func=system_routes.static_proxy, methods=["GET"]
-    )
+    app.add_url_rule("/", view_func=spa.root, methods=["GET"])
+    app.add_url_rule("/<path:path>", view_func=spa.static_proxy, methods=["GET"])
 
     init_db()
     return app

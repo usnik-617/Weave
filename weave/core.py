@@ -16,7 +16,16 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
-from flask import Flask, Response, g, jsonify, request, send_from_directory, send_file, session
+from flask import (
+    Flask,
+    Response,
+    g,
+    jsonify,
+    request,
+    send_from_directory,
+    send_file,
+    session,
+)
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -86,7 +95,9 @@ ALLOWED_UPLOAD_MIME = {
 logger = logging.getLogger("weave")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
-    file_handler = logging.FileHandler(os.path.join(LOG_DIR, "app.log"), encoding="utf-8")
+    file_handler = logging.FileHandler(
+        os.path.join(LOG_DIR, "app.log"), encoding="utf-8"
+    )
     formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -182,7 +193,11 @@ def author_payload_from_user(user_row):
     if not user_row:
         return None
     role_value = normalize_role(user_row["role"])
-    nickname = user_row["nickname"] if "nickname" in user_row.keys() and user_row["nickname"] else user_row["username"]
+    nickname = (
+        user_row["nickname"]
+        if "nickname" in user_row.keys() and user_row["nickname"]
+        else user_row["username"]
+    )
     return {
         "id": user_row["id"],
         "nickname": nickname,
@@ -195,7 +210,10 @@ def author_payload_from_user(user_row):
 def validate_nickname(nickname):
     text = str(nickname or "").strip()
     if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", text):
-        return False, "닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)"
+        return (
+            False,
+            "닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)",
+        )
     return True, ""
 
 
@@ -341,12 +359,26 @@ def remove_file_safely(path):
         target = os.path.abspath(path)
         root = os.path.abspath(UPLOAD_DIR)
         if not target.startswith(root):
-            logger.warning(json.dumps({"action": "skip_file_delete", "reason": "outside_upload_root", "path": target}, ensure_ascii=False))
+            logger.warning(
+                json.dumps(
+                    {
+                        "action": "skip_file_delete",
+                        "reason": "outside_upload_root",
+                        "path": target,
+                    },
+                    ensure_ascii=False,
+                )
+            )
             return
         if os.path.exists(target):
             os.remove(target)
     except Exception as exc:
-        logger.error(json.dumps({"action": "file_delete_failed", "path": str(path), "error": str(exc)}, ensure_ascii=False))
+        logger.error(
+            json.dumps(
+                {"action": "file_delete_failed", "path": str(path), "error": str(exc)},
+                ensure_ascii=False,
+            )
+        )
 
 
 def upload_url_to_path(upload_url):
@@ -534,7 +566,9 @@ def roles_required(allowed_roles):
 def roles_allowed(user_row, allowed_roles):
     if not user_row:
         return False
-    return normalize_role(user_row["role"]) in {normalize_role(role) for role in allowed_roles}
+    return normalize_role(user_row["role"]) in {
+        normalize_role(role) for role in allowed_roles
+    }
 
 
 def active_member_required(func):
@@ -554,7 +588,11 @@ def user_row_to_dict(row):
     if not row:
         return None
     role_value = normalize_role(row["role"])
-    nickname_value = row["nickname"] if "nickname" in row.keys() and row["nickname"] else row["username"]
+    nickname_value = (
+        row["nickname"]
+        if "nickname" in row.keys() and row["nickname"]
+        else row["username"]
+    )
     is_admin_value = bool(row["is_admin"]) if "is_admin" in row.keys() else False
     if role_value == "ADMIN":
         is_admin_value = True
@@ -563,7 +601,9 @@ def user_row_to_dict(row):
         "name": row["name"],
         "username": row["username"],
         "nickname": nickname_value,
-        "nicknameUpdatedAt": row["nickname_updated_at"] if "nickname_updated_at" in row.keys() else None,
+        "nicknameUpdatedAt": row["nickname_updated_at"]
+        if "nickname_updated_at" in row.keys()
+        else None,
         "email": row["email"],
         "phone": row["phone"],
         "birthDate": row["birth_date"],
@@ -587,7 +627,9 @@ def log_audit(*args, **kwargs):
     conn = None
     owns_connection = False
     if args and isinstance(args[0], sqlite3.Connection):
-        conn, action, target_type, target_id, actor_user_id, metadata = (list(args) + [None] * 6)[0:6]
+        conn, action, target_type, target_id, actor_user_id, metadata = (
+            list(args) + [None] * 6
+        )[0:6]
     else:
         actor_user_id = args[0] if len(args) > 0 else kwargs.get("actor_user_id")
         action = args[1] if len(args) > 1 else kwargs.get("action")
@@ -617,7 +659,11 @@ def log_audit(*args, **kwargs):
         if owns_connection:
             conn.commit()
     except Exception as exc:
-        logger.error(json.dumps({"action": "audit_log_failed", "error": str(exc)}, ensure_ascii=False))
+        logger.error(
+            json.dumps(
+                {"action": "audit_log_failed", "error": str(exc)}, ensure_ascii=False
+            )
+        )
     finally:
         if conn and owns_connection:
             conn.close()
@@ -673,19 +719,37 @@ def ensure_users_migration(cur):
 
     cur.execute("UPDATE users SET role = 'MEMBER' WHERE role = 'member'")
     cur.execute("UPDATE users SET role = 'EXECUTIVE' WHERE role = 'staff'")
-    cur.execute("UPDATE users SET role = 'ADMIN' WHERE role IN ('admin', 'operator', 'OPERATOR')")
-    cur.execute("UPDATE users SET role = 'GENERAL' WHERE role IS NULL OR TRIM(role) = ''")
-    cur.execute("UPDATE users SET status = 'active' WHERE status IS NULL OR TRIM(status) = ''")
-    cur.execute("UPDATE users SET status = 'deleted' WHERE status IN ('withdrawn', 'WITHDRAWN')")
-    cur.execute("UPDATE users SET status = 'suspended' WHERE status IN ('locked', 'LOCKED')")
+    cur.execute(
+        "UPDATE users SET role = 'ADMIN' WHERE role IN ('admin', 'operator', 'OPERATOR')"
+    )
+    cur.execute(
+        "UPDATE users SET role = 'GENERAL' WHERE role IS NULL OR TRIM(role) = ''"
+    )
+    cur.execute(
+        "UPDATE users SET status = 'active' WHERE status IS NULL OR TRIM(status) = ''"
+    )
+    cur.execute(
+        "UPDATE users SET status = 'deleted' WHERE status IN ('withdrawn', 'WITHDRAWN')"
+    )
+    cur.execute(
+        "UPDATE users SET status = 'suspended' WHERE status IN ('locked', 'LOCKED')"
+    )
     cur.execute("UPDATE users SET is_admin = 1 WHERE role = 'ADMIN'")
-    cur.execute("UPDATE users SET nickname = username WHERE nickname IS NULL OR TRIM(nickname) = ''")
-    cur.execute("UPDATE users SET nickname_updated_at = COALESCE(nickname_updated_at, join_date, datetime('now'))")
-    cur.execute("UPDATE users SET last_active_at = COALESCE(last_active_at, join_date, datetime('now'))")
+    cur.execute(
+        "UPDATE users SET nickname = username WHERE nickname IS NULL OR TRIM(nickname) = ''"
+    )
+    cur.execute(
+        "UPDATE users SET nickname_updated_at = COALESCE(nickname_updated_at, join_date, datetime('now'))"
+    )
+    cur.execute(
+        "UPDATE users SET last_active_at = COALESCE(last_active_at, join_date, datetime('now'))"
+    )
 
 
 def ensure_posts_migration(cur):
-    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(posts)").fetchall()}
+    existing_cols = {
+        row["name"] for row in cur.execute("PRAGMA table_info(posts)").fetchall()
+    }
     migrations = [
         ("is_important", "INTEGER NOT NULL DEFAULT 0"),
         ("image_url", "TEXT DEFAULT ''"),
@@ -727,17 +791,27 @@ def ensure_activities_migration(cur):
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
-            cur.execute(f"ALTER TABLE activities ADD COLUMN {column_name} {column_type}")
+            cur.execute(
+                f"ALTER TABLE activities ADD COLUMN {column_name} {column_type}"
+            )
 
 
 def ensure_activity_indexes(cur):
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_start ON activities(start_at)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_group ON activities(recurrence_group_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_activities_cancelled ON activities(is_cancelled)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activities_start ON activities(start_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activities_group ON activities(recurrence_group_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activities_cancelled ON activities(is_cancelled)"
+    )
 
 
 def ensure_events_migration(cur):
-    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(events)").fetchall()}
+    existing_cols = {
+        row["name"] for row in cur.execute("PRAGMA table_info(events)").fetchall()
+    }
     migrations = [
         ("supplies", "TEXT DEFAULT ''"),
         ("notice_post_id", "INTEGER"),
@@ -748,13 +822,21 @@ def ensure_events_migration(cur):
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
             cur.execute(f"ALTER TABLE events ADD COLUMN {column_name} {column_type}")
-    cur.execute("UPDATE events SET start_datetime = COALESCE(start_datetime, event_date) WHERE start_datetime IS NULL OR TRIM(start_datetime) = ''")
-    cur.execute("UPDATE events SET end_datetime = COALESCE(end_datetime, start_datetime, event_date) WHERE end_datetime IS NULL OR TRIM(end_datetime) = ''")
-    cur.execute("UPDATE events SET capacity = COALESCE(capacity, max_participants, 0) WHERE capacity IS NULL")
+    cur.execute(
+        "UPDATE events SET start_datetime = COALESCE(start_datetime, event_date) WHERE start_datetime IS NULL OR TRIM(start_datetime) = ''"
+    )
+    cur.execute(
+        "UPDATE events SET end_datetime = COALESCE(end_datetime, start_datetime, event_date) WHERE end_datetime IS NULL OR TRIM(end_datetime) = ''"
+    )
+    cur.execute(
+        "UPDATE events SET capacity = COALESCE(capacity, max_participants, 0) WHERE capacity IS NULL"
+    )
 
 
 def ensure_post_files_migration(cur):
-    existing_cols = {row["name"] for row in cur.execute("PRAGMA table_info(post_files)").fetchall()}
+    existing_cols = {
+        row["name"] for row in cur.execute("PRAGMA table_info(post_files)").fetchall()
+    }
     migrations = [
         ("hash_sha256", "TEXT DEFAULT ''"),
         ("created_at", "TEXT"),
@@ -762,9 +844,13 @@ def ensure_post_files_migration(cur):
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
-            cur.execute(f"ALTER TABLE post_files ADD COLUMN {column_name} {column_type}")
+            cur.execute(
+                f"ALTER TABLE post_files ADD COLUMN {column_name} {column_type}"
+            )
 
-    cur.execute("UPDATE post_files SET created_at = COALESCE(created_at, uploaded_at, datetime('now'))")
+    cur.execute(
+        "UPDATE post_files SET created_at = COALESCE(created_at, uploaded_at, datetime('now'))"
+    )
 
 
 def ensure_attendance_migration(cur):
@@ -792,8 +878,12 @@ def ensure_attendance_migration(cur):
         )
         """
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_attendance_event_user ON event_attendance(event_id, user_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_volunteer_activity_user ON volunteer_activity(user_id)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_attendance_event_user ON event_attendance(event_id, user_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_volunteer_activity_user ON volunteer_activity(user_id)"
+    )
 
 
 def init_db():
@@ -1139,7 +1229,9 @@ def init_db():
         )
         """
     )
-    audit_cols = {row["name"] for row in cur.execute("PRAGMA table_info(audit_logs)").fetchall()}
+    audit_cols = {
+        row["name"] for row in cur.execute("PRAGMA table_info(audit_logs)").fetchall()
+    }
     if "actor_user_id" not in audit_cols:
         cur.execute("ALTER TABLE audit_logs ADD COLUMN actor_user_id INTEGER")
     if "action" not in audit_cols:
@@ -1149,7 +1241,9 @@ def init_db():
     if "target_id" not in audit_cols:
         cur.execute("ALTER TABLE audit_logs ADD COLUMN target_id INTEGER")
     if "metadata_json" not in audit_cols:
-        cur.execute("ALTER TABLE audit_logs ADD COLUMN metadata_json TEXT DEFAULT '{}' ")
+        cur.execute(
+            "ALTER TABLE audit_logs ADD COLUMN metadata_json TEXT DEFAULT '{}' "
+        )
     if "created_at" not in audit_cols:
         cur.execute("ALTER TABLE audit_logs ADD COLUMN created_at TEXT")
 
@@ -1181,21 +1275,41 @@ def init_db():
     )
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_participants_user ON event_participants(user_id)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_participants_user ON event_participants(user_id)"
+    )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish_at ON posts(publish_at)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_status_publish ON posts(status, publish_at)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_posts_status_publish ON posts(status, publish_at)"
+    )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_important ON posts(is_important)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_post_files_hash ON post_files(hash_sha256)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_files_hash ON post_files(hash_sha256)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status)"
+    )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_recommends_post ON recommends(post_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_votes_event ON event_votes(event_id)")
-    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname_unique ON users(nickname)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_user_activity_user_created ON user_activity(user_id, created_at DESC)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_votes_event ON event_votes(event_id)"
+    )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname_unique ON users(nickname)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_activity_user_created ON user_activity(user_id, created_at DESC)"
+    )
     conn.commit()
 
     admin_email = "admin@weave.com"
@@ -1213,13 +1327,23 @@ def init_db():
         "availability": "상시",
     }
     admin_now = now_iso()
-    admin_row = cur.execute("SELECT * FROM users WHERE username = ?", (admin_defaults["username"],)).fetchone()
+    admin_row = cur.execute(
+        "SELECT * FROM users WHERE username = ?", (admin_defaults["username"],)
+    ).fetchone()
     if not admin_row:
-        admin_row = cur.execute("SELECT * FROM users WHERE email = ?", (admin_defaults["email"],)).fetchone()
+        admin_row = cur.execute(
+            "SELECT * FROM users WHERE email = ?", (admin_defaults["email"],)
+        ).fetchone()
 
     if admin_row:
-        needs_password_reset = not check_password_hash(admin_row["password_hash"], DEFAULT_ADMIN_PASSWORD)
-        password_hash_value = generate_password_hash(DEFAULT_ADMIN_PASSWORD) if needs_password_reset else admin_row["password_hash"]
+        needs_password_reset = not check_password_hash(
+            admin_row["password_hash"], DEFAULT_ADMIN_PASSWORD
+        )
+        password_hash_value = (
+            generate_password_hash(DEFAULT_ADMIN_PASSWORD)
+            if needs_password_reset
+            else admin_row["password_hash"]
+        )
         cur.execute(
             """
             UPDATE users
@@ -1466,7 +1590,9 @@ def validate_signup_payload(payload):
         if not str(payload.get(field, "")).strip():
             return False, f"{field} 값이 필요합니다."
 
-    password_ok, password_message = validate_password_policy(str(payload.get("password", "")))
+    password_ok, password_message = validate_password_policy(
+        str(payload.get("password", ""))
+    )
     if not password_ok:
         return False, password_message
 
@@ -1482,14 +1608,18 @@ def touch_user_activity(user_id):
         return
     try:
         conn = get_db_connection()
-        conn.execute("UPDATE users SET last_active_at = ? WHERE id = ?", (now_iso(), user_id))
+        conn.execute(
+            "UPDATE users SET last_active_at = ? WHERE id = ?", (now_iso(), user_id)
+        )
         conn.commit()
         conn.close()
     except Exception:
         pass
 
 
-def record_user_activity(conn, user_id, activity_type, target_type="", target_id=None, metadata=None):
+def record_user_activity(
+    conn, user_id, activity_type, target_type="", target_id=None, metadata=None
+):
     if not user_id:
         return
     conn.execute(
@@ -1519,7 +1649,9 @@ def mark_dormant_users(reference_time=None):
     if rows:
         ids = [row["id"] for row in rows]
         placeholders = ",".join(["?"] * len(ids))
-        conn.execute(f"UPDATE users SET status = 'dormant' WHERE id IN ({placeholders})", ids)
+        conn.execute(
+            f"UPDATE users SET status = 'dormant' WHERE id IN ({placeholders})", ids
+        )
         conn.commit()
     conn.close()
     return len(rows)
@@ -1583,7 +1715,9 @@ def build_annual_report(conn, year):
         (start, end),
     ).fetchone()["c"]
 
-    impact_metric = f"활동 {total_activities}건, 누적 {round(float(total_hours or 0), 1)}시간"
+    impact_metric = (
+        f"활동 {total_activities}건, 누적 {round(float(total_hours or 0), 1)}시간"
+    )
     return {
         "year": year,
         "totalActivities": int(total_activities or 0),
@@ -1619,8 +1753,12 @@ def send_event_change_notifications(conn, event_id, title):
         key_target = f"{event_id}:{user['id']}"
         if notification_already_sent(conn, "event_changed", "event_user", key_target):
             continue
-        if send_email(user["email"], "[Weave] 일정 변경 안내", f"일정이 변경되었습니다: {title}"):
-            mark_notification_sent(conn, "event_changed", "event_user", key_target, user["email"])
+        if send_email(
+            user["email"], "[Weave] 일정 변경 안내", f"일정이 변경되었습니다: {title}"
+        ):
+            mark_notification_sent(
+                conn, "event_changed", "event_user", key_target, user["email"]
+            )
             sent += 1
     return sent
 
@@ -1669,7 +1807,11 @@ def send_event_reminders(reference_time=None):
             else:
                 logger.error(
                     json.dumps(
-                        {"action": "send_event_reminder_failed", "user_id": user["id"], "event_id": event["id"]},
+                        {
+                            "action": "send_event_reminder_failed",
+                            "user_id": user["id"],
+                            "event_id": event["id"],
+                        },
                         ensure_ascii=False,
                     )
                 )
@@ -1687,11 +1829,19 @@ def _update_nickname_common(conn, me, nickname, bypass_window=False):
         return None, error_response("이미 사용 중인 닉네임입니다.", 409)
 
     if not bypass_window:
-        last_updated = parse_iso_datetime(me["nickname_updated_at"]) if "nickname_updated_at" in me.keys() else None
+        last_updated = (
+            parse_iso_datetime(me["nickname_updated_at"])
+            if "nickname_updated_at" in me.keys()
+            else None
+        )
         if last_updated:
             next_allowed = last_updated + timedelta(days=180)
             if next_allowed > datetime.now():
-                return None, error_response("닉네임은 180일에 1회만 변경할 수 있습니다.", 403, {"next_allowed_at": next_allowed.isoformat()})
+                return None, error_response(
+                    "닉네임은 180일에 1회만 변경할 수 있습니다.",
+                    403,
+                    {"next_allowed_at": next_allowed.isoformat()},
+                )
 
     try:
         conn.execute(
@@ -1700,12 +1850,18 @@ def _update_nickname_common(conn, me, nickname, bypass_window=False):
         )
     except sqlite3.IntegrityError:
         return None, error_response("이미 사용 중인 닉네임입니다.", 409)
-    return conn.execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone(), None
+    return conn.execute(
+        "SELECT * FROM users WHERE id = ?", (me["id"],)
+    ).fetchone(), None
 
 
 def post_visibility_status(publish_at):
     publish_dt = parse_iso_datetime(publish_at)
-    now_dt = datetime.now(publish_dt.tzinfo) if publish_dt and publish_dt.tzinfo else datetime.now()
+    now_dt = (
+        datetime.now(publish_dt.tzinfo)
+        if publish_dt and publish_dt.tzinfo
+        else datetime.now()
+    )
     if publish_dt and publish_dt > now_dt:
         return "scheduled"
     return "published"
@@ -1713,7 +1869,11 @@ def post_visibility_status(publish_at):
 
 def should_expose_post(publish_at):
     publish_dt = parse_iso_datetime(publish_at)
-    now_dt = datetime.now(publish_dt.tzinfo) if publish_dt and publish_dt.tzinfo else datetime.now()
+    now_dt = (
+        datetime.now(publish_dt.tzinfo)
+        if publish_dt and publish_dt.tzinfo
+        else datetime.now()
+    )
     return not publish_dt or publish_dt <= now_dt
 
 
@@ -1741,5 +1901,3 @@ def delete_file_if_unreferenced(conn, stored_path):
     ).fetchone()
     if not ref:
         remove_file_safely(stored_path)
-
-
