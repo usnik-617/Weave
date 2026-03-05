@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -12,14 +11,17 @@ from weave.security import register_hooks
 
 
 def create_app():
-    project_root = Path(__file__).resolve().parent.parent
-    static_dir = project_root / "static"
-
     app = Flask(__name__, static_folder=None)
     load_config(app)
 
     proxy_hops = int(os.environ.get("WEAVE_PROXY_HOPS", "1"))
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxy_hops, x_proto=proxy_hops, x_host=proxy_hops, x_port=proxy_hops)
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=proxy_hops,
+        x_proto=proxy_hops,
+        x_host=proxy_hops,
+        x_port=proxy_hops,
+    )
 
     register_hooks(app)
 
@@ -27,7 +29,9 @@ def create_app():
         app.register_blueprint(bp)
 
     app.add_url_rule("/", view_func=system_routes.root, methods=["GET"])
-    app.add_url_rule("/<path:path>", view_func=system_routes.static_proxy, methods=["GET"])
+    app.add_url_rule(
+        "/<path:path>", view_func=system_routes.static_proxy, methods=["GET"]
+    )
 
     init_db()
     return app
