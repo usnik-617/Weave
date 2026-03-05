@@ -12,6 +12,7 @@ def _event_duration_minutes(event_row):
 def list_activities():
     date_value = str(request.args.get("date", "")).strip()
     view = str(request.args.get("view", "month")).strip().lower()
+    include_all = str(request.args.get("all", "")).strip().lower() in {"1", "true", "yes"}
     if view not in ("month", "week"):
         view = "month"
 
@@ -34,17 +35,23 @@ def list_activities():
     conn = get_db_connection()
     rows = conn.execute(
         """
-        SELECT * FROM activities
-        WHERE is_cancelled = 0
+                SELECT a.*
+                FROM activities a
+                JOIN users u ON u.id = a.created_by
+                WHERE a.is_cancelled = 0
+                    AND UPPER(COALESCE(u.role, '')) IN ('EXECUTIVE', 'LEADER', 'VICE_LEADER', 'ADMIN')
         ORDER BY start_at ASC
         """,
     ).fetchall()
     conn.close()
-    filtered_rows = []
-    for row in rows:
-        activity_date = activity_start_date_local(row["start_at"])
-        if activity_date and start_date <= activity_date <= end_date:
-            filtered_rows.append(row)
+    if include_all:
+        filtered_rows = rows
+    else:
+        filtered_rows = []
+        for row in rows:
+            activity_date = activity_start_date_local(row["start_at"])
+            if activity_date and start_date <= activity_date <= end_date:
+                filtered_rows.append(row)
     return jsonify(
         {
             "ok": True,
@@ -88,6 +95,9 @@ def create_activity():
     if not me:
         conn.close()
         return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+    if not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return jsonify({"ok": False, "message": "운영진/관리자만 일정을 등록할 수 있습니다."}), 403
     cur = conn.cursor()
     cur.execute(
         """

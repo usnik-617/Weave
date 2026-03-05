@@ -12,6 +12,7 @@ def admin_pending_users():
     page_size = int(request.args.get("pageSize", "10") or 10)
     sort_by = str(request.args.get("sortBy", "id") or "id").strip().lower()
     sort_dir = str(request.args.get("sortDir", "desc") or "desc").strip().lower()
+    keyword = str(request.args.get("q", "") or "").strip()
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
     offset = (page - 1) * page_size
@@ -26,13 +27,21 @@ def admin_pending_users():
     sort_column = sort_map.get(sort_by, "id")
     sort_direction = "ASC" if sort_dir == "asc" else "DESC"
 
+    where_sql = "WHERE status = 'pending'"
+    query_params = []
+    if keyword:
+        where_sql += " AND (name LIKE ? OR username LIKE ? OR IFNULL(generation, '') LIKE ? OR IFNULL(interests, '') LIKE ? OR IFNULL(status, '') LIKE ?)"
+        wildcard = f"%{keyword}%"
+        query_params.extend([wildcard, wildcard, wildcard, wildcard, wildcard])
+
     conn = get_db_connection()
     total = conn.execute(
-        "SELECT COUNT(*) AS c FROM users WHERE status = 'pending'"
+        f"SELECT COUNT(*) AS c FROM users {where_sql}",
+        tuple(query_params),
     ).fetchone()["c"]
     rows = conn.execute(
-        f"SELECT * FROM users WHERE status = 'pending' ORDER BY {sort_column} {sort_direction}, id DESC LIMIT ? OFFSET ?",
-        (page_size, offset),
+        f"SELECT * FROM users {where_sql} ORDER BY {sort_column} {sort_direction}, id DESC LIMIT ? OFFSET ?",
+        tuple([*query_params, page_size, offset]),
     ).fetchall()
     conn.close()
     total_pages = max((int(total or 0) + page_size - 1) // page_size, 1)
@@ -49,6 +58,7 @@ def admin_pending_users():
                 "hasNext": page < total_pages,
                 "sortBy": sort_column,
                 "sortDir": sort_direction.lower(),
+                "q": keyword,
             },
         }
     )

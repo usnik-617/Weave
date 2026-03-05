@@ -621,9 +621,13 @@
 
     <div class="card border-0 shadow-sm">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0">가입 신청 승인</h5>
+        <h5 class="mb-2">가입 신청 승인</h5>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
           <small class="text-muted" id="ops-pending-count">0건</small>
+          <div class="d-flex gap-2 align-items-center">
+            <input id="ops-pending-search" type="text" class="form-control form-control-sm" placeholder="이름/아이디 검색" style="min-width:220px;">
+            <button id="ops-pending-search-btn" class="btn btn-sm btn-primary text-nowrap" type="button">검색</button>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="table table-hover align-middle">
@@ -640,8 +644,7 @@
             <tbody id="ops-pending-users-body"></tbody>
           </table>
         </div>
-        <div class="d-flex justify-content-end align-items-center gap-2 mt-2 flex-wrap">
-          <span class="small text-muted" id="ops-pending-page-label">1 / 1</span>
+        <div class="d-flex justify-content-center align-items-center mt-2 flex-wrap">
           <ul class="pagination pagination-sm mb-0" id="ops-pending-pagination"></ul>
         </div>
       </div>
@@ -793,6 +796,7 @@
         </div>
         <img id="gallery-detail-image" src="" alt="갤러리 이미지" class="img-fluid rounded mb-4">
         <div id="gallery-detail-content" style="white-space: pre-wrap;"></div>
+        <div id="gallery-detail-actions" class="mt-3"></div>
         <hr>
         <div class="d-flex align-items-center justify-content-center gap-2 mb-3 mt-4">
           <button class="btn btn-sm btn-outline-primary" id="gallery-recommend-btn">👍 추천하기</button>
@@ -847,17 +851,6 @@
         <ul class="pagination justify-content-center" id="news-pagination"></ul>
       </nav>
 
-      <div class="card border-0 shadow-sm mt-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">봉사 일정</h5>
-            <button class="btn btn-sm btn-outline-primary" id="events-refresh-btn" type="button">새로고침</button>
-          </div>
-          <div id="events-list" class="d-flex flex-column gap-2">
-            <div class="small text-muted">일정을 불러오는 중입니다...</div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <div id="faq-tab" class="news-tab-pane d-none">
@@ -1242,6 +1235,25 @@
               <button type="button" class="btn btn-outline-secondary btn-sm" id="write-back-btn">뒤로가기</button>
             </div>
 
+            <div class="card border-0 bg-white mb-3 d-none" id="write-template-admin-wrap">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0">본문 템플릿 관리</h6>
+                  <button type="button" class="btn btn-sm btn-primary" id="write-template-save-btn">템플릿 저장</button>
+                </div>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small">소식 템플릿</label>
+                    <textarea class="form-control" id="news-template-text" rows="4" placeholder="소식 기본 템플릿"></textarea>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small">갤러리 템플릿</label>
+                    <textarea class="form-control" id="gallery-template-text" rows="4" placeholder="갤러리 기본 템플릿"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <ul class="nav nav-tabs mb-3" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="news-tab" data-bs-toggle="tab" data-bs-target="#news-admin">소식 관리</button>
@@ -1288,13 +1300,13 @@
                     <label class="form-label">봉사 기간 (선택)</label>
                     <div class="row g-2">
                       <div class="col-md-6">
-                        <input type="date" class="form-control" name="volunteerStartDate" placeholder="시작일">
+                        <input type="datetime-local" class="form-control" name="volunteerStartDate" placeholder="시작일시">
                       </div>
                       <div class="col-md-6">
-                        <input type="date" class="form-control" name="volunteerEndDate" placeholder="종료일">
+                        <input type="datetime-local" class="form-control" name="volunteerEndDate" placeholder="종료일시">
                       </div>
                     </div>
-                    <small class="text-muted">시작일만 입력하면 1일 일정으로 처리됩니다.</small>
+                    <small class="text-muted">시작일시만 입력하면 단일 일정으로 처리됩니다.</small>
                   </div>
                   <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" name="isSecret" id="post-secret">
@@ -1305,7 +1317,10 @@
                     <input type="text" class="form-control" name="author" required>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">내용</label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <label class="form-label mb-0">내용</label>
+                      <button type="button" class="btn btn-sm btn-outline-primary" id="news-template-apply-btn">템플릿 적용</button>
+                    </div>
                     <div class="editor-toolbar mb-2" data-editor-target="news-editor">
                       <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
                       <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
@@ -1359,13 +1374,23 @@
                     <select class="form-control" name="year" id="gallery-year-select" required></select>
                   </div>
                   <div class="mb-3">
+                    <label class="form-label">연동 봉사 일정 (선택)</label>
+                    <select class="form-control" name="activityId" id="gallery-activity-select">
+                      <option value="">선택 안 함</option>
+                    </select>
+                    <small class="text-muted">연동하면 갤러리/캘린더 상세에서 서로 이동할 수 있습니다.</small>
+                  </div>
+                  <div class="mb-3">
                     <label class="form-label">이미지 파일 (본문 삽입)</label>
                     <input type="file" class="form-control" name="imageFile" accept="image/*" multiple>
                     <div class="image-dropzone mt-2 d-none" id="gallery-image-dropzone"></div>
                     <img id="gallery-image-preview" class="img-fluid rounded mt-2 d-none" alt="갤러리 이미지 미리보기" style="max-height:180px;display:none;">
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">내용</label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <label class="form-label mb-0">내용</label>
+                      <button type="button" class="btn btn-sm btn-outline-primary" id="gallery-template-apply-btn">템플릿 적용</button>
+                    </div>
                     <div class="editor-toolbar mb-2" data-editor-target="gallery-editor">
                       <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
                       <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
@@ -1598,11 +1623,15 @@
       <div class="modal-body" id="calendar-activity-detail-body">
         <div class="text-muted small">일정 정보를 불러오는 중입니다...</div>
       </div>
-      <div class="modal-footer border-0">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
-        <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-edit-btn">수정</button>
-        <button type="button" class="btn btn-outline-danger d-none" id="calendar-activity-delete-btn">삭제</button>
-        <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-notice-btn">공지 상세 보기</button>
+      <div class="modal-footer border-0 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2 flex-wrap" id="calendar-activity-action-left"></div>
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-gallery-btn">갤러리로 이동</button>
+          <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-edit-btn">수정</button>
+          <button type="button" class="btn btn-outline-danger d-none" id="calendar-activity-delete-btn">삭제</button>
+          <button type="button" class="btn btn-outline-primary d-none" id="calendar-activity-notice-btn">공지 상세 보기</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2071,6 +2100,11 @@
     qna: [],
     gallery: buildGalleryData()
   };
+  const WRITE_TEMPLATES_KEY = 'weave_write_templates';
+  const DEFAULT_WRITE_TEMPLATES = {
+    news: '',
+    gallery: ''
+  };
 
   const NEWS_PAGE_SIZE = 10;
   const FAQ_PAGE_SIZE = 10;
@@ -2099,6 +2133,7 @@
   const OPS_PENDING_PAGE_SIZE = 10;
   let opsPendingSortBy = 'id';
   let opsPendingSortDir = 'desc';
+  let opsPendingSearchKeyword = '';
   let homeNoticeItems = [];
   let homeNoticeIndex = 0;
   let homeNoticeTimer = null;
@@ -2125,6 +2160,89 @@
 
   function getTodayString() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  function toDatetimeLocalInput(value, fallbackTime = '09:00') {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return raw;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T${fallbackTime}`;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const hh = String(parsed.getHours()).padStart(2, '0');
+    const mm = String(parsed.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+  }
+
+  function getWriteTemplates() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(WRITE_TEMPLATES_KEY) || '{}');
+      return {
+        news: String(parsed.news || DEFAULT_WRITE_TEMPLATES.news),
+        gallery: String(parsed.gallery || DEFAULT_WRITE_TEMPLATES.gallery)
+      };
+    } catch (_) {
+      return { ...DEFAULT_WRITE_TEMPLATES };
+    }
+  }
+
+  function saveWriteTemplates(next) {
+    const payload = {
+      news: String(next?.news || ''),
+      gallery: String(next?.gallery || '')
+    };
+    localStorage.setItem(WRITE_TEMPLATES_KEY, JSON.stringify(payload));
+  }
+
+  function updateWriteTemplateVisibility() {
+    const wrap = document.getElementById('write-template-admin-wrap');
+    if (!wrap) return;
+    const user = getCurrentUser();
+    const canManage = !!(user && user.status === 'active' && isStaffUser(user));
+    wrap.classList.toggle('d-none', !canManage);
+  }
+
+  function applyTemplateToEditor(editorId, templateType) {
+    const editor = document.getElementById(editorId);
+    if (!editor) return;
+    const templates = getWriteTemplates();
+    const template = String(templates?.[templateType] || '').trim();
+    if (!template) {
+      alert('저장된 템플릿이 없습니다. 먼저 템플릿을 저장해주세요.');
+      return;
+    }
+    const current = String(editor.innerHTML || '').trim();
+    if (current && !confirm('현재 내용을 템플릿으로 덮어쓸까요?')) {
+      return;
+    }
+    editor.innerHTML = template;
+  }
+
+  async function loadGalleryActivityOptions(selectedId = '') {
+    const select = document.getElementById('gallery-activity-select');
+    if (!select) return;
+    const selected = String(selectedId || '');
+    const previous = String(select.value || selected);
+    select.innerHTML = '<option value="">선택 안 함</option>';
+    try {
+      const data = await apiRequest('/activities?all=1', { method: 'GET' });
+      const items = Array.isArray(data?.items) ? data.items : [];
+      items
+        .filter(item => !item.isCancelled)
+        .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
+        .forEach((item) => {
+          const option = document.createElement('option');
+          option.value = String(item.id || '');
+          option.dataset.startAt = String(item.startAt || '');
+          option.textContent = `${formatKoreanDate(item.startAt)} · ${item.title || '제목 없음'}`;
+          select.appendChild(option);
+        });
+    } catch (_) {}
+    const targetValue = selected || previous;
+    if (targetValue) select.value = targetValue;
   }
 
   function formatDateOnly(value) {
@@ -2232,6 +2350,45 @@
       editorId: 'gallery-editor'
     });
     ensureGalleryYearOptions();
+    updateWriteTemplateVisibility();
+
+    const newsTemplateText = document.getElementById('news-template-text');
+    const galleryTemplateText = document.getElementById('gallery-template-text');
+    const templateSaveBtn = document.getElementById('write-template-save-btn');
+    const newsTemplateApplyBtn = document.getElementById('news-template-apply-btn');
+    const galleryTemplateApplyBtn = document.getElementById('gallery-template-apply-btn');
+
+    const currentTemplates = getWriteTemplates();
+    if (newsTemplateText) newsTemplateText.value = currentTemplates.news;
+    if (galleryTemplateText) galleryTemplateText.value = currentTemplates.gallery;
+
+    if (templateSaveBtn) {
+      templateSaveBtn.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!user || user.status !== 'active' || !isStaffUser(user)) {
+          alert('운영진/관리자만 템플릿을 저장할 수 있습니다.');
+          return;
+        }
+        saveWriteTemplates({
+          news: newsTemplateText?.value || '',
+          gallery: galleryTemplateText?.value || ''
+        });
+        alert('작성 템플릿이 저장되었습니다.');
+      });
+    }
+    if (newsTemplateApplyBtn) {
+      newsTemplateApplyBtn.addEventListener('click', () => applyTemplateToEditor('news-editor', 'news'));
+    }
+    if (galleryTemplateApplyBtn) {
+      galleryTemplateApplyBtn.addEventListener('click', () => applyTemplateToEditor('gallery-editor', 'gallery'));
+    }
+    const galleryTabTrigger = document.getElementById('gallery-tab');
+    if (galleryTabTrigger) {
+      galleryTabTrigger.addEventListener('shown.bs.tab', () => {
+        const selected = document.getElementById('gallery-activity-select')?.value || '';
+        loadGalleryActivityOptions(selected);
+      });
+    }
 
     // News Form
     const newsForm = document.getElementById('add-news-form');
@@ -2280,7 +2437,7 @@
         }
 
         if (tabType === 'notice' && volunteerStartDate && volunteerEndDate && volunteerEndDate < volunteerStartDate) {
-          alert('봉사 종료일은 시작일보다 빠를 수 없습니다.');
+          alert('봉사 종료일시는 시작일시보다 빠를 수 없습니다.');
           return;
         }
 
@@ -2383,10 +2540,13 @@
           return;
         }
 
-        syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true });
+        syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true, representativeLabel: false });
         const data = getContent();
         if (!Array.isArray(data.gallery)) data.gallery = [];
         const year = Number(e.target.year.value || 2026);
+        const activityId = Number(e.target.activityId?.value || 0);
+        const selectedActivityOption = e.target.activityId?.selectedOptions?.[0] || null;
+        const activityStartAt = activityId > 0 ? String(selectedActivityOption?.dataset?.startAt || '') : '';
         const editId = Number(e.target.editId.value || 0);
         const newDate = getTodayString();
         const editorImages = getEditorImageSources('gallery-editor');
@@ -2407,6 +2567,13 @@
             target.image = coverImage || nextImages[0] || target.image || 'logo.png';
             target.content = e.target.content.value || '';
             target.publishAt = publishAt || '';
+            if (activityId > 0) {
+              target.activityId = activityId;
+              target.activityStartAt = activityStartAt;
+            } else {
+              delete target.activityId;
+              delete target.activityStartAt;
+            }
           }
         } else {
           const newId = Math.max(...data.gallery.map(x => Number(x.id) || 0), 0) + 1;
@@ -2422,7 +2589,9 @@
             content: e.target.content.value || '',
             publishAt: publishAt || '',
             author: user.nickname || user.username || user.name,
-            views: 0
+            views: 0,
+            activityId: activityId > 0 ? activityId : undefined,
+            activityStartAt: activityId > 0 ? activityStartAt : undefined
           });
         }
         saveContent(data);
@@ -2646,6 +2815,7 @@
         const form = document.getElementById('add-gallery-form');
         form.editId.value = '';
         ensureGalleryYearOptions();
+        loadGalleryActivityOptions();
         openWritePanel('gallery-admin');
       });
     }
@@ -2935,9 +3105,24 @@
     }
 
     const opsRefreshBtn = document.getElementById('ops-dashboard-refresh-btn');
+    const opsPendingSearchInput = document.getElementById('ops-pending-search');
+    const opsPendingSearchBtn = document.getElementById('ops-pending-search-btn');
     if (opsRefreshBtn) {
       opsRefreshBtn.addEventListener('click', async () => {
         await loadOpsDashboard(opsPendingPage);
+      });
+    }
+
+    if (opsPendingSearchBtn && opsPendingSearchInput) {
+      opsPendingSearchBtn.addEventListener('click', async () => {
+        opsPendingSearchKeyword = opsPendingSearchInput.value.trim();
+        await loadOpsDashboard(1);
+      });
+      opsPendingSearchInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          opsPendingSearchKeyword = opsPendingSearchInput.value.trim();
+          await loadOpsDashboard(1);
+        }
       });
     }
 

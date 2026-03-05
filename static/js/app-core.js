@@ -96,7 +96,7 @@ function showPermissionDenied() {
 
 function initModalScrollLock() {
   const lockScroll = () => {
-    if (MODAL_OPEN_COUNT > 0) return;
+    if (document.body.classList.contains('modal-scroll-lock')) return;
     MODAL_LOCK_SCROLL_TOP = window.scrollY || window.pageYOffset || 0;
     document.body.classList.add('modal-scroll-lock');
     document.body.style.top = `-${MODAL_LOCK_SCROLL_TOP}px`;
@@ -105,11 +105,19 @@ function initModalScrollLock() {
 
   const unlockScroll = () => {
     if (MODAL_OPEN_COUNT > 0) return;
+    const restoreTop = Number.isFinite(MODAL_LOCK_SCROLL_TOP)
+      ? MODAL_LOCK_SCROLL_TOP
+      : Math.abs(parseInt(String(document.body.style.top || '0'), 10)) || 0;
+    const prevScrollBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
     document.body.classList.remove('modal-scroll-lock');
     document.body.style.top = '';
     document.body.style.overflow = '';
     document.documentElement.style.overscrollBehavior = '';
-    window.scrollTo(0, MODAL_LOCK_SCROLL_TOP || 0);
+    window.scrollTo(0, restoreTop);
+    requestAnimationFrame(() => {
+      document.documentElement.style.scrollBehavior = prevScrollBehavior;
+    });
     MODAL_LOCK_SCROLL_TOP = 0;
   };
 
@@ -123,8 +131,8 @@ function initModalScrollLock() {
         }
       }
       ACTIVE_MODAL_ID = modalEl.id;
-      MODAL_OPEN_COUNT += 1;
       lockScroll();
+      MODAL_OPEN_COUNT += 1;
     });
     modalEl.addEventListener('hidden.bs.modal', () => {
       if (ACTIVE_MODAL_ID === modalEl.id) ACTIVE_MODAL_ID = '';
@@ -361,6 +369,7 @@ function updateAuthUI() {
   }
   if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
   if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
+  if (typeof updateWriteTemplateVisibility === 'function') updateWriteTemplateVisibility();
   updateAboutPhotoAdminControls();
 }
 

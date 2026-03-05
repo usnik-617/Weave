@@ -115,40 +115,6 @@ function toDatetimeLocal(value) {
   return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
-function parseLegacyDateText(rawDate) {
-  const text = String(rawDate || '').trim();
-  if (!text || text === '미정') return null;
-  const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$/);
-  if (!match) return null;
-  const startDate = match[1];
-  const endDate = match[2] || startDate;
-  return { startDate, endDate };
-}
-
-function buildLegacyCalendarItems(content = getContent()) {
-  const gallery = Array.isArray(content?.gallery) ? content.gallery : [];
-  return gallery.flatMap((entry, index) => {
-    const parsed = parseLegacyDateText(entry.date);
-    if (!parsed) return [];
-    const dateKeys = expandDateRange(parsed.startDate, parsed.endDate);
-    return dateKeys.map((dateKey) => ({
-      id: `legacy-${entry.id || index}-${dateKey}`,
-      title: String(entry.title || '활동 일정'),
-      description: '',
-      startAt: `${dateKey}T09:00:00`,
-      endAt: `${dateKey}T10:00:00`,
-      place: '활동 일정',
-      supplies: '-',
-      gatherTime: '-',
-      manager: '운영진',
-      recruitmentLimit: 0,
-      recurrenceGroupId: '',
-      isCancelled: false,
-      sourceType: 'legacy-gallery',
-    }));
-  });
-}
-
 function updateCalendarCreateVisibility() {
   const card = document.getElementById('calendar-create-card');
   const user = getCurrentUser();
@@ -163,55 +129,15 @@ function updateCalendarCreateVisibility() {
 async function loadActivitiesCalendar() {
   const dateParam = formatDateOnly(calendarBaseDate);
   let data = null;
-  const content = getContent();
-  const noticeItems = (content.news || [])
-    .flatMap(item => {
-      const startDate = item.volunteerStartDate || item.volunteerDate || '';
-      const endDate = item.volunteerEndDate || item.volunteerDate || '';
-      const dateKeys = expandDateRange(startDate, endDate || startDate);
-      return dateKeys.map(dateKey => ({
-        id: `notice-${item.id}-${dateKey}`,
-        title: item.title,
-        description: item.content || '',
-        startAt: `${dateKey}T09:00:00`,
-        endAt: `${dateKey}T10:00:00`,
-        place: '공지사항',
-        supplies: '-',
-        gatherTime: '-',
-        manager: item.author || '관리자',
-        recruitmentLimit: 0,
-        recurrenceGroupId: '',
-        isCancelled: false,
-        sourceType: 'notice',
-        sourceNoticeId: item.id,
-        sourceNoticeStartDate: startDate,
-        sourceNoticeEndDate: endDate || startDate,
-      }));
-    });
-  const legacyItems = buildLegacyCalendarItems(content);
-
-  const toMonthItems = (items) => items
-    .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
-    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-
-  const dedupeByTitleDate = (items) => {
-    const seen = new Set();
-    return items.filter((item) => {
-      const key = `${formatDateOnly(item.startAt)}|${String(item.title || '').trim()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
 
   try {
     data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
     const baseItems = Array.isArray(data.items) ? data.items : [];
-    const merged = dedupeByTitleDate([...baseItems, ...noticeItems, ...legacyItems]);
-    calendarActivities = toMonthItems(merged);
+    calendarActivities = [...baseItems]
+      .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   } catch (_) {
-    const fallback = dedupeByTitleDate([...noticeItems, ...legacyItems]);
-    calendarActivities = toMonthItems(fallback);
+    calendarActivities = [];
     data = { range: null };
   }
   renderActivitiesCalendarGrid(data.range || null);
@@ -284,18 +210,7 @@ function getModalInstanceById(modalId) {
 }
 
 function buildActivityActionButtons(item, user, currentStatus) {
-  if (item && item.sourceType === 'notice') return '';
-  if (!user || user.status !== 'active') return '';
-  const canApply = !currentStatus || ['cancelled', 'noshow'].includes(currentStatus);
-  const canCancel = ['waiting', 'confirmed'].includes(currentStatus || '');
-  const canBulkCancel = isStaffUser(user) && !!item.recurrenceGroupId;
-  return `
-    <div class="d-flex justify-content-start gap-2 mt-2 flex-wrap">
-      ${canApply ? `<button class="btn btn-sm btn-primary" onclick="applyActivity(${item.id})">신청</button>` : ''}
-      ${canCancel ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelActivity(${item.id})">취소</button>` : ''}
-      ${canBulkCancel ? `<button class="btn btn-sm btn-outline-warning" onclick="openRecurrenceCancelModal('${item.recurrenceGroupId}')">반복 일괄취소</button>` : ''}
-    </div>
-  `;
+  return '';
 }
 
 async function getMyActivityHistoryMap(user = getCurrentUser()) {
@@ -350,19 +265,69 @@ function sanitizeRichHtml(rawHtml) {
 
 function openCalendarActivityDetailModal(item, user, status = '') {
   const body = document.getElementById('calendar-activity-detail-body');
+  const leftActionWrap = document.getElementById('calendar-activity-action-left');
   const noticeBtn = document.getElementById('calendar-activity-notice-btn');
+  const galleryBtn = document.getElementById('calendar-activity-gallery-btn');
   const editBtn = document.getElementById('calendar-activity-edit-btn');
   const deleteBtn = document.getElementById('calendar-activity-delete-btn');
   if (!body || !item) return;
+  const activityId = Number(item.id || 0);
+  const hasActionableId = Number.isFinite(activityId) && activityId > 0;
   body.innerHTML = buildActivityDetailMarkup(item, user, status);
-  const canManageActivity = !!(user && user.status === 'active' && isStaffUser(user) && item.sourceType !== 'notice');
+  if (leftActionWrap) {
+    leftActionWrap.innerHTML = '';
+    const canApply = !!(hasActionableId && item.sourceType !== 'notice' && user && user.status === 'active' && (!status || ['cancelled', 'noshow'].includes(status)));
+    const canCancel = !!(hasActionableId && item.sourceType !== 'notice' && user && user.status === 'active' && ['waiting', 'confirmed'].includes(status || ''));
+    const canBulkCancel = !!(hasActionableId && item.sourceType !== 'notice' && user && user.status === 'active' && isStaffUser(user) && item.recurrenceGroupId);
+
+    if (canApply) {
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button';
+      applyBtn.className = 'btn btn-sm btn-primary';
+      applyBtn.textContent = '신청';
+      applyBtn.addEventListener('click', async () => {
+        await applyActivity(activityId);
+      });
+      leftActionWrap.appendChild(applyBtn);
+    }
+    if (canCancel) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-sm btn-outline-danger';
+      cancelBtn.textContent = '취소';
+      cancelBtn.addEventListener('click', async () => {
+        await cancelActivity(activityId);
+      });
+      leftActionWrap.appendChild(cancelBtn);
+    }
+    if (canBulkCancel) {
+      const bulkCancelBtn = document.createElement('button');
+      bulkCancelBtn.type = 'button';
+      bulkCancelBtn.className = 'btn btn-sm btn-outline-warning';
+      bulkCancelBtn.textContent = '반복 일괄취소';
+      bulkCancelBtn.addEventListener('click', async () => {
+        await openRecurrenceCancelModal(String(item.recurrenceGroupId || ''));
+      });
+      leftActionWrap.appendChild(bulkCancelBtn);
+    }
+  }
+
+  const canManageActivity = !!(hasActionableId && user && user.status === 'active' && isStaffUser(user) && item.sourceType !== 'notice');
   if (editBtn) {
     editBtn.classList.toggle('d-none', !canManageActivity);
-    editBtn.onclick = canManageActivity ? (() => startEditCalendarActivity(item)) : null;
+    editBtn.onclick = canManageActivity
+      ? (() => {
+          startEditCalendarActivity({ ...item, id: activityId });
+        })
+      : null;
   }
   if (deleteBtn) {
     deleteBtn.classList.toggle('d-none', !canManageActivity);
-    deleteBtn.onclick = canManageActivity ? (() => deleteCalendarActivity(item.id)) : null;
+    deleteBtn.onclick = canManageActivity
+      ? (() => {
+          deleteCalendarActivity(activityId);
+        })
+      : null;
   }
   if (noticeBtn) {
     const isNoticeSource = item && item.sourceType === 'notice' && Number(item.sourceNoticeId || 0) > 0;
@@ -372,6 +337,21 @@ function openCalendarActivityDetailModal(item, user, status = '') {
       if (detailModal) detailModal.hide();
       openNotice(Number(item.sourceNoticeId || 0));
     };
+  }
+  if (galleryBtn) {
+    const linkedGallery = (getContent().gallery || [])
+      .filter(entry => Number(entry.activityId || entry.activity_id || 0) === activityId)
+      .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null;
+    galleryBtn.classList.toggle('d-none', !linkedGallery);
+    galleryBtn.onclick = linkedGallery
+      ? (() => {
+          const detailModal = getModalInstanceById('calendarActivityDetailModal');
+          if (detailModal) detailModal.hide();
+          setTimeout(() => {
+            openGalleryDetail(Number(linkedGallery.id || 0));
+          }, 160);
+        })
+      : null;
   }
   const detailModal = getModalInstanceById('calendarActivityDetailModal');
   if (detailModal) detailModal.show();
@@ -655,12 +635,40 @@ async function focusCalendarDate(dateValue) {
   await loadActivitiesCalendar();
 }
 
+async function openCalendarActivityFromGallery(activityId, fallbackDate = '') {
+  const targetId = Number(activityId || 0);
+  if (!Number.isFinite(targetId) || targetId <= 0) return;
+  const target = calendarActivities.find(item => Number(item.id || 0) === targetId);
+  if (!target) {
+    const parsedFallback = fallbackDate ? new Date(fallbackDate) : null;
+    calendarBaseDate = parsedFallback && !Number.isNaN(parsedFallback.getTime())
+      ? new Date(parsedFallback.getFullYear(), parsedFallback.getMonth(), 1)
+      : new Date();
+    await loadActivitiesCalendar();
+  }
+  const resolved = calendarActivities.find(item => Number(item.id || 0) === targetId);
+  if (!resolved) {
+    alert('연동된 봉사 일정을 찾을 수 없습니다.');
+    return;
+  }
+  const startAt = new Date(resolved.startAt);
+  calendarBaseDate = new Date(startAt.getFullYear(), startAt.getMonth(), 1);
+  calendarSelectedDate = formatDateOnly(resolved.startAt);
+  focusedActivityDateKey = calendarSelectedDate;
+  movePanel('activities');
+  openActivitiesCalendarTab();
+  await loadActivitiesCalendar();
+  const user = getCurrentUser();
+  const historyMap = await getMyActivityHistoryMap(user);
+  openCalendarActivityDetailModal(resolved, user, historyMap[String(resolved.id)] || '');
+}
+
 async function loadOpsDashboard(page = opsPendingPage) {
   opsPendingPage = Math.max(1, Number(page) || 1);
   try {
     const [dash, pending] = await Promise.all([
       apiRequest('/admin/dashboard', { method: 'GET' }),
-      apiRequest(`/admin/pending-users?page=${opsPendingPage}&pageSize=${OPS_PENDING_PAGE_SIZE}&sortBy=${encodeURIComponent(opsPendingSortBy)}&sortDir=${encodeURIComponent(opsPendingSortDir)}`, { method: 'GET' })
+      apiRequest(`/admin/pending-users?page=${opsPendingPage}&pageSize=${OPS_PENDING_PAGE_SIZE}&sortBy=${encodeURIComponent(opsPendingSortBy)}&sortDir=${encodeURIComponent(opsPendingSortDir)}&q=${encodeURIComponent(opsPendingSearchKeyword || '')}`, { method: 'GET' })
     ]);
     const info = dash.dashboard || {};
     const setText = (id, value) => {
@@ -684,11 +692,9 @@ async function loadOpsDashboard(page = opsPendingPage) {
     const totalPages = Number(pagination.totalPages ?? 1);
     const sortBy = String(pagination.sortBy || opsPendingSortBy || 'id');
     const sortDir = String(pagination.sortDir || opsPendingSortDir || 'desc');
-    const pageLabel = document.getElementById('ops-pending-page-label');
     const pager = document.getElementById('ops-pending-pagination');
 
     if (count) count.innerText = `${total}건`;
-    if (pageLabel) pageLabel.innerText = `${pageNo} / ${totalPages}`;
     opsPendingSortBy = sortBy;
     opsPendingSortDir = sortDir;
     opsPendingPage = pageNo;
@@ -902,7 +908,11 @@ function startEditCalendarActivity(item) {
   if (detailModal) detailModal.hide();
   movePanel('activities');
   openActivitiesCalendarTab();
-  document.getElementById('activities')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const activitiesSection = document.getElementById('activities');
+  activitiesSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => {
+    form.title?.focus();
+  }, 120);
 }
 
 async function deleteCalendarActivity(activityId) {

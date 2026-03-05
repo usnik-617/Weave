@@ -360,7 +360,7 @@ function openNotice(id) {
   const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
   const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
   const volunteerMeta = volunteerStart
-    ? `봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}`
+    ? `봉사 날짜 ${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}`
     : '';
   updateDetailMeta('news', {
     author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
@@ -601,6 +601,24 @@ function openGalleryDetail(id) {
     comments: getCommentCount(itemKey)
   });
   document.getElementById('gallery-detail-content').innerHTML = item.content || '내용이 없습니다.';
+  const actionsEl = document.getElementById('gallery-detail-actions');
+  if (actionsEl) {
+    const linkedActivityId = Number(item.activityId || item.activity_id || 0);
+    const hasLinkedActivity = Number.isFinite(linkedActivityId) && linkedActivityId > 0;
+    actionsEl.innerHTML = hasLinkedActivity
+      ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">캘린더로 이동</button>'
+      : '';
+    const goCalendarBtn = document.getElementById('gallery-go-calendar-btn');
+    if (goCalendarBtn) {
+      goCalendarBtn.onclick = async () => {
+        if (typeof openCalendarActivityFromGallery === 'function') {
+          await openCalendarActivityFromGallery(linkedActivityId, item.activityStartAt || item.date || '');
+          return;
+        }
+        if (item.date) await focusCalendarDate(item.date);
+      };
+    }
+  }
 
   const editBtn = document.getElementById('gallery-detail-edit-btn');
   const deleteBtn = document.getElementById('gallery-detail-delete-btn');
@@ -677,10 +695,12 @@ function startEditNews(id) {
     if (publishWrap) publishWrap.classList.toggle('d-none', !form.isScheduled.checked);
   }
   if (form.volunteerStartDate) {
-    form.volunteerStartDate.value = type === 'notice' ? (item.volunteerStartDate || item.volunteerDate || '') : '';
+    const rawStart = type === 'notice' ? (item.volunteerStartDate || item.volunteerDate || '') : '';
+    form.volunteerStartDate.value = typeof toDatetimeLocalInput === 'function' ? toDatetimeLocalInput(rawStart, '09:00') : rawStart;
   }
   if (form.volunteerEndDate) {
-    form.volunteerEndDate.value = type === 'notice' ? (item.volunteerEndDate || item.volunteerDate || '') : '';
+    const rawEnd = type === 'notice' ? (item.volunteerEndDate || item.volunteerDate || '') : '';
+    form.volunteerEndDate.value = typeof toDatetimeLocalInput === 'function' ? toDatetimeLocalInput(rawEnd, '18:00') : rawEnd;
   }
   form.isSecret.checked = !!item.isSecret;
   form.content.value = item.content || '';
@@ -709,6 +729,13 @@ function startEditGallery(id) {
   }
   form.year.value = String(item.year || 2026);
   ensureGalleryYearOptions(String(item.year || 2026));
+  if (form.activityId) {
+    const linkedActivityId = String(item.activityId || item.activity_id || '');
+    form.activityId.value = linkedActivityId;
+    if (typeof loadGalleryActivityOptions === 'function') {
+      loadGalleryActivityOptions(linkedActivityId);
+    }
+  }
   if (form.imagesData) form.imagesData.value = '[]';
   if (form.imageData) form.imageData.value = '';
   setImagePreview('gallery-image-preview', '');

@@ -3,19 +3,22 @@ function setEditorHtml(editorId, html) {
   if (editor) editor.innerHTML = html || '';
 }
 
-function ensureRepresentativeImageLabel(editorId) {
+function ensureRepresentativeImageLabel(editorId, options = {}) {
   const editor = document.getElementById(editorId);
   if (!editor) return [];
+  const showLabel = options.showLabel !== false;
   editor.querySelectorAll('.representative-label').forEach(node => node.remove());
   const images = Array.from(editor.querySelectorAll('img')).filter(img => !!String(img.getAttribute('src') || '').trim());
   images.forEach((img) => img.removeAttribute('data-representative'));
   if (!images.length) return [];
   const first = images[0];
   first.setAttribute('data-representative', 'true');
-  const label = document.createElement('div');
-  label.className = 'representative-label text-primary fw-bold small mb-1';
-  label.textContent = '[대표]';
-  first.parentNode?.insertBefore(label, first);
+  if (showLabel) {
+    const label = document.createElement('div');
+    label.className = 'representative-label text-primary fw-bold small mb-1';
+    label.textContent = '[대표]';
+    first.parentNode?.insertBefore(label, first);
+  }
   return images.map((img) => String(img.getAttribute('src') || '').trim()).filter(Boolean);
 }
 
@@ -31,7 +34,9 @@ function syncEditorToInput(form, editorId, options = {}) {
   const editor = document.getElementById(editorId);
   if (!editor) return;
   if (options.markRepresentative) {
-    ensureRepresentativeImageLabel(editorId);
+    ensureRepresentativeImageLabel(editorId, {
+      showLabel: options.representativeLabel !== false
+    });
   }
   form.content.value = editor.innerHTML.trim();
 }
@@ -275,7 +280,7 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
 
     if (editorId) {
       insertImagesToEditor(editorId, uploadedImages);
-      ensureRepresentativeImageLabel(editorId);
+      ensureRepresentativeImageLabel(editorId, { showLabel: editorId !== 'gallery-editor' });
     }
 
     if (input) input.value = '';
