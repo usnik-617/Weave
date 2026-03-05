@@ -1,13 +1,13 @@
 from flask import Blueprint
 from weave import admin_routes as ar
 from weave import events_routes as er
-from weave import system_routes as sr
 from weave import users_routes as ur
+from weave.health import healthz, metrics
 
 bp = Blueprint("admin", __name__)
 
-bp.add_url_rule("/metrics", view_func=sr.metrics, methods=["GET"])
-bp.add_url_rule("/healthz", view_func=sr.healthz, methods=["GET"])
+bp.add_url_rule("/metrics", view_func=metrics, methods=["GET"])
+bp.add_url_rule("/healthz", view_func=healthz, methods=["GET"])
 
 bp.add_url_rule(
     "/api/admin/pending-users", view_func=ar.admin_pending_users, methods=["GET"]

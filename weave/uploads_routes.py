@@ -1,22 +1,25 @@
-from weave import core
+import os
+import shutil
+from pathlib import Path
 
-UPLOAD_DIR = core.UPLOAD_DIR
-compute_file_sha256_from_filestorage = core.compute_file_sha256_from_filestorage
-error_response = core.error_response
-get_current_user_row = core.get_current_user_row
-get_db_connection = core.get_db_connection
-log_audit = core.log_audit
-now_iso = core.now_iso
-parse_iso_datetime = core.parse_iso_datetime
-remove_file_safely = core.remove_file_safely
-request = core.request
-role_at_least = core.role_at_least
-save_uploaded_file = core.save_uploaded_file
-send_file = core.send_file
-success_response = core.success_response
-Path = core.Path
-os = core.os
-shutil = core.shutil
+from werkzeug.utils import secure_filename
+
+from weave.core import (
+    UPLOAD_DIR,
+    compute_file_sha256_from_filestorage,
+    error_response,
+    get_current_user_row,
+    get_db_connection,
+    log_audit,
+    now_iso,
+    parse_iso_datetime,
+    remove_file_safely,
+    request,
+    role_at_least,
+    save_uploaded_file,
+    send_file,
+    success_response,
+)
 
 
 GALLERY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -324,7 +327,15 @@ def serve_uploaded_file(filename):
             (upload_url, upload_url),
         ).fetchone()
 
+    about_match = conn.execute(
+        "SELECT section_key FROM about_sections WHERE image_url = ? LIMIT 1",
+        (upload_url,),
+    ).fetchone()
+
     if post_match and post_match["category"] == "gallery":
+        conn.close()
+        return send_file(full_path, conditional=True)
+    if about_match:
         conn.close()
         return send_file(full_path, conditional=True)
 

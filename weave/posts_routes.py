@@ -1,30 +1,230 @@
-from weave import core
+import json
+import os
+from datetime import datetime
+from pathlib import Path
 
-UPLOAD_DIR = core.UPLOAD_DIR
-build_annual_report = core.build_annual_report
-delete_file_if_unreferenced = core.delete_file_if_unreferenced
-error_response = core.error_response
-get_cache = core.get_cache
-get_current_user_row = core.get_current_user_row
-get_db_connection = core.get_db_connection
-invalidate_cache = core.invalidate_cache
-jsonify = core.jsonify
-log_audit = core.log_audit
-make_thumbnail_like = core.make_thumbnail_like
-normalize_role = core.normalize_role
-now_iso = core.now_iso
-parse_iso_datetime = core.parse_iso_datetime
-post_visibility_status = core.post_visibility_status
-record_user_activity = core.record_user_activity
-remove_file_safely = core.remove_file_safely
-request = core.request
-role_at_least = core.role_at_least
-role_to_icon = core.role_to_icon
-role_to_label = core.role_to_label
-set_cache = core.set_cache
-success_response = core.success_response
-success_response_legacy = core.success_response_legacy
-upload_url_to_path = core.upload_url_to_path
+from werkzeug.utils import secure_filename
+
+from weave.core import (
+    UPLOAD_DIR,
+    save_uploaded_file,
+    build_annual_report,
+    delete_file_if_unreferenced,
+    error_response,
+    get_cache,
+    get_current_user_row,
+    get_db_connection,
+    invalidate_cache,
+    jsonify,
+    log_audit,
+    make_thumbnail_like,
+    normalize_role,
+    now_iso,
+    parse_iso_datetime,
+    post_visibility_status,
+    record_user_activity,
+    remove_file_safely,
+    request,
+    role_at_least,
+    role_to_icon,
+    role_to_label,
+    set_cache,
+    success_response,
+    success_response_legacy,
+    upload_url_to_path,
+)
+
+
+ABOUT_SECTION_KEYS = {
+    "executives",
+    "history",
+    "logo",
+    "relatedsites",
+    "rules",
+    "awards",
+    "fees",
+}
+
+CONTENT_BLOCK_KEYS = {
+    "activities_overview",
+    "join",
+}
+
+
+def _stored_path_to_upload_url(stored_path):
+    rel_path = os.path.relpath(stored_path, UPLOAD_DIR).replace("\\", "/")
+    return f"/uploads/{rel_path}"
+
+
+def list_about_sections():
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT section_key, content_html, image_url, updated_at, updated_by
+        FROM about_sections
+        ORDER BY section_key ASC
+        """
+    ).fetchall()
+    conn.close()
+
+    items = {}
+    for row in rows:
+        items[row["section_key"]] = {
+            "contentHtml": row["content_html"] or "",
+            "imageUrl": row["image_url"] or "",
+            "updatedAt": row["updated_at"],
+            "updatedBy": row["updated_by"],
+        }
+    return success_response({"items": items})
+
+
+def update_about_section():
+    payload = request.get_json(silent=True) or {}
+    section_key = str(payload.get("key", "")).strip().lower()
+    content_html = str(payload.get("contentHtml", ""))
+    image_url = str(payload.get("imageUrl", "")).strip()
+
+    if section_key not in ABOUT_SECTION_KEYS:
+        return error_response("유효하지 않은 소개 탭 키입니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+
+    conn.execute(
+        """
+        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(section_key) DO UPDATE SET
+            content_html = excluded.content_html,
+            image_url = excluded.image_url,
+            updated_at = excluded.updated_at,
+            updated_by = excluded.updated_by
+        """,
+        (section_key, content_html, image_url, now_iso(), me["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return success_response({"ok": True})
+
+
+def upload_about_section_image():
+    section_key = str(request.form.get("key", "")).strip().lower()
+    if section_key not in ABOUT_SECTION_KEYS:
+        return error_response("유효하지 않은 소개 탭 키입니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+
+    file_storage = request.files.get("file")
+    if not file_storage:
+        conn.close()
+        return error_response("이미지 파일이 필요합니다.", 400)
+
+    original_name = secure_filename(str(file_storage.filename or ""))
+    extension = Path(original_name).suffix.lower()
+    mime_type = str(file_storage.mimetype or "").lower()
+    image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    image_mimes = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+    }
+    if extension not in image_exts or mime_type not in image_mimes:
+        conn.close()
+        return error_response("소개 탭 이미지는 jpg/jpeg/png/webp/gif만 업로드할 수 있습니다.", 400)
+
+    file_info, err = save_uploaded_file(file_storage)
+    if err:
+        conn.close()
+        return error_response(err, 400)
+    if not file_info:
+        conn.close()
+        return error_response("파일 처리에 실패했습니다.", 400)
+
+    image_url = _stored_path_to_upload_url(file_info["stored_path"])
+    conn.execute(
+        """
+        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(section_key) DO UPDATE SET
+            image_url = excluded.image_url,
+            updated_at = excluded.updated_at,
+            updated_by = excluded.updated_by
+        """,
+        (section_key, "", image_url, now_iso(), me["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return success_response({"imageUrl": image_url}, 201)
+
+
+def list_content_blocks():
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT section_key, content_html, updated_at, updated_by
+        FROM about_sections
+        WHERE section_key IN (?, ?)
+        ORDER BY section_key ASC
+        """,
+        ("activities_overview", "join"),
+    ).fetchall()
+    conn.close()
+
+    items = {}
+    for row in rows:
+        items[row["section_key"]] = {
+            "contentHtml": row["content_html"] or "",
+            "updatedAt": row["updated_at"],
+            "updatedBy": row["updated_by"],
+        }
+    return success_response({"items": items})
+
+
+def update_content_block():
+    payload = request.get_json(silent=True) or {}
+    block_key = str(payload.get("key", "")).strip().lower()
+    content_html = str(payload.get("contentHtml", ""))
+
+    if block_key not in CONTENT_BLOCK_KEYS:
+        return error_response("유효하지 않은 콘텐츠 키입니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+
+    conn.execute(
+        """
+        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(section_key) DO UPDATE SET
+            content_html = excluded.content_html,
+            updated_at = excluded.updated_at,
+            updated_by = excluded.updated_by
+        """,
+        (block_key, content_html, "", now_iso(), me["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return success_response({"ok": True})
 
 
 def list_gallery_albums():

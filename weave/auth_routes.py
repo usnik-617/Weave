@@ -1,32 +1,39 @@
-from weave import core
+import os
+import sqlite3
+import uuid
+from datetime import datetime, timedelta
 
-DB_PATH = core.DB_PATH
-clear_rate_limit = core.clear_rate_limit
-error_response = core.error_response
-get_client_ip = core.get_client_ip
-get_current_user_row = core.get_current_user_row
-get_db_connection = core.get_db_connection
-increase_login_failure = core.increase_login_failure
-is_rate_limited = core.is_rate_limited
-jsonify = core.jsonify
-log_audit = core.log_audit
-mark_rate_limit_failure = core.mark_rate_limit_failure
-normalize_contact = core.normalize_contact
-now_iso = core.now_iso
-request = core.request
-reset_login_failures = core.reset_login_failures
-send_email = core.send_email
-session = core.session
-success_response = core.success_response
-success_response_legacy = core.success_response_legacy
-to_list_text = core.to_list_text
-touch_user_activity = core.touch_user_activity
-try_unlock_expired_user = core.try_unlock_expired_user
-user_row_to_dict = core.user_row_to_dict
-validate_nickname = core.validate_nickname
-validate_password_policy = core.validate_password_policy
-validate_signup_payload = core.validate_signup_payload
-write_app_log = core.write_app_log
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from weave.core import (
+    DB_PATH,
+    clear_rate_limit,
+    error_response,
+    get_client_ip,
+    get_current_user_row,
+    get_db_connection,
+    increase_login_failure,
+    is_rate_limited,
+    jsonify,
+    log_audit,
+    mark_rate_limit_failure,
+    normalize_contact,
+    now_iso,
+    request,
+    reset_login_failures,
+    send_email,
+    session,
+    success_response,
+    success_response_legacy,
+    to_list_text,
+    touch_user_activity,
+    try_unlock_expired_user,
+    user_row_to_dict,
+    validate_nickname,
+    validate_password_policy,
+    validate_signup_payload,
+    write_app_log,
+)
 
 
 def auth_me():

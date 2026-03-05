@@ -104,3 +104,40 @@ def test_no_duplicate_route_method_mappings(client):
             )
 
     assert duplicates == [], f"duplicate route mappings found: {duplicates}"
+
+
+def test_single_root_route_is_registered_once(client):
+    root_get_routes = []
+
+    for rule in client.application.url_map.iter_rules():
+        methods = {
+            method
+            for method in (rule.methods or set())
+            if method not in {"HEAD", "OPTIONS"}
+        }
+        if rule.rule == "/" and "GET" in methods:
+            root_get_routes.append(rule.endpoint)
+
+    assert root_get_routes == ["spa_root"], (
+        "root route must be registered exactly once and bound to 'spa_root': "
+        f"{root_get_routes}"
+    )
+
+
+def test_spa_routes_are_bound_to_spa_module(client):
+    app = client.application
+    root_view = app.view_functions.get("spa_root")
+    proxy_view = app.view_functions.get("spa_static_proxy")
+
+    assert root_view is not None
+    assert proxy_view is not None
+    assert root_view.__module__ == "weave.spa"
+    assert proxy_view.__module__ == "weave.spa"
+
+
+def test_before_request_hook_not_from_system_routes(client):
+    before_funcs = client.application.before_request_funcs.get(None, [])
+    modules = {func.__module__ for func in before_funcs}
+
+    assert "weave.security" in modules
+    assert "weave.system_routes" not in modules

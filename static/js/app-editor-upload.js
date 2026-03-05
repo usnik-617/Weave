@@ -396,7 +396,7 @@ function bindAboutPhotoUploader() {
 
   const hasPermission = () => {
     const user = getCurrentUser();
-    return !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
+    return !!(user && user.status === 'active' && isStaffUser(user));
   };
 
   const ensurePermission = () => {

@@ -268,43 +268,15 @@ def reset_login_failures_by_ip(ip):
 
 
 def write_app_log(level, action, user_id=None, extra=None):
-    payload = {
-        "action": action,
-        "ip": get_client_ip() if request else "unknown",
-        "user_id": user_id,
-        "user_agent": get_user_agent() if request else "",
-    }
-    if extra:
-        payload.update(extra)
-    line = json.dumps(payload, ensure_ascii=False)
-    if level == "warning":
-        logger.warning(line)
-    elif level == "error":
-        logger.error(line)
-    else:
-        logger.info(line)
+    from weave import core_audit
+
+    return core_audit.write_app_log(level, action, user_id=user_id, extra=extra)
 
 
 def send_email(to_email, subject, body):
-    if not SMTP_HOST or not to_email:
-        return False
-    try:
-        message = EmailMessage()
-        message["From"] = SMTP_FROM
-        message["To"] = to_email
-        message["Subject"] = subject
-        message.set_content(body)
+    from weave import core_mail
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            if SMTP_TLS:
-                server.starttls()
-            if SMTP_USER:
-                server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(message)
-        return True
-    except Exception as exc:
-        logger.error(f"email_send_failed: {exc}")
-        return False
+    return core_mail.send_email(to_email, subject, body)
 
 
 def current_user_id():
@@ -312,110 +284,33 @@ def current_user_id():
 
 
 def save_uploaded_file(file_storage):
-    if not file_storage:
-        return None, "파일이 없습니다."
-    if not file_storage.filename:
-        return None, "파일명이 없습니다."
-    raw_name = str(file_storage.filename)
-    if "/" in raw_name or "\\" in raw_name:
-        return None, "파일명에 경로 구분자를 사용할 수 없습니다."
+    from weave import core_files
 
-    original_name = secure_filename(raw_name)
-    if not original_name:
-        return None, "유효하지 않은 파일명입니다."
-    extension = Path(original_name).suffix.lower()
-    if extension not in ALLOWED_UPLOAD_EXT:
-        return None, "허용되지 않은 파일 확장자입니다."
-
-    mime_type = (file_storage.mimetype or "").lower()
-    if mime_type not in ALLOWED_UPLOAD_MIME:
-        return None, "허용되지 않은 파일 형식입니다."
-
-    file_storage.stream.seek(0, os.SEEK_END)
-    size = file_storage.stream.tell()
-    file_storage.stream.seek(0)
-    if size > MAX_UPLOAD_BYTES:
-        return None, f"파일 크기는 최대 {MAX_UPLOAD_MB}MB까지 허용됩니다."
-
-    stored_name = f"{uuid.uuid4().hex}{extension}"
-    now = datetime.now()
-    subdir = os.path.join(UPLOAD_DIR, f"{now.year:04d}", f"{now.month:02d}")
-    os.makedirs(subdir, exist_ok=True)
-    stored_path = os.path.join(subdir, stored_name)
-    file_storage.save(stored_path)
-    return {
-        "original_name": original_name,
-        "stored_name": stored_name,
-        "stored_path": stored_path,
-        "mime_type": mime_type,
-        "size": size,
-    }, None
+    return core_files.save_uploaded_file(file_storage)
 
 
 def remove_file_safely(path):
-    if not path:
-        return
-    try:
-        target = os.path.abspath(path)
-        root = os.path.abspath(UPLOAD_DIR)
-        if not target.startswith(root):
-            logger.warning(
-                json.dumps(
-                    {
-                        "action": "skip_file_delete",
-                        "reason": "outside_upload_root",
-                        "path": target,
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            return
-        if os.path.exists(target):
-            os.remove(target)
-    except Exception as exc:
-        logger.error(
-            json.dumps(
-                {"action": "file_delete_failed", "path": str(path), "error": str(exc)},
-                ensure_ascii=False,
-            )
-        )
+    from weave import core_files
+
+    return core_files.remove_file_safely(path)
 
 
 def upload_url_to_path(upload_url):
-    text = str(upload_url or "").strip()
-    if not text.startswith("/uploads/"):
-        return None
-    rel = text[len("/uploads/") :]
-    rel = os.path.normpath(rel).replace("\\", "/")
-    if rel.startswith(".."):
-        return None
-    return os.path.abspath(os.path.join(UPLOAD_DIR, rel))
+    from weave import core_files
+
+    return core_files.upload_url_to_path(upload_url)
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 10000")
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    from weave import core_db
+
+    return core_db.get_db_connection()
 
 
 def db_write_retry(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        last_error = None
-        for attempt in range(3):
-            try:
-                return func(*args, **kwargs)
-            except sqlite3.OperationalError as exc:
-                if "database is locked" not in str(exc).lower():
-                    raise
-                last_error = exc
-                time.sleep(0.1 * (attempt + 1))
-        if last_error:
-            raise last_error
+    from weave import core_db
 
-    return wrapper
+    return core_db.db_write_retry(func)
 
 
 def parse_iso_datetime(value):
@@ -624,49 +519,9 @@ def user_row_to_dict(row):
 
 
 def log_audit(*args, **kwargs):
-    conn = None
-    owns_connection = False
-    if args and isinstance(args[0], sqlite3.Connection):
-        conn, action, target_type, target_id, actor_user_id, metadata = (
-            list(args) + [None] * 6
-        )[0:6]
-    else:
-        actor_user_id = args[0] if len(args) > 0 else kwargs.get("actor_user_id")
-        action = args[1] if len(args) > 1 else kwargs.get("action")
-        target_type = args[2] if len(args) > 2 else kwargs.get("target_type")
-        target_id = args[3] if len(args) > 3 else kwargs.get("target_id")
-        metadata = args[4] if len(args) > 4 else kwargs.get("metadata")
+    from weave import core_audit
 
-    actor = actor_user_id if actor_user_id is not None else current_user_id()
-    sql = (
-        "INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata_json, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)"
-    )
-    values = (
-        actor,
-        str(action or "").strip(),
-        str(target_type or "").strip(),
-        int(target_id) if target_id is not None else None,
-        json.dumps(metadata or {}, ensure_ascii=False),
-        now_iso(),
-    )
-
-    try:
-        if conn is None:
-            conn = get_db_connection()
-            owns_connection = True
-        conn.execute(sql, values)
-        if owns_connection:
-            conn.commit()
-    except Exception as exc:
-        logger.error(
-            json.dumps(
-                {"action": "audit_log_failed", "error": str(exc)}, ensure_ascii=False
-            )
-        )
-    finally:
-        if conn and owns_connection:
-            conn.close()
+    return core_audit.log_audit(*args, **kwargs)
 
 
 def notification_already_sent(conn, notification_type, target_type, target_id):
@@ -1035,6 +890,18 @@ def init_db():
             title TEXT NOT NULL,
             answer TEXT DEFAULT '',
             created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS about_sections (
+            section_key TEXT PRIMARY KEY,
+            content_html TEXT NOT NULL DEFAULT '',
+            image_url TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL,
+            updated_by INTEGER
         )
         """
     )
@@ -1878,18 +1745,9 @@ def should_expose_post(publish_at):
 
 
 def compute_file_sha256_from_filestorage(file_storage):
-    if not file_storage:
-        return ""
-    sha = hashlib.sha256()
-    stream = file_storage.stream
-    stream.seek(0)
-    while True:
-        chunk = stream.read(1024 * 1024)
-        if not chunk:
-            break
-        sha.update(chunk)
-    stream.seek(0)
-    return sha.hexdigest()
+    from weave import core_files
+
+    return core_files.compute_file_sha256_from_filestorage(file_storage)
 
 
 def delete_file_if_unreferenced(conn, stored_path):

@@ -51,3 +51,14 @@ bp.add_url_rule("/api/templates", view_func=pr.get_templates, methods=["GET"])
 bp.add_url_rule(
     "/api/templates/generate", view_func=pr.generate_template, methods=["POST"]
 )
+bp.add_url_rule("/api/about/sections", view_func=pr.list_about_sections, methods=["GET"])
+bp.add_url_rule(
+    "/api/about/sections", view_func=pr.update_about_section, methods=["PUT"]
+)
+bp.add_url_rule(
+    "/api/about/sections/image",
+    view_func=pr.upload_about_section_image,
+    methods=["POST"],
+)
+bp.add_url_rule("/api/content/blocks", view_func=pr.list_content_blocks, methods=["GET"])
+bp.add_url_rule("/api/content/blocks", view_func=pr.update_content_block, methods=["PUT"])
