@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -43,13 +44,51 @@ ABOUT_SECTION_KEYS = {
     "rules",
     "awards",
     "fees",
+    "hero_background",
 }
 
 CONTENT_BLOCK_KEYS = {
     "activities_overview",
     "join",
     "home_stats",
+    "hero_background",
 }
+
+CONTENT_BLOCK_KEY_ALIASES = {
+    "hero-background": "hero_background",
+    "herobackground": "hero_background",
+    "herobackgroundconfig": "hero_background",
+    "hero_bg": "hero_background",
+    "home_background": "hero_background",
+    "homebackground": "hero_background",
+    "home-hero-background": "hero_background",
+    "home_hero_background": "hero_background",
+}
+
+ABOUT_SECTION_KEY_ALIASES = {
+    **CONTENT_BLOCK_KEY_ALIASES,
+    "related_sites": "relatedsites",
+    "related-sites": "relatedsites",
+}
+
+
+def _normalize_key(raw_key, aliases):
+    key = str(raw_key or "").strip()
+    if not key:
+        return ""
+    lowered = key.lower()
+    if lowered in aliases:
+        return aliases[lowered]
+
+    normalized = re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
+    if normalized in aliases:
+        return aliases[normalized]
+
+    squashed = normalized.replace("_", "")
+    if squashed in aliases:
+        return aliases[squashed]
+
+    return normalized
 
 
 def _stored_path_to_upload_url(stored_path):
@@ -81,7 +120,7 @@ def list_about_sections():
 
 def update_about_section():
     payload = request.get_json(silent=True) or {}
-    section_key = str(payload.get("key", "")).strip().lower()
+    section_key = _normalize_key(payload.get("key", ""), ABOUT_SECTION_KEY_ALIASES)
     content_html = str(payload.get("contentHtml", ""))
     image_url = str(payload.get("imageUrl", "")).strip()
 
@@ -115,7 +154,7 @@ def update_about_section():
 
 
 def upload_about_section_image():
-    section_key = str(request.form.get("key", "")).strip().lower()
+    section_key = _normalize_key(request.form.get("key", ""), ABOUT_SECTION_KEY_ALIASES)
     if section_key not in ABOUT_SECTION_KEYS:
         return error_response("유효하지 않은 소개 탭 키입니다.", 400)
 
@@ -124,7 +163,16 @@ def upload_about_section_image():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
+    if me["status"] != "active":
+        conn.close()
+        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+
+    if section_key == "hero_background":
+        is_admin_flag = bool(me["is_admin"]) if "is_admin" in me.keys() else False
+        if not (role_at_least(me["role"], "ADMIN") or is_admin_flag):
+            conn.close()
+            return error_response("운영자만 배경 이미지를 수정할 수 있습니다.", 403)
+    elif not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)
 
@@ -178,10 +226,10 @@ def list_content_blocks():
         """
         SELECT section_key, content_html, updated_at, updated_by
         FROM about_sections
-        WHERE section_key IN (?, ?, ?)
+        WHERE section_key IN (?, ?, ?, ?)
         ORDER BY section_key ASC
         """,
-        ("activities_overview", "join", "home_stats"),
+        ("activities_overview", "join", "home_stats", "hero_background"),
     ).fetchall()
     conn.close()
 
@@ -197,7 +245,7 @@ def list_content_blocks():
 
 def update_content_block():
     payload = request.get_json(silent=True) or {}
-    block_key = str(payload.get("key", "")).strip().lower()
+    block_key = _normalize_key(payload.get("key", ""), CONTENT_BLOCK_KEY_ALIASES)
     content_html = str(payload.get("contentHtml", ""))
 
     if block_key not in CONTENT_BLOCK_KEYS:
@@ -212,11 +260,16 @@ def update_content_block():
         conn.close()
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)
 
-    if block_key == "home_stats":
+    if block_key in {"home_stats", "hero_background"}:
         is_admin_flag = bool(me["is_admin"]) if "is_admin" in me.keys() else False
         if not (role_at_least(me["role"], "ADMIN") or is_admin_flag):
             conn.close()
-            return error_response("운영자만 홈 통계를 수정할 수 있습니다.", 403)
+            message = (
+                "운영자만 홈 통계를 수정할 수 있습니다."
+                if block_key == "home_stats"
+                else "운영자만 홈 배경 설정을 수정할 수 있습니다."
+            )
+            return error_response(message, 403)
     elif not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)

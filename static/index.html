@@ -81,7 +81,7 @@
 <main>
 
 <!-- HOME: HERO + STATS -->
-<section id="home" class="hero py-5 text-dark position-relative overflow-hidden panel-active" style="background: white;">
+<section id="home" class="hero py-5 text-dark position-relative overflow-hidden panel-active">
   <div class="hero-bg"></div>
   <div class="container position-relative z-1">
     <div class="row align-items-center hero-content-row">
@@ -92,11 +92,25 @@
         <p class="lead fs-5 mb-4 animate__animated animate__fadeInUp" style="animation-delay:0.2s;">
           남양주의 청년 봉사자들이 <strong>연결(Weave)하고 성장</strong>하는 커뮤니티
         </p>
-        <p class="text-white-50 mb-5 animate__animated animate__fadeInUp" style="animation-delay:0.3s;">
+        <p class="hero-subtext mb-5 animate__animated animate__fadeInUp" style="animation-delay:0.3s;">
           함께 나누고, 함께 성장하고, 함께 변화하는 지역사회
         </p>
         <div class="d-flex gap-3 justify-content-center flex-wrap animate__animated animate__fadeInUp" style="animation-delay:0.4s;">
           <a href="#about" class="btn btn-outline-primary btn-lg px-5" data-panel="about" data-about-tab="history">자세히 알아보기</a>
+        </div>
+        <div id="hero-bg-admin-tools" class="d-none mt-3">
+          <div class="d-inline-flex flex-wrap gap-2 justify-content-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="hero-bg-upload-btn">홈 배경 이미지 변경</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="hero-bg-adjust-toggle-btn">배경 위치 조정</button>
+            <button type="button" class="btn btn-sm btn-primary" id="hero-bg-save-btn">배경 설정 저장</button>
+            <input id="hero-bg-upload-input" type="file" accept="image/*" class="d-none">
+          </div>
+          <div id="hero-bg-editor" class="hero-bg-editor card border-0 shadow-sm mt-3 d-none">
+            <div class="card-body">
+              <div class="small text-muted mb-2">미리보기 영역을 드래그해서 보이는 위치를 조정하세요.</div>
+              <div id="hero-bg-preview-canvas" class="hero-bg-preview-canvas" role="button" aria-label="홈 배경 위치 조정"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2330,6 +2344,7 @@
     const activitiesTools = document.getElementById('activities-content-admin-tools');
     const joinTools = document.getElementById('join-content-admin-tools');
     const homeStatsTools = document.getElementById('home-stats-admin-tools');
+    const heroBgTools = document.getElementById('hero-bg-admin-tools');
     const user = getCurrentUser();
     const canManage = !!(user && user.status === 'active' && isStaffUser(user));
     const canManageHomeStats = !!(user && user.status === 'active' && isAdminUser(user));
@@ -2338,6 +2353,7 @@
     if (activitiesTools) activitiesTools.classList.toggle('d-none', !canManage);
     if (joinTools) joinTools.classList.toggle('d-none', !canManage);
     if (homeStatsTools) homeStatsTools.classList.toggle('d-none', !canManageHomeStats);
+    if (heroBgTools) heroBgTools.classList.toggle('d-none', !canManageHomeStats);
   }
 
   function updateDetailMeta(prefix, payload = {}) {
@@ -3053,6 +3069,142 @@
     const homeStatsEditToggleBtn = document.getElementById('home-stats-edit-toggle');
     const homeStatsSaveBtn = document.getElementById('home-stats-save-btn');
     let homeStatsEditMode = false;
+    const heroBgUploadBtn = document.getElementById('hero-bg-upload-btn');
+    const heroBgUploadInput = document.getElementById('hero-bg-upload-input');
+    const heroBgAdjustToggleBtn = document.getElementById('hero-bg-adjust-toggle-btn');
+    const heroBgSaveBtn = document.getElementById('hero-bg-save-btn');
+    const heroBgEditor = document.getElementById('hero-bg-editor');
+    const heroBgPreviewCanvas = document.getElementById('hero-bg-preview-canvas');
+    const heroBgConfig = {
+      imageUrl: 'Background.jpg',
+      posX: 50,
+      posY: 45,
+    };
+
+    function applyHeroBackgroundConfig() {
+      const safeImage = String(heroBgConfig.imageUrl || 'Background.jpg').replace(/'/g, "%27");
+      document.documentElement.style.setProperty('--hero-bg-image', `url('${safeImage}')`);
+      document.documentElement.style.setProperty('--hero-bg-pos-x', `${heroBgConfig.posX}%`);
+      document.documentElement.style.setProperty('--hero-bg-pos-y', `${heroBgConfig.posY}%`);
+    }
+
+    async function loadHeroBackgroundConfig() {
+      try {
+        const data = await apiRequest('/content/blocks', { method: 'GET' });
+        const block = String(data?.items?.hero_background?.contentHtml || '').trim();
+        if (!block) {
+          applyHeroBackgroundConfig();
+          return;
+        }
+        const parsed = JSON.parse(block);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.imageUrl) heroBgConfig.imageUrl = String(parsed.imageUrl);
+          if (Number.isFinite(Number(parsed.posX))) heroBgConfig.posX = Math.max(0, Math.min(100, Number(parsed.posX)));
+          if (Number.isFinite(Number(parsed.posY))) heroBgConfig.posY = Math.max(0, Math.min(100, Number(parsed.posY)));
+        }
+      } catch (_) {
+      }
+      applyHeroBackgroundConfig();
+    }
+
+    async function saveHeroBackgroundConfig() {
+      if (!isActiveAdminUser()) {
+        alert('운영자 권한이 없습니다.');
+        return;
+      }
+      try {
+        await apiRequest('/content/blocks', {
+          method: 'PUT',
+          body: JSON.stringify({
+            key: 'hero_background',
+            contentHtml: JSON.stringify({
+              imageUrl: heroBgConfig.imageUrl,
+              posX: heroBgConfig.posX,
+              posY: heroBgConfig.posY,
+            }),
+          }),
+        });
+        alert('홈 배경 설정이 저장되었습니다.');
+      } catch (error) {
+        alert(error.message || '홈 배경 저장에 실패했습니다.');
+      }
+    }
+
+    async function uploadHeroBackgroundImage(file) {
+      if (!isActiveAdminUser()) {
+        alert('운영자 권한이 없습니다.');
+        return;
+      }
+      if (!file) return;
+      try {
+        const csrf = await ensureCsrfToken();
+        const formData = new FormData();
+        formData.append('key', 'hero_background');
+        formData.append('file', file);
+
+        const response = await fetch('/api/about/sections/image', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+          body: formData,
+        });
+        const payload = await response.json().catch(() => ({}));
+        const data = payload?.data || payload;
+        if (!response.ok) {
+          throw new Error(payload?.error || payload?.message || '배경 이미지 업로드에 실패했습니다.');
+        }
+        if (data?.imageUrl) {
+          heroBgConfig.imageUrl = String(data.imageUrl);
+          applyHeroBackgroundConfig();
+        }
+        await saveHeroBackgroundConfig();
+      } catch (error) {
+        alert(error.message || '배경 이미지 업로드에 실패했습니다.');
+      }
+    }
+
+    function bindHeroBackgroundDrag() {
+      if (!heroBgPreviewCanvas) return;
+      let dragging = false;
+
+      const updateFromPointer = (event) => {
+        const rect = heroBgPreviewCanvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+        const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+        heroBgConfig.posX = Math.round((x / rect.width) * 1000) / 10;
+        heroBgConfig.posY = Math.round((y / rect.height) * 1000) / 10;
+        applyHeroBackgroundConfig();
+      };
+
+      heroBgPreviewCanvas.addEventListener('pointerdown', (event) => {
+        if (!isActiveAdminUser()) return;
+        dragging = true;
+        heroBgPreviewCanvas.classList.add('dragging');
+        heroBgPreviewCanvas.setPointerCapture(event.pointerId);
+        updateFromPointer(event);
+      });
+
+      heroBgPreviewCanvas.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        updateFromPointer(event);
+      });
+
+      const stopDragging = (event) => {
+        if (!dragging) return;
+        dragging = false;
+        heroBgPreviewCanvas.classList.remove('dragging');
+        if (event?.pointerId !== undefined) {
+          try {
+            heroBgPreviewCanvas.releasePointerCapture(event.pointerId);
+          } catch (_) {}
+        }
+      };
+
+      heroBgPreviewCanvas.addEventListener('pointerup', stopDragging);
+      heroBgPreviewCanvas.addEventListener('pointercancel', stopDragging);
+      heroBgPreviewCanvas.addEventListener('pointerleave', stopDragging);
+    }
 
     function isActiveAdminUser() {
       const user = getCurrentUser();
@@ -3182,6 +3334,39 @@
       });
     }
 
+    if (heroBgUploadBtn && heroBgUploadInput) {
+      heroBgUploadBtn.addEventListener('click', () => {
+        if (!isActiveAdminUser()) {
+          alert('운영자 권한이 없습니다.');
+          return;
+        }
+        heroBgUploadInput.click();
+      });
+      heroBgUploadInput.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (file) await uploadHeroBackgroundImage(file);
+        heroBgUploadInput.value = '';
+      });
+    }
+
+    if (heroBgAdjustToggleBtn && heroBgEditor) {
+      heroBgAdjustToggleBtn.addEventListener('click', () => {
+        if (!isActiveAdminUser()) {
+          alert('운영자 권한이 없습니다.');
+          return;
+        }
+        heroBgEditor.classList.toggle('d-none');
+      });
+    }
+
+    if (heroBgSaveBtn) {
+      heroBgSaveBtn.addEventListener('click', async () => {
+        await saveHeroBackgroundConfig();
+      });
+    }
+
+    bindHeroBackgroundDrag();
+
     // Initial render
     renderNews();
     renderFaq();
@@ -3189,6 +3374,7 @@
     renderGallery();
     renderStats();
     loadHomeStatsFromServer();
+    loadHeroBackgroundConfig();
     applyHomeStatsEditMode();
     setNewsWriteButtons();
     setJoinActionPanel('inquiry');
