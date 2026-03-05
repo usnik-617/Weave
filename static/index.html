@@ -86,7 +86,7 @@
   <div class="container position-relative z-1">
     <div class="row align-items-center hero-content-row">
       <div class="col-lg-8 mx-auto text-center">
-        <div class="mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
+        <div class="hero-logo-stage mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
           <img src="logo.png" alt="위브 로고" class="hero-main-logo">
         </div>
         <p class="lead fs-5 mb-4 animate__animated animate__fadeInUp" style="animation-delay:0.2s;">
@@ -176,6 +176,12 @@
 <!-- STATS SECTION -->
 <section id="home-stats" class="stats-section py-5 bg-light">
   <div class="container">
+    <div class="d-flex justify-content-end mb-3">
+      <div id="home-stats-admin-tools" class="d-none d-inline-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-primary" id="home-stats-edit-toggle">홈 통계 편집</button>
+        <button type="button" class="btn btn-sm btn-primary d-none" id="home-stats-save-btn">홈 통계 저장</button>
+      </div>
+    </div>
     <div class="row g-4 text-center">
       <div class="col-md-3">
         <div class="stat-card">
@@ -2323,12 +2329,15 @@
     const contentTools = document.getElementById('about-content-admin-tools');
     const activitiesTools = document.getElementById('activities-content-admin-tools');
     const joinTools = document.getElementById('join-content-admin-tools');
+    const homeStatsTools = document.getElementById('home-stats-admin-tools');
     const user = getCurrentUser();
     const canManage = !!(user && user.status === 'active' && isStaffUser(user));
+    const canManageHomeStats = !!(user && user.status === 'active' && isAdminUser(user));
     if (tools) tools.classList.toggle('d-none', !canManage);
     if (contentTools) contentTools.classList.toggle('d-none', !canManage);
     if (activitiesTools) activitiesTools.classList.toggle('d-none', !canManage);
     if (joinTools) joinTools.classList.toggle('d-none', !canManage);
+    if (homeStatsTools) homeStatsTools.classList.toggle('d-none', !canManageHomeStats);
   }
 
   function updateDetailMeta(prefix, payload = {}) {
@@ -3041,28 +3050,136 @@
     }
 
     const statsForm = document.getElementById('update-stats-form');
+    const homeStatsEditToggleBtn = document.getElementById('home-stats-edit-toggle');
+    const homeStatsSaveBtn = document.getElementById('home-stats-save-btn');
+    let homeStatsEditMode = false;
+
+    function isActiveAdminUser() {
+      const user = getCurrentUser();
+      return !!(user && user.status === 'active' && isAdminUser(user));
+    }
+
+    function applyHomeStatsEditMode() {
+      const editableIds = ['stat-generation', 'stat-members', 'stat-activities', 'stat-impact'];
+      const enabled = isActiveAdminUser() && homeStatsEditMode;
+      editableIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.contentEditable = enabled ? 'true' : 'false';
+        el.classList.toggle('border', enabled);
+        el.classList.toggle('rounded', enabled);
+        el.classList.toggle('px-2', enabled);
+        el.classList.toggle('py-1', enabled);
+      });
+      if (homeStatsSaveBtn) homeStatsSaveBtn.classList.toggle('d-none', !enabled);
+      if (homeStatsEditToggleBtn) {
+        homeStatsEditToggleBtn.textContent = enabled ? '홈 통계 편집 종료' : '홈 통계 편집';
+      }
+    }
+
+    async function saveHomeStatsFromCards() {
+      if (!isActiveAdminUser()) {
+        alert('운영자 권한이 없습니다.');
+        return;
+      }
+      const nextStats = {
+        generation: String(document.getElementById('stat-generation')?.textContent || '').trim(),
+        members: String(document.getElementById('stat-members')?.textContent || '').trim(),
+        activities: String(document.getElementById('stat-activities')?.textContent || '').trim(),
+        impact: String(document.getElementById('stat-impact')?.textContent || '').trim()
+      };
+      try {
+        await apiRequest('/content/blocks', {
+          method: 'PUT',
+          body: JSON.stringify({
+            key: 'home_stats',
+            contentHtml: JSON.stringify(nextStats)
+          })
+        });
+        saveStats(nextStats);
+        renderStats();
+        alert('홈 통계가 저장되었습니다.');
+      } catch (error) {
+        alert(error.message || '홈 통계 저장에 실패했습니다.');
+      }
+    }
+
+    async function loadHomeStatsFromServer() {
+      try {
+        const data = await apiRequest('/content/blocks', { method: 'GET' });
+        const raw = String(data?.items?.home_stats?.contentHtml || '').trim();
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        const next = {
+          generation: String(parsed.generation || ''),
+          members: String(parsed.members || ''),
+          activities: String(parsed.activities || ''),
+          impact: String(parsed.impact || '')
+        };
+        if (!next.generation || !next.members || !next.activities || !next.impact) return;
+        saveStats(next);
+        renderStats();
+        if (statsForm) {
+          statsForm.generation.value = next.generation;
+          statsForm.members.value = next.members;
+          statsForm.activities.value = next.activities;
+          statsForm.impact.value = next.impact;
+        }
+      } catch (_) {
+      }
+    }
+
     if (statsForm) {
       const stats = getStats();
       statsForm.generation.value = stats.generation;
       statsForm.members.value = stats.members;
       statsForm.activities.value = stats.activities;
       statsForm.impact.value = stats.impact;
-      statsForm.onsubmit = (e) => {
+      statsForm.onsubmit = async (e) => {
         e.preventDefault();
         const user = getCurrentUser();
-        if (!user || (!user.isAdmin && !ADMIN_EMAILS.includes(user.email))) {
+        if (!user || user.status !== 'active' || !isAdminUser(user)) {
           alert('권한이 없습니다.');
           return;
         }
-        saveStats({
+        const nextStats = {
           generation: e.target.generation.value,
           members: e.target.members.value,
           activities: e.target.activities.value,
           impact: e.target.impact.value
-        });
-        renderStats();
-        alert('홈 통계가 저장되었습니다.');
+        };
+        try {
+          await apiRequest('/content/blocks', {
+            method: 'PUT',
+            body: JSON.stringify({
+              key: 'home_stats',
+              contentHtml: JSON.stringify(nextStats)
+            })
+          });
+          saveStats(nextStats);
+          renderStats();
+          alert('홈 통계가 저장되었습니다.');
+        } catch (error) {
+          alert(error.message || '홈 통계 저장에 실패했습니다.');
+        }
       };
+    }
+
+    if (homeStatsEditToggleBtn) {
+      homeStatsEditToggleBtn.addEventListener('click', () => {
+        if (!isActiveAdminUser()) {
+          alert('운영자 권한이 없습니다.');
+          return;
+        }
+        homeStatsEditMode = !homeStatsEditMode;
+        applyHomeStatsEditMode();
+      });
+    }
+    if (homeStatsSaveBtn) {
+      homeStatsSaveBtn.addEventListener('click', async () => {
+        await saveHomeStatsFromCards();
+      });
     }
 
     // Initial render
@@ -3071,6 +3188,8 @@
     renderQna();
     renderGallery();
     renderStats();
+    loadHomeStatsFromServer();
+    applyHomeStatsEditMode();
     setNewsWriteButtons();
     setJoinActionPanel('inquiry');
     loadVolunteerEvents().catch(() => {});

@@ -48,6 +48,7 @@ ABOUT_SECTION_KEYS = {
 CONTENT_BLOCK_KEYS = {
     "activities_overview",
     "join",
+    "home_stats",
 }
 
 
@@ -177,10 +178,10 @@ def list_content_blocks():
         """
         SELECT section_key, content_html, updated_at, updated_by
         FROM about_sections
-        WHERE section_key IN (?, ?)
+        WHERE section_key IN (?, ?, ?)
         ORDER BY section_key ASC
         """,
-        ("activities_overview", "join"),
+        ("activities_overview", "join", "home_stats"),
     ).fetchall()
     conn.close()
 
@@ -207,7 +208,16 @@ def update_content_block():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
+    if me["status"] != "active":
+        conn.close()
+        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+
+    if block_key == "home_stats":
+        is_admin_flag = bool(me["is_admin"]) if "is_admin" in me.keys() else False
+        if not (role_at_least(me["role"], "ADMIN") or is_admin_flag):
+            conn.close()
+            return error_response("운영자만 홈 통계를 수정할 수 있습니다.", 403)
+    elif not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)
 
