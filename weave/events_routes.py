@@ -7,44 +7,29 @@ from datetime import datetime, timedelta
 
 from flask import Response
 
+from weave.authz import (
+    can_view_event_details,
+    get_current_user_row,
+    normalize_role,
+    role_at_least,
+)
 from weave.core import (
-    activity_start_date_local,
     calculate_activity_hours,
     csv_response,
-    error_response,
     get_cache,
-    get_current_user_row,
     get_db_connection,
     invalidate_cache,
     jsonify,
     log_audit,
-    normalize_role,
-    now_iso,
-    parse_iso_datetime,
     record_user_activity,
     request,
-    role_at_least,
     send_event_change_notifications,
     serialize_activity_row,
     set_cache,
-    success_response,
-    success_response_legacy,
     write_app_log,
 )
-
-
-def _event_duration_minutes(event_row):
-    start_dt = parse_iso_datetime(
-        event_row["start_datetime"] or event_row["event_date"]
-    )
-    end_dt = parse_iso_datetime(
-        event_row["end_datetime"]
-        or event_row["start_datetime"]
-        or event_row["event_date"]
-    )
-    if not start_dt or not end_dt or end_dt <= start_dt:
-        return 0
-    return int((end_dt - start_dt).total_seconds() // 60)
+from weave.responses import error_response, success_response, success_response_legacy
+from weave.time_utils import activity_start_date_local, now_iso, parse_iso_datetime
 
 
 def list_activities():
@@ -865,7 +850,7 @@ def list_events():
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "MEMBER"):
+    if not can_view_event_details(me):
         conn.close()
         return error_response("단원 이상만 이벤트를 확인할 수 있습니다.", 403)
     cache_key = f"events:list:{me['id']}:{page}:{page_size}"
@@ -1070,7 +1055,7 @@ def get_event_detail(event_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "MEMBER"):
+    if not can_view_event_details(me):
         conn.close()
         return error_response("단원 이상만 이벤트를 확인할 수 있습니다.", 403)
 
@@ -1134,123 +1119,6 @@ def get_event_detail(event_id):
     )
 
 
-def list_event_participants(event_id):
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "MEMBER"):
-        conn.close()
-        return error_response("단원 이상만 참여자 목록을 확인할 수 있습니다.", 403)
-    event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
-    if not event:
-        conn.close()
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
-    rows = conn.execute(
-        """
-        SELECT ep.user_id, ep.status, ep.created_at,
-               u.username, u.nickname, u.role
-        FROM event_participants ep
-        JOIN users u ON u.id = ep.user_id
-        WHERE ep.event_id = ? AND ep.status = 'registered'
-        ORDER BY ep.created_at ASC
-        """,
-        (event_id,),
-    ).fetchall()
-    conn.close()
-    return success_response(
-        {
-            "items": [
-                {
-                    "userId": row["user_id"],
-                    "status": row["status"],
-                    "joinedAt": row["created_at"],
-                    "nickname": row["nickname"] or row["username"],
-                    "role": normalize_role(row["role"]),
-                }
-                for row in rows
-            ]
-        }
-    )
-
-
-def join_event(event_id):
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "MEMBER"):
-        conn.close()
-        return error_response("단원 이상만 참여 신청할 수 있습니다.", 403)
-    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-    if not event:
-        conn.close()
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
-
-    active_count = conn.execute(
-        "SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ? AND status = 'registered'",
-        (event_id,),
-    ).fetchone()["c"]
-    limit_count = int(event["capacity"] or event["max_participants"] or 0)
-    if limit_count > 0 and active_count >= limit_count:
-        conn.close()
-        return error_response("모집 정원이 마감되었습니다.", 409)
-
-    existing = conn.execute(
-        "SELECT * FROM event_participants WHERE event_id = ? AND user_id = ?",
-        (event_id, me["id"]),
-    ).fetchone()
-
-    if existing:
-        conn.execute(
-            "UPDATE event_participants SET status = 'registered', updated_at = ? WHERE id = ?",
-            (now_iso(), existing["id"]),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO event_participants (event_id, user_id, status, created_at, updated_at) VALUES (?, ?, 'registered', ?, ?)",
-            (event_id, me["id"], now_iso(), now_iso()),
-        )
-
-    log_audit(conn, "join_event", "event", event_id, me["id"])
-    record_user_activity(conn, me["id"], "event_join", "event", event_id)
-    conn.commit()
-    conn.close()
-    invalidate_cache("events:list:")
-    return success_response({"event_id": event_id, "status": "registered"})
-
-
-def cancel_event_participation(event_id):
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "MEMBER"):
-        conn.close()
-        return error_response("단원 이상만 참여 취소할 수 있습니다.", 403)
-    existing = conn.execute(
-        "SELECT * FROM event_participants WHERE event_id = ? AND user_id = ?",
-        (event_id, me["id"]),
-    ).fetchone()
-    if not existing:
-        conn.close()
-        return error_response("참가 신청 이력이 없습니다.", 404)
-
-    conn.execute(
-        "UPDATE event_participants SET status = 'cancelled', updated_at = ? WHERE id = ?",
-        (now_iso(), existing["id"]),
-    )
-    log_audit(conn, "cancel_event", "event", event_id, me["id"])
-    record_user_activity(conn, me["id"], "event_cancel", "event", event_id)
-    conn.commit()
-    conn.close()
-    invalidate_cache("events:list:")
-    return success_response({"event_id": event_id, "status": "cancelled"})
-
-
 def event_detail(event_id):
     return get_event_detail(event_id)
 
@@ -1297,78 +1165,3 @@ def vote_event(event_id):
     return success_response({"event_id": event_id, "status": status})
 
 
-def mark_event_attendance(event_id):
-    payload = request.get_json(silent=True) or {}
-    user_id = int(payload.get("user_id", 0) or 0)
-    status = str(payload.get("status", "")).strip().lower()
-    if user_id <= 0:
-        return error_response("user_id는 필수입니다.", 400)
-    if status not in ("registered", "attended", "absent"):
-        return error_response(
-            "status는 registered|attended|absent 중 하나여야 합니다.", 400
-        )
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-    if not role_at_least(me["role"], "VICE_LEADER"):
-        conn.close()
-        return error_response("부단장 이상만 출결을 처리할 수 있습니다.", 403)
-
-    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-    if not event:
-        conn.close()
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
-
-    participant = conn.execute(
-        "SELECT id FROM event_participants WHERE event_id = ? AND user_id = ? AND status = 'registered'",
-        (event_id, user_id),
-    ).fetchone()
-    if not participant:
-        conn.close()
-        return error_response("등록된 참여자를 찾을 수 없습니다.", 404)
-
-    duration_minutes = _event_duration_minutes(event) if status == "attended" else 0
-    attended_at = now_iso() if status == "attended" else None
-
-    existing = conn.execute(
-        "SELECT id FROM event_attendance WHERE event_id = ? AND user_id = ?",
-        (event_id, user_id),
-    ).fetchone()
-    if existing:
-        conn.execute(
-            "UPDATE event_attendance SET status = ?, attended_at = ?, duration_minutes = ? WHERE id = ?",
-            (status, attended_at, duration_minutes, existing["id"]),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO event_attendance (event_id, user_id, status, attended_at, duration_minutes) VALUES (?, ?, ?, ?, ?)",
-            (event_id, user_id, status, attended_at, duration_minutes),
-        )
-
-    if status == "attended":
-        conn.execute(
-            "INSERT INTO volunteer_activity (user_id, event_id, minutes, created_at) VALUES (?, ?, ?, ?)",
-            (user_id, event_id, duration_minutes, now_iso()),
-        )
-
-    log_audit(
-        conn,
-        "mark_event_attendance",
-        "event",
-        event_id,
-        me["id"],
-        {"user_id": user_id, "status": status},
-    )
-    conn.commit()
-    conn.close()
-    return success_response(
-        {
-            "event_id": event_id,
-            "user_id": user_id,
-            "status": status,
-            "duration_minutes": duration_minutes,
-        }
-    )

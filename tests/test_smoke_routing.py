@@ -30,6 +30,18 @@ def _has_index_marker(text: str) -> bool:
     return "<!doctype" in lowered or "<html" in lowered
 
 
+def _effective_methods(rule):
+    return {
+        method
+        for method in (rule.methods or set())
+        if method not in {"HEAD", "OPTIONS"}
+    }
+
+
+def _rules_for_path(app, path_rule: str):
+    return [rule for rule in app.url_map.iter_rules() if rule.rule == path_rule]
+
+
 def test_root_serves_index(client):
     response = client.get("/")
     body = response.get_data(as_text=True)
@@ -122,6 +134,57 @@ def test_single_root_route_is_registered_once(client):
         "root route must be registered exactly once and bound to 'spa_root': "
         f"{root_get_routes}"
     )
+
+
+def test_root_route_registered_once(client):
+    app = client.application
+    root_rules = _rules_for_path(app, "/")
+    root_get_rules = [rule for rule in root_rules if "GET" in _effective_methods(rule)]
+
+    assert len(root_get_rules) == 1
+
+
+def test_spa_fallback_route_registered_once(client):
+    app = client.application
+    fallback_rules = _rules_for_path(app, "/<path:path>")
+
+    assert len(fallback_rules) == 1
+
+
+def test_root_uses_spa_module(client):
+    app = client.application
+    root_rules = _rules_for_path(app, "/")
+    assert len(root_rules) == 1
+
+    endpoint = root_rules[0].endpoint
+    view_func = app.view_functions.get(endpoint)
+
+    assert view_func is not None
+    assert view_func.__module__ == "weave.spa"
+
+
+def test_fallback_uses_spa_static_proxy(client):
+    app = client.application
+    fallback_rules = _rules_for_path(app, "/<path:path>")
+    assert len(fallback_rules) == 1
+
+    endpoint = fallback_rules[0].endpoint
+    view_func = app.view_functions.get(endpoint)
+
+    assert view_func is not None
+    assert view_func.__module__ == "weave.spa"
+    assert view_func.__name__ == "static_proxy"
+
+
+def test_api_routes_not_handled_by_spa(client):
+    app = client.application
+    api_rules = [
+        rule for rule in app.url_map.iter_rules() if str(rule.rule).startswith("/api/")
+    ]
+
+    assert api_rules
+    for rule in api_rules:
+        assert rule.endpoint != "spa_static_proxy"
 
 
 def test_spa_routes_are_bound_to_spa_module(client):

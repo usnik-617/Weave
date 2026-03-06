@@ -5,23 +5,19 @@ import sqlite3
 from datetime import datetime
 
 from weave import core as weave_core
+from weave.authz import get_current_user_row, normalize_role, role_at_least
 from weave.core import (
     Response,
-    error_response,
-    get_current_user_row,
     get_db_connection,
     jsonify,
     log_audit,
-    normalize_role,
-    now_iso,
     record_user_activity,
     request,
-    role_at_least,
     session,
-    success_response,
-    user_row_to_dict,
-    validate_nickname,
 )
+from weave.responses import error_response, success_response, user_row_to_dict
+from weave.time_utils import now_iso
+from weave.validators import validate_nickname
 
 
 def delete_my_account():

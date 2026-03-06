@@ -1,4 +1,6 @@
 from flask import Blueprint
+from weave import attendance_routes as ar
+from weave import event_participation_routes as epr
 from weave import events_routes as er
 
 bp = Blueprint("events", __name__)
@@ -13,15 +15,15 @@ bp.add_url_rule(
 )
 bp.add_url_rule(
     "/api/events/<int:event_id>/participants",
-    view_func=er.list_event_participants,
+    view_func=epr.list_event_participants,
     methods=["GET"],
 )
 bp.add_url_rule(
-    "/api/events/<int:event_id>/join", view_func=er.join_event, methods=["POST"]
+    "/api/events/<int:event_id>/join", view_func=epr.join_event, methods=["POST"]
 )
 bp.add_url_rule(
     "/api/events/<int:event_id>/cancel",
-    view_func=er.cancel_event_participation,
+    view_func=epr.cancel_event_participation,
     methods=["POST"],
 )
 bp.add_url_rule(
@@ -29,7 +31,7 @@ bp.add_url_rule(
 )
 bp.add_url_rule(
     "/api/events/<int:event_id>/attendance",
-    view_func=er.mark_event_attendance,
+    view_func=ar.mark_event_attendance,
     methods=["POST"],
 )
 

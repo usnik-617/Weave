@@ -6,34 +6,38 @@ from pathlib import Path
 
 from werkzeug.utils import secure_filename
 
+from weave.authz import (
+    can_create_gallery,
+    can_create_notice,
+    is_admin_like,
+    normalize_role,
+    role_at_least,
+    role_to_icon,
+    role_to_label,
+)
+from weave import comment_routes, gallery_routes, notice_routes, qna_routes
 from weave.core import (
     UPLOAD_DIR,
-    save_uploaded_file,
     build_annual_report,
-    delete_file_if_unreferenced,
-    error_response,
     get_cache,
     get_current_user_row,
     get_db_connection,
     invalidate_cache,
     jsonify,
     log_audit,
-    make_thumbnail_like,
-    normalize_role,
-    now_iso,
-    parse_iso_datetime,
     post_visibility_status,
     record_user_activity,
-    remove_file_safely,
     request,
-    role_at_least,
-    role_to_icon,
-    role_to_label,
     set_cache,
-    success_response,
-    success_response_legacy,
+)
+from weave.files import (
+    delete_file_if_unreferenced,
+    remove_file_safely,
+    save_uploaded_file,
     upload_url_to_path,
 )
+from weave.responses import error_response, success_response, success_response_legacy
+from weave.time_utils import now_iso, parse_iso_datetime
 
 
 ABOUT_SECTION_KEYS = {
@@ -168,8 +172,7 @@ def upload_about_section_image():
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)
 
     if section_key == "hero_background":
-        is_admin_flag = bool(me["is_admin"]) if "is_admin" in me.keys() else False
-        if not (role_at_least(me["role"], "ADMIN") or is_admin_flag):
+        if not is_admin_like(me):
             conn.close()
             return error_response("운영자만 배경 이미지를 수정할 수 있습니다.", 403)
     elif not role_at_least(me["role"], "EXECUTIVE"):
@@ -261,8 +264,7 @@ def update_content_block():
         return error_response("운영진 이상만 수정할 수 있습니다.", 403)
 
     if block_key in {"home_stats", "hero_background"}:
-        is_admin_flag = bool(me["is_admin"]) if "is_admin" in me.keys() else False
-        if not (role_at_least(me["role"], "ADMIN") or is_admin_flag):
+        if not is_admin_like(me):
             conn.close()
             message = (
                 "운영자만 홈 통계를 수정할 수 있습니다."
@@ -291,116 +293,19 @@ def update_content_block():
 
 
 def list_gallery_albums():
-    conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM gallery_albums ORDER BY id DESC").fetchall()
-    conn.close()
-    return success_response_legacy(
-        {
-            "ok": True,
-            "items": [
-                {
-                    "id": row["id"],
-                    "title": row["title"],
-                    "activityId": row["activity_id"],
-                    "visibility": row["visibility"],
-                    "portraitConsent": bool(row["portrait_consent"]),
-                    "createdAt": row["created_at"],
-                }
-                for row in rows
-            ],
-        }
-    )
+    return gallery_routes.list_gallery_albums()
 
 
 def create_gallery_album():
-    payload = request.get_json(silent=True) or {}
-    title = str(payload.get("title", "")).strip()
-    visibility = str(payload.get("visibility", "internal")).strip().lower()
-    portrait_consent = bool(payload.get("portraitConsent", False))
-    if not title:
-        return jsonify({"ok": False, "message": "앨범 제목이 필요합니다."}), 400
-    if visibility not in ("public", "private", "internal"):
-        return jsonify({"ok": False, "message": "공개 범위가 올바르지 않습니다."}), 400
-    if not portrait_consent:
-        return jsonify({"ok": False, "message": "초상권 동의가 필요합니다."}), 400
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO gallery_albums (title, activity_id, visibility, portrait_consent, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            title,
-            payload.get("activityId"),
-            visibility,
-            1 if portrait_consent else 0,
-            me["id"],
-            now_iso(),
-        ),
-    )
-    album_id = cur.lastrowid
-    conn.commit()
-    conn.close()
-    return success_response_legacy({"ok": True, "albumId": album_id})
+    return gallery_routes.create_gallery_album()
 
 
 def add_gallery_photos(album_id):
-    payload = request.get_json(silent=True) or {}
-    photos = payload.get("photos", [])
-    if not isinstance(photos, list) or not photos:
-        return jsonify({"ok": False, "message": "photos 배열이 필요합니다."}), 400
-
-    conn = get_db_connection()
-    album = conn.execute(
-        "SELECT id FROM gallery_albums WHERE id = ?", (album_id,)
-    ).fetchone()
-    if not album:
-        conn.close()
-        return jsonify({"ok": False, "message": "앨범을 찾을 수 없습니다."}), 404
-
-    created = 0
-    for photo in photos:
-        image_url = str(photo.get("imageUrl", "")).strip()
-        if not image_url:
-            continue
-        title = str(photo.get("title", "")).strip()
-        thumb = make_thumbnail_like(image_url)
-        conn.execute(
-            "INSERT INTO gallery_photos (album_id, title, image_url, thumbnail_url, created_at) VALUES (?, ?, ?, ?, ?)",
-            (album_id, title, image_url, thumb, now_iso()),
-        )
-        created += 1
-
-    conn.commit()
-    conn.close()
-    return success_response_legacy({"ok": True, "created": created})
+    return gallery_routes.add_gallery_photos(album_id)
 
 
 def delete_gallery_photo(photo_id):
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-
-    row = conn.execute(
-        "SELECT * FROM gallery_photos WHERE id = ?", (photo_id,)
-    ).fetchone()
-    if not row:
-        conn.close()
-        return error_response("사진을 찾을 수 없습니다.", 404)
-
-    remove_file_safely(upload_url_to_path(row["image_url"]))
-    remove_file_safely(upload_url_to_path(row["thumbnail_url"]))
-
-    conn.execute("DELETE FROM gallery_photos WHERE id = ?", (photo_id,))
-    conn.commit()
-    conn.close()
-    log_audit(me["id"], "delete_gallery_photo", "gallery_photo", photo_id)
-    return success_response({"ok": True})
+    return gallery_routes.delete_gallery_photo(photo_id)
 
 
 def get_press_kit():
@@ -645,8 +550,6 @@ def create_post():
     publish_at = str(payload.get("publish_at", "")).strip() or None
     if publish_at and not parse_iso_datetime(publish_at):
         return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
-    status = post_visibility_status(publish_at)
-
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
@@ -656,7 +559,10 @@ def create_post():
         conn.close()
         return error_response("정지된 계정은 게시글을 작성할 수 없습니다.", 403)
 
-    if category in ("notice", "gallery") and not role_at_least(me["role"], "EXECUTIVE"):
+    if category == "notice" and not can_create_notice(me):
+        conn.close()
+        return error_response("공지/갤러리 작성은 임원 이상만 가능합니다.", 403)
+    if category == "gallery" and not can_create_gallery(me):
         conn.close()
         return error_response("공지/갤러리 작성은 임원 이상만 가능합니다.", 403)
 
@@ -664,70 +570,72 @@ def create_post():
         conn.close()
         return error_response("Q&A 작성 권한이 없습니다.", 403)
 
-    volunteer_start = str(payload.get("volunteerStartDate", "")).strip() or None
-    volunteer_end = str(payload.get("volunteerEndDate", "")).strip() or volunteer_start
-
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO posts (
-            category, title, content, is_pinned, is_important, publish_at, status, image_url, thumb_url,
-            volunteer_start_date, volunteer_end_date, author_id, created_at, updated_at
+    if category == "notice":
+        post_id, err = notice_routes.create_notice_post(
+            payload, conn, me, post_visibility_status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            category,
-            title,
-            str(payload.get("content", "")),
-            1 if bool(payload.get("is_pinned", False)) else 0,
-            1 if bool(payload.get("is_important", False)) else 0,
-            publish_at,
-            status,
-            str(payload.get("image_url", "")).strip(),
-            str(payload.get("thumb_url", "")).strip(),
-            volunteer_start,
-            volunteer_end,
-            me["id"],
-            now_iso(),
-            now_iso(),
-        ),
-    )
-    post_id = cur.lastrowid
+        if err:
+            conn.close()
+            return err
+    elif category == "gallery":
+        post_id, err = gallery_routes.create_gallery_post(
+            payload, conn, me, post_visibility_status
+        )
+        if err:
+            conn.close()
+            return err
+    elif category == "qna":
+        post_id, err = qna_routes.create_qna_post(
+            payload, conn, me, post_visibility_status
+        )
+        if err:
+            conn.close()
+            return err
+    else:
+        publish_at = str(payload.get("publish_at", "")).strip() or None
+        if publish_at and not parse_iso_datetime(publish_at):
+            conn.close()
+            return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+        status = post_visibility_status(publish_at)
+        volunteer_start = str(payload.get("volunteerStartDate", "")).strip() or None
+        volunteer_end = (
+            str(payload.get("volunteerEndDate", "")).strip() or volunteer_start
+        )
 
-    if category == "notice" and volunteer_start:
-        activity_start = f"{volunteer_start}T09:00:00"
-        activity_end = f"{(volunteer_end or volunteer_start)}T18:00:00"
-        conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             """
-            INSERT INTO activities (
-                title, description, start_at, end_at, place, supplies, gather_time,
-                manager_name, recruitment_limit, created_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (
+                category, title, content, is_pinned, is_important, publish_at, status, image_url, thumb_url,
+                volunteer_start_date, volunteer_end_date, author_id, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                category,
                 title,
-                str(payload.get("content", ""))[:300],
-                activity_start,
-                activity_end,
-                str(payload.get("place", "")).strip(),
-                str(payload.get("supplies", "")).strip(),
-                "",
-                (
-                    me["nickname"]
-                    if "nickname" in me.keys() and me["nickname"]
-                    else me["username"]
-                ),
-                int(payload.get("recruitment_limit", 0) or 0),
+                str(payload.get("content", "")),
+                1 if bool(payload.get("is_pinned", False)) else 0,
+                1 if bool(payload.get("is_important", False)) else 0,
+                publish_at,
+                status,
+                str(payload.get("image_url", "")).strip(),
+                str(payload.get("thumb_url", "")).strip(),
+                volunteer_start,
+                volunteer_end,
                 me["id"],
+                now_iso(),
                 now_iso(),
             ),
         )
+        post_id = cur.lastrowid
+        log_audit(
+            conn, "create_post", "post", post_id, me["id"], {"category": category}
+        )
+        record_user_activity(
+            conn, me["id"], "post_create", "post", post_id, {"category": category}
+        )
 
-    log_audit(conn, "create_post", "post", post_id, me["id"], {"category": category})
-    record_user_activity(
-        conn, me["id"], "post_create", "post", post_id, {"category": category}
-    )
     conn.commit()
     conn.close()
     invalidate_cache("posts:list:notice:")
@@ -852,32 +760,48 @@ def update_post(post_id):
     if not category:
         conn.close()
         return error_response("category는 필수입니다.", 400)
-    publish_at = (
-        str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
-    )
-    if publish_at and not parse_iso_datetime(publish_at):
-        conn.close()
-        return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
-    status = post_visibility_status(publish_at)
+    next_category = category.lower()
+    if next_category == "notice":
+        err = notice_routes.update_notice_post(
+            post_id, payload, conn, me, post_visibility_status
+        )
+    elif next_category == "gallery":
+        err = gallery_routes.update_gallery_post(
+            post_id, payload, conn, me, post_visibility_status
+        )
+    elif next_category == "qna":
+        err = qna_routes.update_qna_post(post_id, payload, conn, me, post_visibility_status)
+    else:
+        publish_at = (
+            str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
+        )
+        if publish_at and not parse_iso_datetime(publish_at):
+            conn.close()
+            return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+        status = post_visibility_status(publish_at)
 
-    conn.execute(
-        """
-        UPDATE posts
-        SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, status = ?, updated_at = ?
-        WHERE id = ?
-        """,
-        (
-            category,
-            str(payload.get("title", post["title"])).strip(),
-            str(payload.get("content", post["content"])),
-            1 if bool(payload.get("is_pinned", bool(post["is_pinned"]))) else 0,
-            publish_at,
-            status,
-            now_iso(),
-            post_id,
-        ),
-    )
-    log_audit(conn, "update_post", "post", post_id, me["id"])
+        conn.execute(
+            """
+            UPDATE posts
+            SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, status = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                category,
+                str(payload.get("title", post["title"])).strip(),
+                str(payload.get("content", post["content"])),
+                1 if bool(payload.get("is_pinned", bool(post["is_pinned"]))) else 0,
+                publish_at,
+                status,
+                now_iso(),
+                post_id,
+            ),
+        )
+        log_audit(conn, "update_post", "post", post_id, me["id"])
+        err = None
+    if err:
+        conn.close()
+        return err
     conn.commit()
     conn.close()
     invalidate_cache("posts:list:notice:")
@@ -901,17 +825,34 @@ def delete_post(post_id):
     ):
         conn.close()
         return error_response("작성자 또는 운영권한이 필요합니다.", 403)
-    files = conn.execute(
-        "SELECT * FROM post_files WHERE post_id = ?", (post_id,)
-    ).fetchall()
-    for file_row in files:
-        conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
-        delete_file_if_unreferenced(conn, file_row["stored_path"])
-    remove_file_safely(upload_url_to_path(post["thumb_url"]))
-    conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-    log_audit(
-        conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]}
-    )
+    category = str(post["category"] or "").lower()
+    if category == "notice":
+        err = notice_routes.delete_notice_post(post_id, conn, me)
+    elif category == "gallery":
+        err = gallery_routes.delete_gallery_post(post_id, conn, me)
+    elif category == "qna":
+        err = qna_routes.delete_qna_post(post_id, conn, me)
+    else:
+        files = conn.execute(
+            "SELECT * FROM post_files WHERE post_id = ?", (post_id,)
+        ).fetchall()
+        for file_row in files:
+            conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
+            delete_file_if_unreferenced(conn, file_row["stored_path"])
+        remove_file_safely(upload_url_to_path(post["thumb_url"]))
+        conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+        log_audit(
+            conn,
+            "delete_post",
+            "post",
+            post_id,
+            me["id"],
+            {"category": post["category"]},
+        )
+        err = None
+    if err:
+        conn.close()
+        return err
     conn.commit()
     conn.close()
     invalidate_cache("posts:list:notice:")
@@ -920,54 +861,7 @@ def delete_post(post_id):
 
 
 def create_post_comment(post_id):
-    payload = request.get_json(silent=True) or {}
-    content = str(payload.get("content", "")).strip()
-    if not content:
-        return error_response("댓글 내용을 입력해주세요.", 400)
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response("Unauthorized", 401)
-    if me["status"] == "suspended":
-        conn.close()
-        return error_response("정지된 계정은 댓글을 작성할 수 없습니다.", 403)
-    post = conn.execute(
-        "SELECT id, category FROM posts WHERE id = ?", (post_id,)
-    ).fetchone()
-    if not post:
-        conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
-    if post["category"] in ("notice", "gallery") and not role_at_least(
-        me["role"], "MEMBER"
-    ):
-        conn.close()
-        return error_response("공지/갤러리 댓글은 단원 이상만 가능합니다.", 403)
-
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO comments (post_id, user_id, content, parent_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            post_id,
-            me["id"],
-            content,
-            payload.get("parent_id"),
-            now_iso(),
-            now_iso(),
-        ),
-    )
-    comment_id = cur.lastrowid
-    log_audit(conn, "create_comment", "post", post_id, me["id"])
-    record_user_activity(
-        conn, me["id"], "comment_create", "comment", comment_id, {"post_id": post_id}
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"ok": True}, 201)
+    return comment_routes.create_post_comment(post_id)
 
 
 def recommend_post(post_id):
@@ -1003,17 +897,4 @@ def recommend_post(post_id):
 
 
 def important_notices():
-    conn = get_db_connection()
-    rows = conn.execute(
-        """
-        SELECT id, title, publish_at, created_at
-        FROM posts
-        WHERE category = 'notice' AND is_important = 1
-          AND (publish_at IS NULL OR publish_at <= ?)
-        ORDER BY is_pinned DESC, COALESCE(publish_at, created_at) DESC
-        LIMIT 3
-        """,
-        (now_iso(),),
-    ).fetchall()
-    conn.close()
-    return success_response({"items": [dict(row) for row in rows]})
+    return notice_routes.important_notices()

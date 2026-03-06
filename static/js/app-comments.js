@@ -2,6 +2,8 @@ function getPostKey(type, id) {
   return `${type}-${id}`;
 }
 
+const commentReplyDraftState = {};
+
 function getComments(itemId) {
   const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
   return all[itemId] || { comments: [], recommendUsers: [] };
@@ -89,6 +91,10 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function escapeHtmlAttr(value) {
+  return escapeHtml(value).replaceAll('`', '&#96;');
+}
+
 function renderNetworkError(container, retryHandler) {
   if (!container) return;
   container.innerHTML = `
@@ -141,6 +147,9 @@ function renderPostComments(containerId, itemKey) {
     const replies = comments.filter(c => c.parentId === comment.id);
     const recommendCount = Array.isArray(comment.recommendUsers) ? comment.recommendUsers.length : 0;
     const didRecommend = !!(user && Array.isArray(comment.recommendUsers) && comment.recommendUsers.includes(user.username));
+    const activeReply = commentReplyDraftState[itemKey];
+    const showReplyComposer = !!(user && activeReply && Number(activeReply.parentId) === Number(comment.id));
+    const replyDraftText = showReplyComposer ? String(activeReply.text || '') : '';
     return `
       <div class="comment-item ${isReply ? 'comment-reply' : ''}" data-id="${comment.id}">
         <div class="comment-author">${escapeHtml(formatAuthorDisplay({ nickname: comment.nickname || comment.name || comment.username, role: comment.role || 'GENERAL' }))}</div>
@@ -154,6 +163,27 @@ function renderPostComments(containerId, itemKey) {
             ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
           </div>
         </div>
+        ${showReplyComposer ? `
+          <form class="mt-2" onsubmit="submitInlineReply(event, '${itemKey}', ${comment.id}, '${containerId}')">
+            <div class="input-group input-group-sm">
+              <input
+                type="text"
+                class="form-control"
+                name="replyText"
+                value="${escapeHtmlAttr(replyDraftText)}"
+                placeholder="대댓글을 입력하세요"
+                required
+                autocapitalize="off"
+                autocomplete="off"
+                inputmode="text"
+                spellcheck="false"
+                oninput="updateReplyDraft('${itemKey}', ${comment.id}, this.value)"
+              >
+              <button class="btn btn-primary" type="submit">등록</button>
+              <button class="btn btn-outline-secondary" type="button" onclick="cancelReplyComment('${itemKey}', '${containerId}')">취소</button>
+            </div>
+          </form>
+        ` : ''}
         ${replies.map(r => renderComment(r, true)).join('')}
       </div>
     `;
@@ -263,17 +293,64 @@ function submitPostComment(event, itemKey, containerId) {
   }
 
   saveComments(itemKey, info);
+  delete commentReplyDraftState[itemKey];
   renderPostComments(containerId, itemKey);
 }
 
 function startReplyComment(itemKey, parentId, containerId) {
+  commentReplyDraftState[itemKey] = {
+    parentId: Number(parentId),
+    text: ''
+  };
+  renderPostComments(containerId, itemKey);
   const container = document.getElementById(containerId);
-  if (!container) return;
-  const form = container.querySelector('.comment-form');
-  if (!form) return;
-  form.parentId.value = String(parentId);
-  form.editId.value = '';
-  form.comment.focus();
+  const input = container?.querySelector(`.comment-item[data-id="${Number(parentId)}"] input[name="replyText"]`);
+  if (input) input.focus();
+}
+
+function updateReplyDraft(itemKey, parentId, value) {
+  const current = commentReplyDraftState[itemKey];
+  if (!current || Number(current.parentId) !== Number(parentId)) return;
+  current.text = String(value || '');
+}
+
+function cancelReplyComment(itemKey, containerId) {
+  delete commentReplyDraftState[itemKey];
+  renderPostComments(containerId, itemKey);
+}
+
+function submitInlineReply(event, itemKey, parentId, containerId) {
+  event.preventDefault();
+  const user = getCurrentUser();
+  if (!user) {
+    alert('댓글을 작성하려면 로그인이 필요합니다.');
+    return;
+  }
+  const form = event.target;
+  const text = String(form.replyText?.value || '').trim();
+  if (!text) {
+    if (form.replyText) form.replyText.focus();
+    return;
+  }
+
+  const info = getComments(itemKey);
+  if (!Array.isArray(info.comments)) info.comments = [];
+  const newId = Math.max(0, ...info.comments.map(c => c.id || 0)) + 1;
+  info.comments.push({
+    id: newId,
+    parentId: Number(parentId) || null,
+    username: user.username,
+    nickname: user.nickname || user.username,
+    role: user.role || 'GENERAL',
+    name: user.name,
+    text,
+    time: new Date().toISOString(),
+    recommendUsers: []
+  });
+
+  saveComments(itemKey, info);
+  delete commentReplyDraftState[itemKey];
+  renderPostComments(containerId, itemKey);
 }
 
 function startEditComment(itemKey, commentId, containerId) {
@@ -288,6 +365,7 @@ function startEditComment(itemKey, commentId, containerId) {
   form.comment.value = target.text || '';
   form.parentId.value = '';
   form.editId.value = String(commentId);
+  delete commentReplyDraftState[itemKey];
   form.comment.focus();
 }
 

@@ -20,6 +20,22 @@ function getFilteredQnaItems() {
     .sort((a, b) => b.id - a.id);
 }
 
+function enableContentImagePreview(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll('img').forEach((img) => {
+    const src = String(img.getAttribute('src') || '').trim();
+    if (!src) return;
+    img.loading = 'lazy';
+    img.style.cursor = 'zoom-in';
+    img.style.maxWidth = img.style.maxWidth || '100%';
+    img.addEventListener('click', (event) => {
+      event.preventDefault();
+      window.open(src, '_blank', 'noopener');
+    });
+  });
+}
+
 function renderNews() {
   const tbody = document.getElementById('news-table-body');
   const pagination = document.getElementById('news-pagination');
@@ -392,13 +408,13 @@ function openNotice(id) {
       const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName);
       if (isPdf) {
         return `
-          <a class="btn btn-sm btn-outline-secondary mt-2 me-2" href="${previewUrl}" target="_blank" rel="noopener">PDF 미리보기</a>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2" href="${downloadUrl}" download target="_blank" rel="noopener">다운로드</a>
+          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener">PDF 미리보기</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener">다운로드</a>
         `;
       }
       if (!isImage) {
         return `
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2" href="${downloadUrl}" download target="_blank" rel="noopener">${escapeHtml(fileName)} 다운로드</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener">${escapeHtml(fileName)} 다운로드</a>
         `;
       }
       const imageThumb = file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl;
@@ -413,7 +429,7 @@ function openNotice(id) {
       ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">캘린더로 이동</button>`
       : '';
 
-    actionsEl.innerHTML = `${calendarButton}${attachmentHtml ? `<div class="mt-2">${attachmentHtml}</div>` : ''}`;
+    actionsEl.innerHTML = `${calendarButton}${attachmentHtml ? `<div class="mt-2 notice-attachment-actions">${attachmentHtml}</div>` : ''}`;
     const btn = document.getElementById('notice-go-calendar-btn');
     if (btn) {
       btn.onclick = async () => {
@@ -509,9 +525,6 @@ function renderGallery() {
     const thumbImage = item.thumb_url
       || item.thumbnail_url
       || item.thumb
-      || item.image_url
-      || (Array.isArray(item.images) ? item.images[0] : '')
-      || item.image
       || 'logo.png';
     const div = document.createElement('div');
     div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
@@ -591,20 +604,11 @@ function openGalleryDetail(id) {
   const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
   const itemKey = getPostKey('gallery', id);
   currentGalleryDetailId = id;
-  const originalImage = item.image_url || (Array.isArray(item.images) && item.images[0]) || item.image || item.thumb_url || item.thumbnail_url || item.thumb || 'logo.png';
   const detailImage = document.getElementById('gallery-detail-image');
   const detailContentHtml = String(item.content || '');
-  const contentImageMatch = detailContentHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
-  const contentFirstImage = contentImageMatch ? String(contentImageMatch[1] || '').trim() : '';
-  const normalizeImageForCompare = (value) => String(value || '').trim().replace(/^https?:\/\/[^/]+/i, '');
-  const isDuplicateRepresentative = !!(
-    originalImage
-    && contentFirstImage
-    && normalizeImageForCompare(originalImage) === normalizeImageForCompare(contentFirstImage)
-  );
   if (detailImage) {
-    detailImage.src = originalImage;
-    detailImage.classList.toggle('d-none', !originalImage || isDuplicateRepresentative);
+    detailImage.removeAttribute('src');
+    detailImage.classList.add('d-none');
   }
   document.getElementById('gallery-detail-title').innerText = item.title;
   updateDetailMeta('gallery', {
@@ -616,6 +620,7 @@ function openGalleryDetail(id) {
     comments: getCommentCount(itemKey)
   });
   document.getElementById('gallery-detail-content').innerHTML = detailContentHtml || '내용이 없습니다.';
+  enableContentImagePreview('gallery-detail-content');
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
     const linkedActivityId = Number(item.activityId || item.activity_id || 0);

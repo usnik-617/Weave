@@ -1,5 +1,4 @@
 import os
-import re
 import sqlite3
 import uuid
 import hashlib
@@ -11,7 +10,6 @@ import smtplib
 import time
 import shutil
 import threading
-from functools import wraps
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
@@ -108,30 +106,43 @@ CACHE_TTL_SECONDS = 60
 APP_CACHE = {}
 APP_CACHE_LOCK = threading.Lock()
 
-
-def success_response(data=None, status_code=200):
-    return jsonify({"success": True, "data": data}), status_code
-
-
-def success_response_legacy(data=None, status_code=200):
-    body = {"success": True, "data": data}
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if key == "success":
-                continue
-            body[key] = value
-    return jsonify(body), status_code
-
-
-def error_response(message, code=400, details=None):
-    body = {"success": False, "error": str(message)}
-    if details is not None:
-        body["details"] = details
-    return jsonify(body), code
-
-
-def is_api_request():
-    return request.path.startswith("/api")
+from weave.authz import (
+    active_member_required,
+    admin_required,
+    get_current_user_row,
+    login_required,
+    normalize_role,
+    role_at_least,
+    role_required,
+    role_to_icon,
+    role_to_label,
+    roles_allowed,
+    roles_required,
+)
+from weave.files import (
+    compute_file_sha256_from_filestorage,
+    delete_file_if_unreferenced,
+    make_thumbnail_like,
+    remove_file_safely,
+    save_uploaded_file,
+    upload_url_to_path,
+)
+from weave.responses import (
+    author_payload_from_user,
+    error_response,
+    is_api_request,
+    success_response,
+    success_response_legacy,
+    user_row_to_dict,
+)
+from weave.time_utils import activity_start_date_local, now_iso, parse_iso_datetime
+from weave.validators import (
+    normalize_contact,
+    to_list_text,
+    validate_nickname,
+    validate_password_policy,
+    validate_signup_payload,
+)
 
 
 def get_client_ip():
@@ -156,65 +167,6 @@ def parse_rate_limit_bucket(ip):
         bucket["blocked_until"] = None
     LOGIN_ATTEMPTS[ip] = bucket
     return bucket
-
-
-def normalize_role(role):
-    text = str(role or "GENERAL").strip()
-    if text in ROLE_ORDER:
-        return text
-    mapped = LEGACY_ROLE_MAP.get(text.lower())
-    return mapped or "GENERAL"
-
-
-def role_to_label(role):
-    labels = {
-        "GENERAL": "일반",
-        "MEMBER": "단원",
-        "EXECUTIVE": "임원",
-        "LEADER": "단장",
-        "VICE_LEADER": "부단장",
-        "ADMIN": "운영자",
-    }
-    return labels.get(normalize_role(role), "일반")
-
-
-def role_to_icon(role):
-    icons = {
-        "ADMIN": "🛡️",
-        "LEADER": "👑",
-        "VICE_LEADER": "⭐",
-        "MEMBER": "🙋",
-        "EXECUTIVE": "🎯",
-    }
-    return icons.get(normalize_role(role), "")
-
-
-def author_payload_from_user(user_row):
-    if not user_row:
-        return None
-    role_value = normalize_role(user_row["role"])
-    nickname = (
-        user_row["nickname"]
-        if "nickname" in user_row.keys() and user_row["nickname"]
-        else user_row["username"]
-    )
-    return {
-        "id": user_row["id"],
-        "nickname": nickname,
-        "role": role_value,
-        "role_label": role_to_label(role_value),
-        "role_icon": role_to_icon(role_value),
-    }
-
-
-def validate_nickname(nickname):
-    text = str(nickname or "").strip()
-    if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", text):
-        return (
-            False,
-            "닉네임은 2~12자이며 한글/영문/숫자만 사용할 수 있습니다. (띄어쓰기/특수문자 불가)",
-        )
-    return True, ""
 
 
 def get_rate_limit_key(action, username_hint=""):
@@ -283,24 +235,6 @@ def current_user_id():
     return session.get("user_id")
 
 
-def save_uploaded_file(file_storage):
-    from weave import core_files
-
-    return core_files.save_uploaded_file(file_storage)
-
-
-def remove_file_safely(path):
-    from weave import core_files
-
-    return core_files.remove_file_safely(path)
-
-
-def upload_url_to_path(upload_url):
-    from weave import core_files
-
-    return core_files.upload_url_to_path(upload_url)
-
-
 def get_db_connection():
     from weave import core_db
 
@@ -311,31 +245,6 @@ def db_write_retry(func):
     from weave import core_db
 
     return core_db.db_write_retry(func)
-
-
-def parse_iso_datetime(value):
-    if not value:
-        return None
-    try:
-        normalized = str(value).strip()
-        if normalized.endswith("Z"):
-            normalized = normalized[:-1] + "+00:00"
-        return datetime.fromisoformat(normalized)
-    except Exception:
-        return None
-
-
-def activity_start_date_local(value):
-    dt = parse_iso_datetime(value)
-    if not dt:
-        return None
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(KST)
-    return dt.date()
-
-
-def now_iso():
-    return datetime.now().isoformat()
 
 
 def _cache_now():
@@ -363,159 +272,6 @@ def invalidate_cache(prefix):
         keys = [key for key in APP_CACHE.keys() if str(key).startswith(str(prefix))]
         for key in keys:
             APP_CACHE.pop(key, None)
-
-
-def normalize_contact(value):
-    return str(value or "").replace("-", "").strip().lower()
-
-
-def to_list_text(value):
-    if isinstance(value, list):
-        return ", ".join([str(item).strip() for item in value if str(item).strip()])
-    return str(value or "").strip()
-
-
-def role_at_least(role, minimum):
-    current = normalize_role(role)
-    required = normalize_role(minimum)
-    return ROLE_ORDER.get(current, 0) >= ROLE_ORDER.get(required, 0)
-
-
-def get_current_user_row(conn=None):
-    user_id = session.get("user_id")
-    if not user_id:
-        return None
-
-    owned = False
-    if conn is None:
-        conn = get_db_connection()
-        owned = True
-
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if owned:
-        conn.close()
-    return row
-
-
-def login_required(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        user = get_current_user_row()
-        if not user:
-            return error_response("Unauthorized", 401)
-        if user["status"] in ("suspended", "deleted"):
-            return error_response("계정 상태로 인해 요청을 처리할 수 없습니다.", 403)
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def admin_required(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        user = get_current_user_row()
-        if not user:
-            return error_response("Unauthorized", 401)
-        if not roles_allowed(user, {"ADMIN", "LEADER", "VICE_LEADER"}):
-            return error_response("Forbidden", 403)
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def role_required(min_role):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            user = get_current_user_row()
-            if not user:
-                return error_response("Unauthorized", 401)
-            if not role_at_least(user["role"], min_role):
-                return error_response("Forbidden", 403)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def roles_required(allowed_roles):
-    allowed = {normalize_role(role) for role in allowed_roles}
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            user = get_current_user_row()
-            if not user:
-                return error_response("Unauthorized", 401)
-            user_role = normalize_role(user["role"])
-            if user_role not in allowed:
-                return error_response("권한이 없습니다.", 403)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def roles_allowed(user_row, allowed_roles):
-    if not user_row:
-        return False
-    return normalize_role(user_row["role"]) in {
-        normalize_role(role) for role in allowed_roles
-    }
-
-
-def active_member_required(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        user = get_current_user_row()
-        if not user:
-            return error_response("Unauthorized", 401)
-        if user["status"] != "active":
-            return error_response("승인된 정식 단원만 이용할 수 있습니다.", 403)
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def user_row_to_dict(row):
-    if not row:
-        return None
-    role_value = normalize_role(row["role"])
-    nickname_value = (
-        row["nickname"]
-        if "nickname" in row.keys() and row["nickname"]
-        else row["username"]
-    )
-    is_admin_value = bool(row["is_admin"]) if "is_admin" in row.keys() else False
-    if role_value == "ADMIN":
-        is_admin_value = True
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "username": row["username"],
-        "nickname": nickname_value,
-        "nicknameUpdatedAt": row["nickname_updated_at"]
-        if "nickname_updated_at" in row.keys()
-        else None,
-        "email": row["email"],
-        "phone": row["phone"],
-        "birthDate": row["birth_date"],
-        "joinDate": row["join_date"],
-        "role": role_value,
-        "roleLabel": f"[{role_to_label(role_value)}]",
-        "roleIcon": role_to_icon(role_value),
-        "status": row["status"],
-        "generation": row["generation"],
-        "interests": row["interests"],
-        "certificates": row["certificates"],
-        "availability": row["availability"],
-        "isAdmin": is_admin_value,
-        "is_admin": is_admin_value,
-        "failedLoginCount": row["failed_login_count"],
-        "lockedUntil": row["locked_until"],
-    }
 
 
 def log_audit(*args, **kwargs):
@@ -1388,16 +1144,6 @@ def init_db():
     conn.close()
 
 
-def validate_password_policy(password):
-    if len(password or "") < 8:
-        return False, "비밀번호는 8자 이상이어야 합니다."
-    if not re.search(r"[A-Z]", password or ""):
-        return False, "비밀번호에 대문자 1개 이상이 필요합니다."
-    if not re.search(r"[^A-Za-z0-9]", password or ""):
-        return False, "비밀번호에 특수문자 1개 이상이 필요합니다."
-    return True, ""
-
-
 def try_unlock_expired_user(conn, row):
     if not row:
         return
@@ -1441,33 +1187,6 @@ def reset_login_failures(conn, row_id):
         (row_id,),
     )
     conn.commit()
-
-
-def validate_signup_payload(payload):
-    required_fields = [
-        "name",
-        "nickname",
-        "email",
-        "birthDate",
-        "phone",
-        "username",
-        "password",
-    ]
-    for field in required_fields:
-        if not str(payload.get(field, "")).strip():
-            return False, f"{field} 값이 필요합니다."
-
-    password_ok, password_message = validate_password_policy(
-        str(payload.get("password", ""))
-    )
-    if not password_ok:
-        return False, password_message
-
-    nickname_ok, nickname_message = validate_nickname(payload.get("nickname", ""))
-    if not nickname_ok:
-        return False, nickname_message
-
-    return True, ""
 
 
 def touch_user_activity(user_id):
@@ -1547,12 +1266,6 @@ def calculate_activity_hours(activity):
     if start_dt and end_dt and end_dt > start_dt:
         return max(round((end_dt - start_dt).total_seconds() / 3600, 2), 0.5)
     return 2.0
-
-
-def make_thumbnail_like(url):
-    if not url:
-        return ""
-    return url
 
 
 def build_annual_report(conn, year):
@@ -1744,18 +1457,3 @@ def should_expose_post(publish_at):
     return not publish_dt or publish_dt <= now_dt
 
 
-def compute_file_sha256_from_filestorage(file_storage):
-    from weave import core_files
-
-    return core_files.compute_file_sha256_from_filestorage(file_storage)
-
-
-def delete_file_if_unreferenced(conn, stored_path):
-    if not stored_path:
-        return
-    ref = conn.execute(
-        "SELECT id FROM post_files WHERE stored_path = ? LIMIT 1",
-        (stored_path,),
-    ).fetchone()
-    if not ref:
-        remove_file_safely(stored_path)

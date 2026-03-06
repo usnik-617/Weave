@@ -1,4 +1,7 @@
 from flask import Blueprint
+from weave import comment_routes as cr
+from weave import gallery_routes as gr
+from weave import notice_routes as nr
 from weave import posts_routes as pr
 
 bp = Blueprint("posts", __name__)
@@ -12,29 +15,29 @@ bp.add_url_rule(
 )
 bp.add_url_rule(
     "/api/posts/<int:post_id>/comments",
-    view_func=pr.create_post_comment,
+    view_func=cr.create_post_comment,
     methods=["POST"],
 )
 bp.add_url_rule(
     "/api/posts/<int:post_id>/recommend", view_func=pr.recommend_post, methods=["POST"]
 )
 bp.add_url_rule(
-    "/api/home/important-notices", view_func=pr.important_notices, methods=["GET"]
+    "/api/home/important-notices", view_func=nr.important_notices, methods=["GET"]
 )
 bp.add_url_rule(
-    "/api/gallery/albums", view_func=pr.list_gallery_albums, methods=["GET"]
+    "/api/gallery/albums", view_func=gr.list_gallery_albums, methods=["GET"]
 )
 bp.add_url_rule(
-    "/api/gallery/albums", view_func=pr.create_gallery_album, methods=["POST"]
+    "/api/gallery/albums", view_func=gr.create_gallery_album, methods=["POST"]
 )
 bp.add_url_rule(
     "/api/gallery/albums/<int:album_id>/photos",
-    view_func=pr.add_gallery_photos,
+    view_func=gr.add_gallery_photos,
     methods=["POST"],
 )
 bp.add_url_rule(
     "/api/gallery/photos/<int:photo_id>",
-    view_func=pr.delete_gallery_photo,
+    view_func=gr.delete_gallery_photo,
     methods=["DELETE"],
 )
 bp.add_url_rule("/api/press-kit", view_func=pr.get_press_kit, methods=["GET"])

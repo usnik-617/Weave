@@ -1,4 +1,5 @@
-from weave.core import error_response, request, session, uuid
+from weave.core import request, session, uuid
+from weave.responses import error_response
 
 CSRF_EXEMPT_PATHS = {"/healthz", "/metrics"}
 
