@@ -756,11 +756,27 @@ def update_post(post_id):
     if not post:
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
+
+    if not (
+        role_at_least(me["role"], "EXECUTIVE")
+        or int(post["author_id"] or 0) == int(me["id"])
+    ):
+        conn.close()
+        return error_response("작성자 또는 운영권한이 필요합니다.", 403)
+
     category = str(payload.get("category", post["category"]))
     if not category:
         conn.close()
         return error_response("category는 필수입니다.", 400)
     next_category = category.lower()
+
+    if next_category == "notice" and not can_create_notice(me):
+        conn.close()
+        return error_response("공지 수정은 임원 이상만 가능합니다.", 403)
+    if next_category == "gallery" and not can_create_gallery(me):
+        conn.close()
+        return error_response("갤러리 수정은 임원 이상만 가능합니다.", 403)
+
     if next_category == "notice":
         err = notice_routes.update_notice_post(
             post_id, payload, conn, me, post_visibility_status

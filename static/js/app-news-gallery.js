@@ -618,9 +618,18 @@ function openGalleryDetail(id) {
   currentGalleryDetailId = id;
   const detailImage = document.getElementById('gallery-detail-image');
   const detailContentHtml = String(item.content || '');
+  const originalImage = item.image_url
+    || item.image
+    || (Array.isArray(item.images) ? item.images[0] : '')
+    || '';
   if (detailImage) {
-    detailImage.removeAttribute('src');
-    detailImage.classList.add('d-none');
+    if (originalImage) {
+      detailImage.src = originalImage;
+      detailImage.classList.remove('d-none');
+    } else {
+      detailImage.removeAttribute('src');
+      detailImage.classList.add('d-none');
+    }
   }
   document.getElementById('gallery-detail-title').innerText = item.title;
   updateDetailMeta('gallery', {

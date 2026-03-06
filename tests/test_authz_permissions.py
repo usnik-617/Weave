@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -358,6 +360,115 @@ def test_gallery_post_does_not_auto_create_calendar_activity(
     titles = [row["title"] for row in scoped_rows]
     assert notice_title in titles
     assert gallery_title not in titles
+
+
+def test_gallery_rejects_pdf_upload_notice_accepts_pdf_upload(
+    client,
+    create_user,
+    login_as,
+    csrf_headers,
+    sample_notice_post,
+    sample_gallery_post,
+):
+    executive = create_user(role="EXECUTIVE")
+    login_as(executive)
+    headers = csrf_headers()
+
+    notice_id = sample_notice_post(author_id=executive["id"])
+    gallery_id = sample_gallery_post(author_id=executive["id"])
+
+    notice_upload = client.post(
+        f"/api/posts/{notice_id}/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "notice-test.pdf", "application/pdf")},
+        headers=headers,
+        content_type="multipart/form-data",
+    )
+    gallery_upload = client.post(
+        f"/api/posts/{gallery_id}/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "gallery-test.pdf", "application/pdf")},
+        headers=headers,
+        content_type="multipart/form-data",
+    )
+
+    assert notice_upload.status_code == 201
+    assert gallery_upload.status_code == 400
+    payload = gallery_upload.get_json() or {}
+    msg = str(payload.get("error") or payload.get("message") or "")
+    assert "갤러리" in msg
+
+
+def test_gallery_list_exposes_thumb_url_after_image_upload(
+    client,
+    create_user,
+    login_as,
+    csrf_headers,
+    sample_gallery_post,
+):
+    executive = create_user(role="EXECUTIVE")
+    login_as(executive)
+    headers = csrf_headers()
+
+    gallery_id = sample_gallery_post(author_id=executive["id"])
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+        b"\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01"
+        b"\x0b\xe7\x02\x9d"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    upload_res = client.post(
+        f"/api/posts/{gallery_id}/files",
+        data={"file": (io.BytesIO(png_bytes), "gallery-test.png", "image/png")},
+        headers=headers,
+        content_type="multipart/form-data",
+    )
+    assert upload_res.status_code == 201
+
+    list_res = client.get("/api/posts?category=gallery&page=1&pageSize=50")
+    assert list_res.status_code == 200
+    body = list_res.get_json() or {}
+    items = (body.get("data") or {}).get("items") or body.get("items") or []
+    target = next((it for it in items if int(it.get("id") or 0) == int(gallery_id)), None)
+    assert target is not None
+    assert "/uploads/" in str(target.get("thumb_url") or "")
+
+
+def test_scheduled_posts_hidden_for_general_before_publish_at(
+    client,
+    create_user,
+    login_as,
+    csrf_headers,
+):
+    executive = create_user(role="EXECUTIVE")
+    general = create_user(role="GENERAL")
+    future = (datetime.now() + timedelta(days=2)).replace(microsecond=0).isoformat()
+
+    login_as(executive)
+    create_res = client.post(
+        "/api/posts",
+        json={
+            "category": "notice",
+            "title": f"예약공지-{int(datetime.now().timestamp())}",
+            "content": "예약 테스트",
+            "publish_at": future,
+        },
+        headers=csrf_headers(),
+    )
+    assert create_res.status_code == 201
+    post_id = int((create_res.get_json() or {}).get("data", {}).get("post_id") or 0)
+    assert post_id > 0
+
+    login_as(general)
+    list_res = client.get("/api/posts?type=notice&pageSize=100")
+    assert list_res.status_code == 200
+    list_body = list_res.get_json() or {}
+    items = (list_body.get("data") or {}).get("items") or list_body.get("items") or []
+    assert all(int(item.get("id") or 0) != post_id for item in items)
+
+    detail_res = client.get(f"/api/posts/{post_id}")
+    assert detail_res.status_code == 404
 
 
 # B. Member

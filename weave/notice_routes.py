@@ -99,14 +99,17 @@ def update_notice_post(post_id, payload, conn, me, post_visibility_status):
     conn.execute(
         """
         UPDATE posts
-        SET category = ?, title = ?, content = ?, is_pinned = ?, publish_at = ?, status = ?, updated_at = ?
+        SET category = ?, title = ?, content = ?, is_pinned = ?, is_important = ?, publish_at = ?, status = ?, updated_at = ?
         WHERE id = ?
         """,
         (
-            str(payload.get("category", post["category"])),
+            "notice",
             str(payload.get("title", post["title"])).strip(),
             str(payload.get("content", post["content"])),
             1 if bool(payload.get("is_pinned", bool(post["is_pinned"]))) else 0,
+            1
+            if bool(payload.get("is_important", bool(post["is_important"])))
+            else 0,
             publish_at,
             status,
             now_iso(),
