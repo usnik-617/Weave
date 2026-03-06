@@ -135,8 +135,14 @@ from weave.responses import (
     success_response_legacy,
     user_row_to_dict,
 )
-from weave.time_utils import activity_start_date_local, now_iso, parse_iso_datetime
-from weave.user_migrations import ensure_users_migration
+from weave.time_utils import (
+    activity_start_date_local,
+    now_iso,
+    parse_iso_datetime,
+    post_visibility_status,
+    should_expose_post,
+)
+from weave.user_migrations import ensure_table_indexes, ensure_users_migration
 from weave.validators import (
     normalize_contact,
     to_list_text,
@@ -330,11 +336,6 @@ def ensure_posts_migration(cur):
         """,
         (now_text,),
     )
-
-
-def ensure_table_indexes(cur):
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
 
 
 def ensure_activities_migration(cur):
@@ -1379,27 +1380,5 @@ def _update_nickname_common(conn, me, nickname, bypass_window=False):
     return conn.execute(
         "SELECT * FROM users WHERE id = ?", (me["id"],)
     ).fetchone(), None
-
-
-def post_visibility_status(publish_at):
-    publish_dt = parse_iso_datetime(publish_at)
-    now_dt = (
-        datetime.now(publish_dt.tzinfo)
-        if publish_dt and publish_dt.tzinfo
-        else datetime.now()
-    )
-    if publish_dt and publish_dt > now_dt:
-        return "scheduled"
-    return "published"
-
-
-def should_expose_post(publish_at):
-    publish_dt = parse_iso_datetime(publish_at)
-    now_dt = (
-        datetime.now(publish_dt.tzinfo)
-        if publish_dt and publish_dt.tzinfo
-        else datetime.now()
-    )
-    return not publish_dt or publish_dt <= now_dt
 
 

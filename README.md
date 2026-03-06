@@ -23,11 +23,14 @@ This avoids duplicate registration and keeps API paths under `/api/*` unaffected
 
 `weave/system_routes.py` is now a thin facade. Focused concerns are split to:
 
+- `weave/system_routes.py` -> thin system endpoints only (`healthz`, `metrics`)
 - `weave/security_headers.py` -> `set_security_headers`
 - `weave/csrf.py` -> `ensure_csrf_token`, `validate_csrf_if_needed`
 - `weave/rate_limit.py` -> `validate_endpoint_rate_limit`
-- `weave/health.py` -> `/healthz`, `/metrics` handlers
-- `weave/spa.py` -> `root`, `static_proxy`
+- `weave/security.py` -> request/error hook registration (`register_hooks`)
+- `weave/authz.py` -> role/permission policy checks and decorators
+- `weave/health.py` -> `/healthz`, `/metrics` handler implementations
+- `weave/spa.py` -> SPA entry + fallback/static proxy (`root`, `static_proxy`)
 
 Public endpoints and hook registration behavior remain unchanged.
 

@@ -59,3 +59,9 @@ def ensure_users_migration(cur):
     cur.execute(
         "UPDATE users SET last_active_at = COALESCE(last_active_at, join_date, datetime('now'))"
     )
+
+
+def ensure_table_indexes(cur):
+    """Ensure user table indexes required by current query patterns."""
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")

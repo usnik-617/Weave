@@ -1,6 +1,6 @@
 from flask import Blueprint
 from weave import admin_routes as ar
-from weave import events_routes as er
+from weave import attendance_routes as atr
 from weave import users_routes as ur
 from weave.health import healthz, metrics
 
@@ -38,19 +38,23 @@ bp.add_url_rule(
     methods=["PATCH"],
 )
 
-bp.add_url_rule("/api/admin/dashboard", view_func=er.admin_dashboard, methods=["GET"])
+bp.add_url_rule(
+    "/api/admin/dashboard", view_func=atr.admin_dashboard, methods=["GET"]
+)
 bp.add_url_rule(
     "/api/admin/export/participants.csv",
-    view_func=er.export_participants_csv,
+    view_func=atr.export_participants_csv,
     methods=["GET"],
 )
 bp.add_url_rule(
     "/api/admin/export/attendance.csv",
-    view_func=er.export_attendance_csv,
+    view_func=atr.export_attendance_csv,
     methods=["GET"],
 )
 bp.add_url_rule(
-    "/api/admin/export/hours.csv", view_func=er.export_hours_csv, methods=["GET"]
+    "/api/admin/export/hours.csv",
+    view_func=atr.export_hours_csv,
+    methods=["GET"],
 )
 bp.add_url_rule("/api/admin/stats", view_func=ar.admin_stats, methods=["GET"])
 bp.add_url_rule("/api/admin/audit-logs", view_func=ar.get_audit_logs, methods=["GET"])

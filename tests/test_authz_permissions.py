@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from weave.authz import role_at_least
+
 
 # A) Authorization tests
 
@@ -44,6 +46,11 @@ def test_general_user_permissions(
         json={"category": "gallery", "title": "갤러리", "content": "본문"},
         headers=csrf_headers(),
     )
+    create_qna = client.post(
+        "/api/posts",
+        json={"category": "qna", "title": "질문", "content": "질문 본문"},
+        headers=csrf_headers(),
+    )
 
     assert public_posts.status_code == 200
     assert comment_notice.status_code == 403
@@ -52,6 +59,8 @@ def test_general_user_permissions(
     assert join_event.status_code == 403
     assert create_notice.status_code == 403
     assert create_gallery.status_code == 403
+    expected_qna_status = 201 if role_at_least(general["role"], "GENERAL") else 403
+    assert create_qna.status_code == expected_qna_status
 
 
 def test_member_permissions(

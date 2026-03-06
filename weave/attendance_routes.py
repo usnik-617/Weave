@@ -3,7 +3,14 @@ import uuid
 from datetime import datetime, timedelta
 
 from weave.authz import get_current_user_row, role_at_least
-from weave.core import calculate_activity_hours, get_db_connection, log_audit, request
+from weave.core import (
+    calculate_activity_hours,
+    csv_response,
+    get_db_connection,
+    jsonify,
+    log_audit,
+    request,
+)
 from weave.responses import error_response, success_response
 from weave.time_utils import now_iso, parse_iso_datetime
 
@@ -259,3 +266,170 @@ def bulk_attendance(activity_id):
     conn.commit()
     conn.close()
     return success_response({"updated": updated})
+
+
+def admin_dashboard():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+
+    today = datetime.now().date().isoformat()
+    month_prefix = datetime.now().strftime("%Y-%m")
+    today_schedule = conn.execute(
+        "SELECT COUNT(*) AS c FROM activities WHERE date(start_at) = ?", (today,)
+    ).fetchone()["c"]
+    pending_users = conn.execute(
+        "SELECT COUNT(*) AS c FROM users WHERE status = 'pending'"
+    ).fetchone()["c"]
+    waiting_apps = conn.execute(
+        "SELECT COUNT(*) AS c FROM activity_applications WHERE status = 'waiting'"
+    ).fetchone()["c"]
+    noshows = conn.execute(
+        "SELECT COUNT(*) AS c FROM activity_applications WHERE attendance_status = 'noshow'"
+    ).fetchone()["c"]
+    scheduled_notices = conn.execute(
+        "SELECT COUNT(*) AS c FROM scheduled_notices WHERE status = 'pending'"
+    ).fetchone()["c"]
+    qna_unanswered = conn.execute(
+        "SELECT COUNT(*) AS c FROM qna_posts WHERE TRIM(COALESCE(answer,'')) = ''"
+    ).fetchone()["c"]
+    expense_alerts = conn.execute(
+        "SELECT COUNT(*) AS c FROM expenses WHERE settled = 0 AND substr(due_date,1,7) = ?",
+        (month_prefix,),
+    ).fetchone()["c"]
+    conn.close()
+
+    return jsonify(
+        {
+            "ok": True,
+            "dashboard": {
+                "todaySchedule": int(today_schedule or 0),
+                "pendingApprovals": int(pending_users or 0),
+                "waitingApplications": int(waiting_apps or 0),
+                "noshowCount": int(noshows or 0),
+                "scheduledNotices": int(scheduled_notices or 0),
+                "qnaUnanswered": int(qna_unanswered or 0),
+                "expenseAlerts": int(expense_alerts or 0),
+            },
+        }
+    )
+
+
+def export_participants_csv():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+    rows = conn.execute(
+        "SELECT id, name, username, email, phone, role, status, generation FROM users ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+    return csv_response(
+        "participants.csv",
+        ["id", "name", "username", "email", "phone", "role", "status", "generation"],
+        [
+            [
+                row["id"],
+                row["name"],
+                row["username"],
+                row["email"],
+                row["phone"],
+                row["role"],
+                row["status"],
+                row["generation"],
+            ]
+            for row in rows
+        ],
+    )
+
+
+def export_attendance_csv():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+    rows = conn.execute(
+        """
+        SELECT a.title, a.start_at, u.name, u.username, ap.status, ap.attendance_status, ap.hours
+        FROM activity_applications ap
+        JOIN activities a ON a.id = ap.activity_id
+        JOIN users u ON u.id = ap.user_id
+        ORDER BY a.start_at DESC, u.username ASC
+        """
+    ).fetchall()
+    conn.close()
+    return csv_response(
+        "attendance.csv",
+        [
+            "activity",
+            "start_at",
+            "name",
+            "username",
+            "apply_status",
+            "attendance_status",
+            "hours",
+        ],
+        [
+            [
+                row["title"],
+                row["start_at"],
+                row["name"],
+                row["username"],
+                row["status"],
+                row["attendance_status"],
+                row["hours"],
+            ]
+            for row in rows
+        ],
+    )
+
+
+def export_hours_csv():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+    rows = conn.execute(
+        """
+        SELECT u.name, u.username,
+               COALESCE(SUM(ap.hours),0) AS total_hours,
+               COALESCE(SUM(ap.points),0) AS total_points,
+               COALESCE(SUM(ap.penalty_points),0) AS penalty_points
+        FROM users u
+        LEFT JOIN activity_applications ap ON ap.user_id = u.id
+        GROUP BY u.id, u.name, u.username
+        ORDER BY total_hours DESC
+        """
+    ).fetchall()
+    conn.close()
+    return csv_response(
+        "hours_summary.csv",
+        ["name", "username", "total_hours", "total_points", "penalty_points"],
+        [
+            [
+                row["name"],
+                row["username"],
+                row["total_hours"],
+                row["total_points"],
+                row["penalty_points"],
+            ]
+            for row in rows
+        ],
+    )

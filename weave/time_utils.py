@@ -27,3 +27,25 @@ def activity_start_date_local(value):
 
 def now_iso():
     return datetime.now().isoformat()
+
+
+def post_visibility_status(publish_at):
+    publish_dt = parse_iso_datetime(publish_at)
+    now_dt = (
+        datetime.now(publish_dt.tzinfo)
+        if publish_dt and publish_dt.tzinfo
+        else datetime.now()
+    )
+    if publish_dt and publish_dt > now_dt:
+        return "scheduled"
+    return "published"
+
+
+def should_expose_post(publish_at):
+    publish_dt = parse_iso_datetime(publish_at)
+    now_dt = (
+        datetime.now(publish_dt.tzinfo)
+        if publish_dt and publish_dt.tzinfo
+        else datetime.now()
+    )
+    return not publish_dt or publish_dt <= now_dt

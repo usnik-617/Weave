@@ -15,7 +15,7 @@ from weave.authz import (
     role_to_icon,
     role_to_label,
 )
-from weave import comment_routes, gallery_routes, notice_routes, qna_routes
+from weave import gallery_routes, notice_routes, qna_routes
 from weave.core import (
     UPLOAD_DIR,
     build_annual_report,
@@ -290,22 +290,6 @@ def update_content_block():
     conn.commit()
     conn.close()
     return success_response({"ok": True})
-
-
-def list_gallery_albums():
-    return gallery_routes.list_gallery_albums()
-
-
-def create_gallery_album():
-    return gallery_routes.create_gallery_album()
-
-
-def add_gallery_photos(album_id):
-    return gallery_routes.add_gallery_photos(album_id)
-
-
-def delete_gallery_photo(photo_id):
-    return gallery_routes.delete_gallery_photo(photo_id)
 
 
 def get_press_kit():
@@ -876,10 +860,6 @@ def delete_post(post_id):
     return success_response({"deleted": True})
 
 
-def create_post_comment(post_id):
-    return comment_routes.create_post_comment(post_id)
-
-
 def recommend_post(post_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -912,5 +892,3 @@ def recommend_post(post_id):
     return success_response({"recommend_count": int(count or 0)})
 
 
-def important_notices():
-    return notice_routes.important_notices()
