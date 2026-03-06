@@ -97,6 +97,9 @@ def admin_approve_user(user_id):
     if not me:
         conn.close()
         return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
     if role == "ADMIN" and not role_at_least(me["role"], "ADMIN"):
         conn.close()
         return error_response("관리자 승격 권한이 없습니다.", 403)
@@ -225,7 +228,7 @@ def admin_stats():
     total_users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
     total_events = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
     total_participants = conn.execute(
-        "SELECT COUNT(*) AS c FROM participants WHERE status='registered'"
+        "SELECT COUNT(*) AS c FROM event_participants WHERE status='registered'"
     ).fetchone()["c"]
     upcoming_events = conn.execute(
         "SELECT COUNT(*) AS c FROM events WHERE event_date >= ?",

@@ -7,13 +7,17 @@ from weave.authz import (
 from weave.core import (
     get_db_connection,
     invalidate_cache,
-    jsonify,
     log_audit,
     record_user_activity,
-    request,
 )
-from weave.responses import error_response, success_response, success_response_legacy
+from weave.responses import error_response, success_response
 from weave.time_utils import now_iso
+
+
+def _ensure_active_account(user):
+    if user and user["status"] in ("suspended", "deleted"):
+        return error_response("계정 상태로 인해 요청을 처리할 수 없습니다.", 403)
+    return None
 
 
 def list_event_participants(event_id):
@@ -66,6 +70,10 @@ def join_event(event_id):
     if not can_join_event(me):
         conn.close()
         return error_response("단원 이상만 참여 신청할 수 있습니다.", 403)
+    blocked = _ensure_active_account(me)
+    if blocked:
+        conn.close()
+        return blocked
     event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not event:
         conn.close()
@@ -113,6 +121,10 @@ def cancel_event_participation(event_id):
     if not can_join_event(me):
         conn.close()
         return error_response("단원 이상만 참여 취소할 수 있습니다.", 403)
+    blocked = _ensure_active_account(me)
+    if blocked:
+        conn.close()
+        return blocked
     existing = conn.execute(
         "SELECT * FROM event_participants WHERE event_id = ? AND user_id = ?",
         (event_id, me["id"]),
@@ -138,13 +150,17 @@ def apply_activity(activity_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response("Unauthorized", 401)
+    blocked = _ensure_active_account(me)
+    if blocked:
+        conn.close()
+        return blocked
     activity = conn.execute(
         "SELECT * FROM activities WHERE id = ?", (activity_id,)
     ).fetchone()
     if not activity:
         conn.close()
-        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+        return error_response("활동을 찾을 수 없습니다.", 404)
 
     existing = conn.execute(
         "SELECT * FROM activity_applications WHERE activity_id = ? AND user_id = ?",
@@ -153,7 +169,7 @@ def apply_activity(activity_id):
 
     if existing and existing["status"] not in ("cancelled", "noshow"):
         conn.close()
-        return jsonify({"ok": False, "message": "이미 신청한 활동입니다."}), 409
+        return error_response("이미 신청한 활동입니다.", 409)
 
     confirmed_count = conn.execute(
         "SELECT COUNT(*) AS count FROM activity_applications WHERE activity_id = ? AND status = 'confirmed'",
@@ -188,7 +204,7 @@ def apply_activity(activity_id):
         )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "status": next_status})
+    return success_response({"status": next_status})
 
 
 def cancel_activity(activity_id):
@@ -196,14 +212,18 @@ def cancel_activity(activity_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response("Unauthorized", 401)
+    blocked = _ensure_active_account(me)
+    if blocked:
+        conn.close()
+        return blocked
     target = conn.execute(
         "SELECT * FROM activity_applications WHERE activity_id = ? AND user_id = ?",
         (activity_id, me["id"]),
     ).fetchone()
     if not target:
         conn.close()
-        return jsonify({"ok": False, "message": "신청 내역이 없습니다."}), 404
+        return error_response("신청 내역이 없습니다.", 404)
 
     conn.execute(
         "UPDATE activity_applications SET status = 'cancelled', updated_at = ? WHERE id = ?",
@@ -211,4 +231,4 @@ def cancel_activity(activity_id):
     )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "message": "신청이 취소되었습니다."})
+    return success_response({"status": "cancelled", "message": "신청이 취소되었습니다."})

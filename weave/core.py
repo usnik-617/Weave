@@ -1268,7 +1268,7 @@ def send_event_change_notifications(conn, event_id, title):
     users = conn.execute(
         """
         SELECT u.email, u.id
-        FROM participants p
+        FROM event_participants p
         JOIN users u ON u.id = p.user_id
         WHERE p.event_id = ? AND p.status = 'registered'
         """,
@@ -1307,7 +1307,7 @@ def send_event_reminders(reference_time=None):
         recipients = conn.execute(
             """
             SELECT u.id, u.email
-            FROM participants p
+            FROM event_participants p
             JOIN users u ON u.id = p.user_id
             WHERE p.event_id = ? AND p.status = 'registered'
             """,
