@@ -36,6 +36,13 @@ function enableContentImagePreview(containerId) {
   });
 }
 
+function getFirstImageFromHtml(html) {
+  const text = String(html || '');
+  if (!text) return '';
+  const matched = text.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return matched ? String(matched[1] || '').trim() : '';
+}
+
 function renderNews() {
   const tbody = document.getElementById('news-table-body');
   const pagination = document.getElementById('news-pagination');
@@ -522,9 +529,14 @@ function renderGallery() {
     const user = getCurrentUser();
     const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
     const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
+    const firstBodyImage = getFirstImageFromHtml(item.content || '');
     const thumbImage = item.thumb_url
       || item.thumbnail_url
       || item.thumb
+      || firstBodyImage
+      || item.image_url
+      || (Array.isArray(item.images) ? item.images[0] : '')
+      || item.image
       || 'logo.png';
     const div = document.createElement('div');
     div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;

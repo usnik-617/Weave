@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weave-static-v1';
+const CACHE_NAME = 'weave-static-v2';
 const STATIC_ASSETS = ['/', '/styles.css', '/logo.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
