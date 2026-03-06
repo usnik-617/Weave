@@ -7,10 +7,12 @@ from weave.authz import (
 from weave.core import (
     get_db_connection,
     invalidate_cache,
+    jsonify,
     log_audit,
     record_user_activity,
+    request,
 )
-from weave.responses import error_response, success_response
+from weave.responses import error_response, success_response, success_response_legacy
 from weave.time_utils import now_iso
 
 
@@ -129,3 +131,84 @@ def cancel_event_participation(event_id):
     conn.close()
     invalidate_cache("events:list:")
     return success_response({"event_id": event_id, "status": "cancelled"})
+
+
+def apply_activity(activity_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+    activity = conn.execute(
+        "SELECT * FROM activities WHERE id = ?", (activity_id,)
+    ).fetchone()
+    if not activity:
+        conn.close()
+        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+
+    existing = conn.execute(
+        "SELECT * FROM activity_applications WHERE activity_id = ? AND user_id = ?",
+        (activity_id, me["id"]),
+    ).fetchone()
+
+    if existing and existing["status"] not in ("cancelled", "noshow"):
+        conn.close()
+        return jsonify({"ok": False, "message": "이미 신청한 활동입니다."}), 409
+
+    confirmed_count = conn.execute(
+        "SELECT COUNT(*) AS count FROM activity_applications WHERE activity_id = ? AND status = 'confirmed'",
+        (activity_id,),
+    ).fetchone()["count"]
+
+    limit_count = int(activity["recruitment_limit"] or 0)
+    next_status = (
+        "confirmed" if limit_count <= 0 or confirmed_count < limit_count else "waiting"
+    )
+
+    if existing:
+        conn.execute(
+            """
+            UPDATE activity_applications
+            SET status = ?, attendance_status = 'pending', attendance_method = '',
+                updated_at = ?, hours = 0, points = 0, penalty_points = 0
+            WHERE id = ?
+            """,
+            (next_status, now_iso(), existing["id"]),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO activity_applications (
+                activity_id, user_id, status, attendance_status, attendance_method,
+                hours, points, penalty_points, applied_at, updated_at
+            )
+            VALUES (?, ?, ?, 'pending', '', 0, 0, 0, ?, ?)
+            """,
+            (activity_id, me["id"], next_status, now_iso(), now_iso()),
+        )
+    conn.commit()
+    conn.close()
+    return success_response_legacy({"ok": True, "status": next_status})
+
+
+def cancel_activity(activity_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+    target = conn.execute(
+        "SELECT * FROM activity_applications WHERE activity_id = ? AND user_id = ?",
+        (activity_id, me["id"]),
+    ).fetchone()
+    if not target:
+        conn.close()
+        return jsonify({"ok": False, "message": "신청 내역이 없습니다."}), 404
+
+    conn.execute(
+        "UPDATE activity_applications SET status = 'cancelled', updated_at = ? WHERE id = ?",
+        (now_iso(), target["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return success_response_legacy({"ok": True, "message": "신청이 취소되었습니다."})

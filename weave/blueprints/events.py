@@ -47,7 +47,7 @@ bp.add_url_rule(
 )
 bp.add_url_rule(
     "/api/activities/<int:activity_id>/apply",
-    view_func=er.apply_activity,
+    view_func=epr.apply_activity,
     methods=["POST"],
 )
 bp.add_url_rule(
@@ -62,21 +62,21 @@ bp.add_url_rule(
 )
 bp.add_url_rule(
     "/api/activities/<int:activity_id>/cancel",
-    view_func=er.cancel_activity,
+    view_func=epr.cancel_activity,
     methods=["POST"],
 )
 bp.add_url_rule(
     "/api/activities/<int:activity_id>/attendance/qr-token",
-    view_func=er.create_attendance_qr_token,
+    view_func=ar.create_attendance_qr_token,
     methods=["POST"],
 )
 bp.add_url_rule(
     "/api/activities/<int:activity_id>/attendance/qr-check",
-    view_func=er.qr_check_attendance,
+    view_func=ar.qr_check_attendance,
     methods=["POST"],
 )
 bp.add_url_rule(
     "/api/activities/<int:activity_id>/attendance/bulk",
-    view_func=er.bulk_attendance,
+    view_func=ar.bulk_attendance,
     methods=["POST"],
 )
