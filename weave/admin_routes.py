@@ -3,7 +3,6 @@ from datetime import datetime
 from weave.authz import get_current_user_row, normalize_role, role_at_least
 from weave.core import (
     get_db_connection,
-    jsonify,
     log_audit,
     request,
     send_email,
@@ -12,7 +11,6 @@ from weave.core import (
 from weave.responses import (
     error_response,
     success_response,
-    success_response_legacy,
     user_row_to_dict,
 )
 from weave.time_utils import now_iso
@@ -62,9 +60,8 @@ def admin_pending_users():
     ).fetchall()
     conn.close()
     total_pages = max((int(total or 0) + page_size - 1) // page_size, 1)
-    return jsonify(
+    return success_response(
         {
-            "ok": True,
             "items": [user_row_to_dict(row) for row in rows],
             "pagination": {
                 "total": int(total or 0),
@@ -139,12 +136,12 @@ def admin_approve_user(user_id):
         user_id=me["id"],
         extra={"target_user_id": user_id, "role": role},
     )
-    payload = {
-        "ok": True,
-        "message": "가입이 승인되었습니다.",
-        "user": user_row_to_dict(row),
-    }
-    return success_response_legacy(payload)
+    return success_response(
+        {
+            "message": "가입이 승인되었습니다.",
+            "user": user_row_to_dict(row),
+        }
+    )
 
 
 def admin_reject_user(user_id):

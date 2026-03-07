@@ -44,6 +44,16 @@ def _reset_rate_limit_state(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture()
+def reset_rate_limit_state():
+    import weave.core as core
+
+    def _reset():
+        core.clear_all_rate_limit_state()
+
+    return _reset
+
+
+@pytest.fixture()
 def client(app):
     with app.test_client() as test_client:
         yield test_client

@@ -82,8 +82,11 @@ def reset_login_failures_by_ip(ip):
 
 def clear_all_rate_limit_state():
     from weave import core
+    from weave import rate_limit
 
     core.LOGIN_ATTEMPTS.clear()
+    with rate_limit.REQUEST_LIMIT_LOCK:
+        rate_limit.REQUEST_LIMIT_BUCKETS.clear()
 
 
 def _cache_now():

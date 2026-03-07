@@ -1,4 +1,4 @@
-function getPostKey(type, id) {
+﻿function getPostKey(type, id) {
   return `${type}-${id}`;
 }
 
@@ -35,7 +35,7 @@ function getCommentCount(itemKey) {
 function toggleRecommendation(itemKey) {
   const user = getCurrentUser();
   if (!user) {
-    alert('추천하려면 로그인이 필요합니다.');
+    notifyMessage('異붿쿇?섎젮硫?濡쒓렇?몄씠 ?꾩슂?⑸땲??');
     return false;
   }
   const info = getComments(itemKey);
@@ -54,7 +54,7 @@ function toggleRecommendation(itemKey) {
 function togglePostCommentRecommendation(itemKey, commentId, containerId) {
   const user = getCurrentUser();
   if (!user) {
-    alert('추천하려면 로그인이 필요합니다.');
+    notifyMessage('異붿쿇?섎젮硫?濡쒓렇?몄씠 ?꾩슂?⑸땲??');
     return;
   }
   const info = getComments(itemKey);
@@ -99,8 +99,8 @@ function renderNetworkError(container, retryHandler) {
   if (!container) return;
   container.innerHTML = `
     <div class="network-error-box">
-      <div class="small text-danger">네트워크 오류가 발생했습니다.</div>
-      <button type="button" class="btn btn-sm btn-outline-primary mt-2">다시 시도</button>
+      <div class="small text-danger">?ㅽ듃?뚰겕 ?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.</div>
+      <button type="button" class="btn btn-sm btn-outline-primary mt-2">?ㅼ떆 ?쒕룄</button>
     </div>
   `;
   const retryBtn = container.querySelector('button');
@@ -157,10 +157,10 @@ function renderPostComments(containerId, itemKey) {
         <div class="comment-time d-flex justify-content-between align-items-center gap-2 flex-wrap">
           <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
           <div class="d-flex gap-1">
-            ${user ? `<button class="btn btn-sm ${didRecommend ? 'btn-primary' : 'btn-outline-primary'}" onclick="togglePostCommentRecommendation('${itemKey}', ${comment.id}, '${containerId}')">추천하기 ${recommendCount}</button>` : `<span class="small text-muted">추천 ${recommendCount}</span>`}
-            ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">대댓글</button>` : ''}
-            ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">수정</button>` : ''}
-            ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
+            ${user ? `<button class="btn btn-sm ${didRecommend ? 'btn-primary' : 'btn-outline-primary'}" onclick="togglePostCommentRecommendation('${itemKey}', ${comment.id}, '${containerId}')">異붿쿇?섍린 ${recommendCount}</button>` : `<span class="small text-muted">異붿쿇 ${recommendCount}</span>`}
+            ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">??볤?</button>` : ''}
+            ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">?섏젙</button>` : ''}
+            ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">??젣</button>` : ''}
           </div>
         </div>
         ${showReplyComposer ? `
@@ -171,7 +171,7 @@ function renderPostComments(containerId, itemKey) {
                 class="form-control"
                 name="replyText"
                 value="${escapeHtmlAttr(replyDraftText)}"
-                placeholder="대댓글을 입력하세요"
+                placeholder="??볤????낅젰?섏꽭??
                 required
                 autocapitalize="off"
                 autocomplete="off"
@@ -179,8 +179,8 @@ function renderPostComments(containerId, itemKey) {
                 spellcheck="false"
                 oninput="updateReplyDraft('${itemKey}', ${comment.id}, this.value)"
               >
-              <button class="btn btn-primary" type="submit">등록</button>
-              <button class="btn btn-outline-secondary" type="button" onclick="cancelReplyComment('${itemKey}', '${containerId}')">취소</button>
+              <button class="btn btn-primary" type="submit">?깅줉</button>
+              <button class="btn btn-outline-secondary" type="button" onclick="cancelReplyComment('${itemKey}', '${containerId}')">痍⑥냼</button>
             </div>
           </form>
         ` : ''}
@@ -190,18 +190,18 @@ function renderPostComments(containerId, itemKey) {
   };
 
   wrap.innerHTML = `
-    <h6 class="fw-bold mb-3">댓글 (${count})</h6>
+    <h6 class="fw-bold mb-3">?볤? (${count})</h6>
     <form class="comment-form mb-3" onsubmit="submitPostComment(event, '${itemKey}', '${containerId}')">
       <div class="input-group">
-        <input type="text" class="form-control" name="comment" placeholder="댓글을 입력하세요" required autocapitalize="off" autocomplete="off" inputmode="text" spellcheck="false">
+        <input type="text" class="form-control" name="comment" placeholder="?볤????낅젰?섏꽭?? required autocapitalize="off" autocomplete="off" inputmode="text" spellcheck="false">
         <input type="hidden" name="parentId" value="">
         <input type="hidden" name="editId" value="">
-        <button class="btn btn-primary" type="submit">등록</button>
+        <button class="btn btn-primary" type="submit">?깅줉</button>
       </div>
-      <div class="invalid-feedback d-block d-none" data-comment-error>댓글을 입력해주세요.</div>
+      <div class="invalid-feedback d-block d-none" data-comment-error>?볤????낅젰?댁＜?몄슂.</div>
     </form>
     <div class="comment-list">
-      ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
+      ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">?꾩쭅 ?볤????놁뒿?덈떎.</div>'}
     </div>
   `;
 
@@ -224,9 +224,9 @@ function renderPostComments(containerId, itemKey) {
       const volunteerStart = item.volunteerStartDate || item.volunteerDate || '';
       const volunteerEnd = item.volunteerEndDate || item.volunteerDate || '';
       updateDetailMeta('news', {
-        author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
+        author: formatAuthorDisplay(item.author || '愿由ъ옄', getCurrentUser()),
         date: formatDetailDateTime(item.date),
-        volunteer: volunteerStart ? `봉사 날짜 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}` : '',
+        volunteer: volunteerStart ? `遊됱궗 ?좎쭨 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}` : '',
         views: item.views || 0,
         recommends: getRecommendCount(itemKey),
         comments: getCommentCount(itemKey)
@@ -237,9 +237,9 @@ function renderPostComments(containerId, itemKey) {
     const item = (data.gallery || []).find(g => g.id === postId);
     if (item) {
       updateDetailMeta('gallery', {
-        author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
+        author: formatAuthorDisplay(item.author || '?묒꽦??誘몄긽', getCurrentUser()),
         date: formatDetailDateTime(item.date),
-        volunteer: item.year ? `${item.year}년 활동` : '',
+        volunteer: item.year ? `${item.year}???쒕룞` : '',
         views: item.views || 0,
         recommends: getRecommendCount(itemKey),
         comments: getCommentCount(itemKey)
@@ -252,7 +252,7 @@ function submitPostComment(event, itemKey, containerId) {
   event.preventDefault();
   const user = getCurrentUser();
   if (!user) {
-    alert('댓글을 작성하려면 로그인이 필요합니다.');
+    notifyMessage('?볤????묒꽦?섎젮硫?濡쒓렇?몄씠 ?꾩슂?⑸땲??');
     return;
   }
   const form = event.target;
@@ -323,7 +323,7 @@ function submitInlineReply(event, itemKey, parentId, containerId) {
   event.preventDefault();
   const user = getCurrentUser();
   if (!user) {
-    alert('댓글을 작성하려면 로그인이 필요합니다.');
+    notifyMessage('?볤????묒꽦?섎젮硫?濡쒓렇?몄씠 ?꾩슂?⑸땲??');
     return;
   }
   const form = event.target;
@@ -377,10 +377,10 @@ function deletePostComment(itemKey, commentId, containerId) {
   const target = (info.comments || []).find(c => c.id === commentId);
   if (!target) return;
   if (!isAdmin && target.username !== user.username) {
-    alert('본인 댓글 또는 관리자만 삭제할 수 있습니다.');
+    notifyMessage('蹂몄씤 ?볤? ?먮뒗 愿由ъ옄留???젣?????덉뒿?덈떎.');
     return;
   }
-  if (!confirm('댓글을 삭제하시겠습니까?')) return;
+  if (!confirm('?볤?????젣?섏떆寃좎뒿?덇퉴?')) return;
 
   const toDelete = new Set([commentId]);
   let changed = true;

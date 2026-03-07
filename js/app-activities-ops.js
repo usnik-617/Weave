@@ -18,6 +18,9 @@ function movePanel(panelId) {
     stopHomeNoticeAutoRotate();
   }
   setActiveNavStates(panelId);
+  if (typeof updateAppUrlState === 'function') {
+    updateAppUrlState({ panel: panelId || 'home' });
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -39,7 +42,7 @@ function activateNewsTab(tabName) {
 function openQnaAnswerEditor(id) {
   const user = getCurrentUser();
   if (!isStaffUser(user)) {
-    alert('Q&A 답변은 운영자만 작성할 수 있습니다.');
+    notifyMessage('Q&A 답변은 운영자만 작성할 수 있습니다.');
     return;
   }
   const data = getContent();
@@ -648,7 +651,7 @@ async function openCalendarActivityFromGallery(activityId, fallbackDate = '') {
   }
   const resolved = calendarActivities.find(item => Number(item.id || 0) === targetId);
   if (!resolved) {
-    alert('연동된 봉사 일정을 찾을 수 없습니다.');
+    notifyMessage('연동된 봉사 일정을 찾을 수 없습니다.');
     return;
   }
   const startAt = new Date(resolved.startAt);
@@ -682,6 +685,12 @@ async function loadOpsDashboard(page = opsPendingPage) {
     setText('ops-card-notices', info.scheduledNotices);
     setText('ops-card-qna', info.qnaUnanswered);
     setText('ops-card-expense', info.expenseAlerts);
+    if (typeof getClientTelemetrySnapshot === 'function') {
+      const telemetry = getClientTelemetrySnapshot();
+      setText('ops-card-client-403', telemetry.errors403 || 0);
+      setText('ops-card-client-429', telemetry.errors429 || 0);
+      setText('ops-card-client-upload-fail', telemetry.uploadFailures || 0);
+    }
 
     const rows = pending.items || [];
     const tbody = document.getElementById('ops-pending-users-body');

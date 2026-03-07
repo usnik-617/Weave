@@ -1,13 +1,8 @@
 import json
 import os
-import re
 from datetime import datetime
-from pathlib import Path
-
-from werkzeug.utils import secure_filename
 
 from weave.authz import (
-    is_admin_like,
     normalize_role,
     role_at_least,
     role_to_icon,
@@ -38,7 +33,6 @@ from weave.core import (
 from weave.files import (
     delete_file_if_unreferenced,
     remove_file_safely,
-    save_uploaded_file,
     upload_url_to_path,
 )
 from weave.responses import (
@@ -50,291 +44,48 @@ from weave.responses import (
 from weave.time_utils import now_iso, parse_iso_datetime
 
 
-ABOUT_SECTION_KEYS = {
-    "executives",
-    "history",
-    "logo",
-    "relatedsites",
-    "rules",
-    "awards",
-    "fees",
-    "hero_background",
-}
-
-CONTENT_BLOCK_KEYS = {
-    "activities_overview",
-    "join",
-    "home_stats",
-    "hero_background",
-}
-
-CONTENT_BLOCK_KEY_ALIASES = {
-    "hero-background": "hero_background",
-    "herobackground": "hero_background",
-    "herobackgroundconfig": "hero_background",
-    "hero_bg": "hero_background",
-    "home_background": "hero_background",
-    "homebackground": "hero_background",
-    "home-hero-background": "hero_background",
-    "home_hero_background": "hero_background",
-}
-
-ABOUT_SECTION_KEY_ALIASES = {
-    **CONTENT_BLOCK_KEY_ALIASES,
-    "related_sites": "relatedsites",
-    "related-sites": "relatedsites",
-}
-
-
-def _normalize_key(raw_key, aliases):
-    key = str(raw_key or "").strip()
-    if not key:
-        return ""
-    lowered = key.lower()
-    if lowered in aliases:
-        return aliases[lowered]
-
-    normalized = re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
-    if normalized in aliases:
-        return aliases[normalized]
-
-    squashed = normalized.replace("_", "")
-    if squashed in aliases:
-        return aliases[squashed]
-
-    return normalized
-
-
-def _stored_path_to_upload_url(stored_path):
-    rel_path = os.path.relpath(stored_path, UPLOAD_DIR).replace("\\", "/")
-    return f"/uploads/{rel_path}"
-
-
 def _invalidate_post_list_cache():
     for prefix in post_policy.CACHE_INVALIDATION_PREFIXES:
         invalidate_cache(prefix)
 
 
-def _create_category_handler(category):
-    if category == "notice":
-        return notice_routes.create_notice_post
-    if category == "gallery":
-        return gallery_routes.create_gallery_post
-    if category == "qna":
-        return qna_routes.create_qna_post
+CATEGORY_CREATE_HANDLERS = {
+    "notice": notice_routes.create_notice_post,
+    "gallery": gallery_routes.create_gallery_post,
+    "qna": qna_routes.create_qna_post,
+}
+
+
+CATEGORY_UPDATE_HANDLERS = {
+    "notice": notice_routes.update_notice_post,
+    "gallery": gallery_routes.update_gallery_post,
+    "qna": qna_routes.update_qna_post,
+}
+
+
+CATEGORY_DELETE_HANDLERS = {
+    "notice": notice_routes.delete_notice_post,
+    "gallery": gallery_routes.delete_gallery_post,
+    "qna": qna_routes.delete_qna_post,
+}
+
+
+CATEGORY_HANDLERS_BY_ACTION = {
+    "create": CATEGORY_CREATE_HANDLERS,
+    "update": CATEGORY_UPDATE_HANDLERS,
+    "delete": CATEGORY_DELETE_HANDLERS,
+}
+
+
+def _resolve_category_handler(action, category):
+    handlers = CATEGORY_HANDLERS_BY_ACTION.get(action, {})
+    return handlers.get(str(category or "").strip().lower())
+
+
+def _validate_supported_category(category):
+    if not post_policy.is_creatable_category(category):
+        return error_response(error_messages.POST_INVALID_CATEGORY, 400)
     return None
-
-
-def _update_category_handler(category):
-    if category == "notice":
-        return notice_routes.update_notice_post
-    if category == "gallery":
-        return gallery_routes.update_gallery_post
-    if category == "qna":
-        return qna_routes.update_qna_post
-    return None
-
-
-def _delete_category_handler(category):
-    if category == "notice":
-        return notice_routes.delete_notice_post
-    if category == "gallery":
-        return gallery_routes.delete_gallery_post
-    if category == "qna":
-        return qna_routes.delete_qna_post
-    return None
-
-
-def list_about_sections():
-    conn = get_db_connection()
-    rows = conn.execute(
-        """
-        SELECT section_key, content_html, image_url, updated_at, updated_by
-        FROM about_sections
-        ORDER BY section_key ASC
-        """
-    ).fetchall()
-    conn.close()
-
-    items = {}
-    for row in rows:
-        items[row["section_key"]] = {
-            "contentHtml": row["content_html"] or "",
-            "imageUrl": row["image_url"] or "",
-            "updatedAt": row["updated_at"],
-            "updatedBy": row["updated_by"],
-        }
-    return success_response({"items": items})
-
-
-def update_about_section():
-    payload = request.get_json(silent=True) or {}
-    section_key = _normalize_key(payload.get("key", ""), ABOUT_SECTION_KEY_ALIASES)
-    content_html = str(payload.get("contentHtml", ""))
-    image_url = str(payload.get("imageUrl", "")).strip()
-
-    if section_key not in ABOUT_SECTION_KEYS:
-        return error_response(error_messages.POST_ABOUT_SECTION_INVALID, 400)
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response(error_messages.UNAUTHORIZED, 401)
-    if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
-        conn.close()
-        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
-
-    conn.execute(
-        """
-        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(section_key) DO UPDATE SET
-            content_html = excluded.content_html,
-            image_url = excluded.image_url,
-            updated_at = excluded.updated_at,
-            updated_by = excluded.updated_by
-        """,
-        (section_key, content_html, image_url, now_iso(), me["id"]),
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"ok": True})
-
-
-def upload_about_section_image():
-    section_key = _normalize_key(request.form.get("key", ""), ABOUT_SECTION_KEY_ALIASES)
-    if section_key not in ABOUT_SECTION_KEYS:
-        return error_response(error_messages.POST_ABOUT_SECTION_INVALID, 400)
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response(error_messages.UNAUTHORIZED, 401)
-    if me["status"] != "active":
-        conn.close()
-        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
-
-    if section_key == "hero_background":
-        if not is_admin_like(me):
-            conn.close()
-            return error_response(error_messages.POST_ADMIN_ONLY_BACKGROUND_IMAGE, 403)
-    elif not role_at_least(me["role"], "EXECUTIVE"):
-        conn.close()
-        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
-
-    file_storage = request.files.get("file")
-    if not file_storage:
-        conn.close()
-        return error_response(error_messages.POST_IMAGE_FILE_REQUIRED, 400)
-
-    original_name = secure_filename(str(file_storage.filename or ""))
-    extension = Path(original_name).suffix.lower()
-    mime_type = str(file_storage.mimetype or "").lower()
-    image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-    image_mimes = {
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif",
-    }
-    if extension not in image_exts or mime_type not in image_mimes:
-        conn.close()
-        return error_response(error_messages.POST_IMAGE_FILE_TYPE_INVALID, 400)
-
-    file_info, err = save_uploaded_file(file_storage)
-    if err:
-        conn.close()
-        return error_response(err, 400)
-    if not file_info:
-        conn.close()
-        return error_response(error_messages.POST_FILE_PROCESS_FAILED, 400)
-
-    image_url = _stored_path_to_upload_url(file_info["stored_path"])
-    conn.execute(
-        """
-        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(section_key) DO UPDATE SET
-            image_url = excluded.image_url,
-            updated_at = excluded.updated_at,
-            updated_by = excluded.updated_by
-        """,
-        (section_key, "", image_url, now_iso(), me["id"]),
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"imageUrl": image_url}, 201)
-
-
-def list_content_blocks():
-    conn = get_db_connection()
-    rows = conn.execute(
-        """
-        SELECT section_key, content_html, updated_at, updated_by
-        FROM about_sections
-        WHERE section_key IN (?, ?, ?, ?)
-        ORDER BY section_key ASC
-        """,
-        ("activities_overview", "join", "home_stats", "hero_background"),
-    ).fetchall()
-    conn.close()
-
-    items = {}
-    for row in rows:
-        items[row["section_key"]] = {
-            "contentHtml": row["content_html"] or "",
-            "updatedAt": row["updated_at"],
-            "updatedBy": row["updated_by"],
-        }
-    return success_response({"items": items})
-
-
-def update_content_block():
-    payload = request.get_json(silent=True) or {}
-    block_key = _normalize_key(payload.get("key", ""), CONTENT_BLOCK_KEY_ALIASES)
-    content_html = str(payload.get("contentHtml", ""))
-
-    if block_key not in CONTENT_BLOCK_KEYS:
-        return error_response(error_messages.POST_CONTENT_BLOCK_INVALID, 400)
-
-    conn = get_db_connection()
-    me = get_current_user_row(conn)
-    if not me:
-        conn.close()
-        return error_response(error_messages.UNAUTHORIZED, 401)
-    if me["status"] != "active":
-        conn.close()
-        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
-
-    if block_key in {"home_stats", "hero_background"}:
-        if not is_admin_like(me):
-            conn.close()
-            message = (
-                error_messages.POST_HOME_STATS_ADMIN_ONLY
-                if block_key == "home_stats"
-                else error_messages.POST_HERO_BACKGROUND_ADMIN_ONLY
-            )
-            return error_response(message, 403)
-    elif not role_at_least(me["role"], "EXECUTIVE"):
-        conn.close()
-        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
-
-    conn.execute(
-        """
-        INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(section_key) DO UPDATE SET
-            content_html = excluded.content_html,
-            updated_at = excluded.updated_at,
-            updated_by = excluded.updated_by
-        """,
-        (block_key, content_html, "", now_iso(), me["id"]),
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"ok": True})
 
 
 def get_press_kit():
@@ -551,8 +302,9 @@ def list_posts():
 def create_post():
     payload = request.get_json(silent=True) or {}
     category = post_policy.normalize_create_category(payload.get("category", ""))
-    if not post_policy.is_creatable_category(category):
-        return error_response(error_messages.POST_INVALID_CATEGORY, 400)
+    category_error = _validate_supported_category(category)
+    if category_error:
+        return category_error
     title = str(payload.get("title", "")).strip()
     if not title:
         return error_response(error_messages.POST_TITLE_REQUIRED, 400)
@@ -573,7 +325,7 @@ def create_post():
         conn.close()
         return error_response(permission_error, 403)
 
-    create_handler = _create_category_handler(category)
+    create_handler = _resolve_category_handler("create", category)
     if create_handler:
         post_id, err = create_handler(payload, conn, me, post_visibility_status)
         if err:
@@ -755,14 +507,19 @@ def update_post(post_id):
     if not category:
         conn.close()
         return error_response(error_messages.POST_CATEGORY_REQUIRED, 400)
-    next_category = category.lower()
+    next_category = post_policy.normalize_create_category(category)
+
+    category_error = _validate_supported_category(next_category)
+    if category_error:
+        conn.close()
+        return category_error
 
     permission_error = post_policy.update_permission_error(next_category, me)
     if permission_error:
         conn.close()
         return error_response(permission_error, 403)
 
-    update_handler = _update_category_handler(next_category)
+    update_handler = _resolve_category_handler("update", next_category)
     if update_handler:
         err = update_handler(post_id, payload, conn, me, post_visibility_status)
     else:
@@ -819,7 +576,7 @@ def delete_post(post_id):
         conn.close()
         return error_response(error_messages.POST_AUTHOR_OR_EXEC_REQUIRED, 403)
     category = str(post["category"] or "").lower()
-    delete_handler = _delete_category_handler(category)
+    delete_handler = _resolve_category_handler("delete", category)
     if delete_handler:
         err = delete_handler(post_id, conn, me)
     else:

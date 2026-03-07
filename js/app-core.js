@@ -1,4 +1,4 @@
-// ============ GLOBAL STATE (localStorage) ============
+﻿// ============ GLOBAL STATE (localStorage) ============
 const DATA_KEY = 'weave_content';
 const COMMENTS_KEY = 'weave_comments';
 const CURRENT_USER_KEY = 'weave_current_user';
@@ -16,6 +16,154 @@ let ACTIVE_MODAL_ID = '';
 let MODAL_OPEN_COUNT = 0;
 let MODAL_LOCK_SCROLL_TOP = 0;
 let currentEventDetailId = null;
+const CLIENT_TELEMETRY_KEY = 'weave_client_telemetry';
+const CLIENT_TELEMETRY_DAY_KEY = 'weave_client_telemetry_day';
+const ROUTE_STATE_KEYS = {
+  panel: 'panel',
+  newsTab: 'newsTab',
+  q: 'q',
+  page: 'page',
+  faqQ: 'faqQ',
+  faqPage: 'faqPage',
+  qnaQ: 'qnaQ',
+  qnaPage: 'qnaPage',
+  galleryQ: 'galleryQ',
+  galleryPage: 'galleryPage',
+  galleryFilter: 'galleryFilter'
+};
+window.ROUTE_STATE_KEYS = ROUTE_STATE_KEYS;
+
+function getTodayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function loadClientTelemetry() {
+  try {
+    const savedDay = String(localStorage.getItem(CLIENT_TELEMETRY_DAY_KEY) || '');
+    const today = getTodayKey();
+    if (savedDay && savedDay !== today) {
+      localStorage.removeItem(CLIENT_TELEMETRY_KEY);
+    }
+    const parsed = JSON.parse(localStorage.getItem(CLIENT_TELEMETRY_KEY) || '{}');
+    return {
+      errors403: Number(parsed.errors403 || 0),
+      errors429: Number(parsed.errors429 || 0),
+      uploadFailures: Number(parsed.uploadFailures || 0)
+    };
+  } catch (_) {
+    return { errors403: 0, errors429: 0, uploadFailures: 0 };
+  }
+}
+
+const CLIENT_TELEMETRY = loadClientTelemetry();
+
+function persistClientTelemetry() {
+  try {
+    localStorage.setItem(CLIENT_TELEMETRY_KEY, JSON.stringify(CLIENT_TELEMETRY));
+    localStorage.setItem(CLIENT_TELEMETRY_DAY_KEY, getTodayKey());
+  } catch (_) {}
+}
+
+function showToast(message, type = 'info', durationMs = 2200) {
+  const el = document.getElementById('app-toast');
+  if (!el) return;
+  el.textContent = String(message || '?붿껌???꾨즺?섏뿀?듬땲??');
+  el.dataset.type = String(type || 'info');
+  el.classList.add('show');
+  window.clearTimeout(showToast._timer);
+  showToast._timer = window.setTimeout(() => {
+    el.classList.remove('show');
+  }, Math.max(1200, Number(durationMs) || 2200));
+}
+
+window.showToast = showToast;
+
+function notifyInfo(message, durationMs = 2200) {
+  showToast(message, 'info', durationMs);
+}
+
+function notifyError(message, durationMs = 3200) {
+  showToast(message, 'error', durationMs);
+}
+
+function notifyMessage(message, options = {}) {
+  const text = String(message || '').trim();
+  if (!text) return;
+  const level = String(options.level || '').toLowerCase();
+  const durationMs = Number(options.durationMs || 0) || undefined;
+  if (level === 'error') return notifyError(text, durationMs);
+  if (level === 'info' || level === 'success') return notifyInfo(text, durationMs);
+  const infoLike = /(완료|등록|확인|반영|성공|취소|초기화|로그아웃)/;
+  return infoLike.test(text) ? notifyInfo(text, durationMs) : notifyError(text, durationMs);
+}
+
+window.notifyInfo = notifyInfo;
+window.notifyError = notifyError;
+window.notifyMessage = notifyMessage;
+
+function recordClientTelemetry(responseStatus, requestPath = '') {
+  const status = Number(responseStatus || 0);
+  const path = String(requestPath || '');
+  if (status === 403) CLIENT_TELEMETRY.errors403 += 1;
+  if (status === 429) CLIENT_TELEMETRY.errors429 += 1;
+  if (status >= 400 && /\/posts\/\d+\/files/i.test(path)) CLIENT_TELEMETRY.uploadFailures += 1;
+  persistClientTelemetry();
+}
+
+function getClientTelemetry() {
+  return { ...CLIENT_TELEMETRY };
+}
+
+window.getClientTelemetry = getClientTelemetry;
+window.getClientTelemetrySnapshot = getClientTelemetry;
+
+function resetClientTelemetry() {
+  CLIENT_TELEMETRY.errors403 = 0;
+  CLIENT_TELEMETRY.errors429 = 0;
+  CLIENT_TELEMETRY.uploadFailures = 0;
+  persistClientTelemetry();
+  return getClientTelemetry();
+}
+
+window.resetClientTelemetry = resetClientTelemetry;
+
+function updateAppUrlState(partial = {}) {
+  const url = new URL(window.location.href);
+  const params = url.searchParams;
+  Object.entries({ ...partial }).forEach(([key, value]) => {
+    const text = String(value ?? '').trim();
+    if (!text) {
+      params.delete(key);
+      return;
+    }
+    params.set(key, text);
+  });
+  const query = params.toString();
+  const nextUrl = `${url.pathname}${query ? `?${query}` : ''}${url.hash || ''}`;
+  window.history.replaceState({}, '', nextUrl);
+}
+
+window.updateAppUrlState = updateAppUrlState;
+
+function readInitialAppUrlState() {
+  const url = new URL(window.location.href);
+  return {
+    panel: url.searchParams.get(ROUTE_STATE_KEYS.panel) || '',
+    newsTab: url.searchParams.get(ROUTE_STATE_KEYS.newsTab) || '',
+    q: url.searchParams.get(ROUTE_STATE_KEYS.q) || '',
+    page: url.searchParams.get(ROUTE_STATE_KEYS.page) || '',
+    faqQ: url.searchParams.get(ROUTE_STATE_KEYS.faqQ) || '',
+    faqPage: url.searchParams.get(ROUTE_STATE_KEYS.faqPage) || '',
+    qnaQ: url.searchParams.get(ROUTE_STATE_KEYS.qnaQ) || '',
+    qnaPage: url.searchParams.get(ROUTE_STATE_KEYS.qnaPage) || '',
+    galleryQ: url.searchParams.get(ROUTE_STATE_KEYS.galleryQ) || '',
+    galleryPage: url.searchParams.get(ROUTE_STATE_KEYS.galleryPage) || '',
+    galleryFilter: url.searchParams.get(ROUTE_STATE_KEYS.galleryFilter) || ''
+  };
+}
+
+window.readInitialAppUrlState = readInitialAppUrlState;
 
 // ============ AUTH FUNCTIONS ============
 function getCurrentUser() {
@@ -87,7 +235,7 @@ function handleSessionExpired(path = '') {
 function showPermissionDenied() {
   const modalEl = document.getElementById('permissionDeniedModal');
   if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
-    alert('권한이 없습니다.');
+    notifyError('沅뚰븳???놁뒿?덈떎.');
     return;
   }
   const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
@@ -173,13 +321,23 @@ async function apiRequest(path, options = {}) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      recordClientTelemetry(response.status, path);
       if (response.status === 401 && !suppressSessionModal) {
         handleSessionExpired(path);
       }
       if (response.status === 403) {
         showPermissionDenied();
       }
-      throw new Error(data.error || data.message || (response.status === 401 ? '세션이 만료되었습니다.' : '요청 처리 중 오류가 발생했습니다.'));
+      const defaultMessage = response.status === 401
+        ? '?몄뀡??留뚮즺?섏뿀?듬땲??'
+        : response.status === 403
+          ? '沅뚰븳???놁뒿?덈떎.'
+          : response.status === 404
+            ? '?붿껌????곸쓣 李얠쓣 ???놁뒿?덈떎.'
+            : response.status === 429
+              ? '?붿껌??留롮뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.'
+              : '?붿껌 泥섎━ 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.';
+      throw new Error(data.error || data.message || defaultMessage);
     }
     if (data && data.success === true && data.data && typeof data.data === 'object') {
       return { ...data.data, success: true };
@@ -187,11 +345,11 @@ async function apiRequest(path, options = {}) {
     return data;
   } catch (error) {
     if (error && error.name === 'AbortError') {
-      throw new Error('서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
+      throw new Error('?쒕쾭 ?묐떟??吏?곕릺怨??덉뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.');
     }
     const errorMessage = String(error?.message || '');
     if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(errorMessage)) {
-      throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+      throw new Error('?쒕쾭???곌껐?????놁뒿?덈떎. ?ㅽ듃?뚰겕 ?곹깭瑜??뺤씤?????ㅼ떆 ?쒕룄?댁＜?몄슂.');
     }
     throw error;
   } finally {
@@ -259,9 +417,9 @@ async function findUsernameFlow() {
       method: 'POST',
       body: JSON.stringify({ contact })
     });
-    alert(`아이디는 ${data.username} 입니다.`);
+    notifyMessage(`아이디는 ${data.username} 입니다.`);
   } catch (error) {
-    alert(error.message || '일치하는 계정을 찾지 못했습니다.');
+    notifyMessage(error.message || '일치하는 계정을 찾지 못했습니다.');
   }
 }
 
@@ -272,7 +430,7 @@ async function findPasswordFlow() {
   if (!contact) return;
   const newPassword = prompt('새 비밀번호를 입력하세요. (8자 이상, 대문자/특수문자 포함)');
   if (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
-    alert('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
+    notifyMessage('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
     return;
   }
   try {
@@ -280,9 +438,9 @@ async function findPasswordFlow() {
       method: 'POST',
       body: JSON.stringify({ username, contact, newPassword })
     });
-    alert(data.message || '비밀번호가 재설정되었습니다.');
+    notifyMessage(data.message || '비밀번호가 재설정되었습니다.');
   } catch (error) {
-    alert(error.message || '비밀번호 재설정에 실패했습니다.');
+    notifyMessage(error.message || '비밀번호 재설정에 실패했습니다.');
   }
 }
 

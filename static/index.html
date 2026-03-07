@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-bs-spy="scroll" data-bs-target="#navbar" data-bs-offset="80">
+<a class="skip-link" href="#home">본문으로 바로가기</a>
 
 <header class="site-header fixed-top shadow-sm" id="navbar" style="background: #31b7ff;">
   <nav class="navbar navbar-expand-lg navbar-light" style="background: #31b7ff;">
@@ -22,7 +23,7 @@
         </div>
         <span class="d-none d-sm-inline text-white">남양주청년봉사단 위브</span>
       </a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-label="메뉴 열기">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navMenu">
@@ -30,7 +31,6 @@
           <li class="nav-item flex-grow-1 nav-with-submenu">
             <a class="nav-link text-center" href="#about" data-panel="about">소개</a>
             <div class="nav-submenu">
-              <a href="#" data-panel="about" data-about-tab="executives">운영진</a>
               <a href="#" data-panel="about" data-about-tab="history">연혁</a>
               <a href="#" data-panel="about" data-about-tab="logo">로고</a>
               <a href="#" data-panel="about" data-about-tab="relatedsites">관련사이트</a>
@@ -81,11 +81,11 @@
 <main>
 
 <!-- HOME: HERO + STATS -->
-<section id="home" class="hero py-5 text-dark position-relative overflow-hidden panel-active">
+<section id="home" class="hero py-5 text-dark position-relative overflow-hidden panel-active" style="background: white;">
   <div class="hero-bg"></div>
   <div class="container position-relative z-1">
     <div class="row align-items-center hero-content-row">
-      <div class="col-lg-8 mx-auto text-center">
+      <div class="col-lg-8 mx-auto text-center hero-content-shell">
         <div class="hero-logo-stage mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
           <img src="logo.png" alt="위브 로고" class="hero-main-logo">
         </div>
@@ -97,20 +97,6 @@
         </p>
         <div class="d-flex gap-3 justify-content-center flex-wrap animate__animated animate__fadeInUp" style="animation-delay:0.4s;">
           <a href="#about" class="btn btn-outline-primary btn-lg px-5" data-panel="about" data-about-tab="history">자세히 알아보기</a>
-        </div>
-        <div id="hero-bg-admin-tools" class="d-none mt-3">
-          <div class="d-inline-flex flex-wrap gap-2 justify-content-center">
-            <button type="button" class="btn btn-sm btn-outline-primary" id="hero-bg-upload-btn">홈 배경 이미지 변경</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" id="hero-bg-adjust-toggle-btn">배경 위치 조정</button>
-            <button type="button" class="btn btn-sm btn-primary" id="hero-bg-save-btn">배경 설정 저장</button>
-            <input id="hero-bg-upload-input" type="file" accept="image/*" class="d-none">
-          </div>
-          <div id="hero-bg-editor" class="hero-bg-editor card border-0 shadow-sm mt-3 d-none">
-            <div class="card-body">
-              <div class="small text-muted mb-2">미리보기 영역을 드래그해서 보이는 위치를 조정하세요.</div>
-              <div id="hero-bg-preview-canvas" class="hero-bg-preview-canvas" role="button" aria-label="홈 배경 위치 조정"></div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -190,12 +176,6 @@
 <!-- STATS SECTION -->
 <section id="home-stats" class="stats-section py-5 bg-light">
   <div class="container">
-    <div class="d-flex justify-content-end mb-3">
-      <div id="home-stats-admin-tools" class="d-none d-inline-flex gap-2">
-        <button type="button" class="btn btn-sm btn-outline-primary" id="home-stats-edit-toggle">홈 통계 편집</button>
-        <button type="button" class="btn btn-sm btn-primary d-none" id="home-stats-save-btn">홈 통계 저장</button>
-      </div>
-    </div>
     <div class="row g-4 text-center">
       <div class="col-md-3">
         <div class="stat-card">
@@ -269,17 +249,8 @@
     </div>
     <!-- About sub-tabs -->
     <div class="row mt-5">
-      <div class="col-12 text-end mb-3">
-        <div id="about-content-admin-tools" class="d-none d-inline-flex flex-wrap justify-content-end gap-2">
-          <button type="button" class="btn btn-sm btn-outline-primary" id="about-content-edit-toggle">현재 탭 편집</button>
-          <button type="button" class="btn btn-sm btn-primary d-none" id="about-content-save-btn">현재 탭 저장</button>
-          <button type="button" class="btn btn-sm btn-outline-primary" id="about-content-image-btn">현재 탭 사진 업로드</button>
-          <input id="about-content-image-input" type="file" accept="image/*" class="d-none">
-        </div>
-      </div>
       <div class="col-12 text-center mb-3">
         <div class="d-flex flex-wrap justify-content-center gap-2 about-tab-nav" role="tablist" aria-label="About tabs">
-          <button type="button" class="btn btn-outline-primary" id="btn-executives">운영진</button>
           <button type="button" class="btn btn-outline-primary" id="btn-history">연혁</button>
           <button type="button" class="btn btn-outline-primary" id="btn-logo">로고</button>
           <button type="button" class="btn btn-outline-primary" id="btn-relatedsites">관련사이트</button>
@@ -290,115 +261,93 @@
       </div>
 
       <div class="col-12">
-        <div id="executives-panel" class="about-panel d-none" data-about-key="executives">
-          <div class="card shadow-sm border-0 p-4 mb-4">
-            <h4 class="fw-bold mb-3">운영진</h4>
-            <div class="about-editable-content">
-              <ul class="mb-0">
-                <li>단장: 강인수</li>
-                <li>부단장: 강예진</li>
-                <li>기획부장: 이주영</li>
-                <li>홍보부장: 서지훈</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div id="logo-panel" class="about-panel d-none" data-about-key="logo">
+        <div id="logo-panel" class="about-panel d-none">
           <div class="card shadow-sm border-0 p-4 mb-4 text-center">
             <h4 class="fw-bold mb-3">위브 로고 소개</h4>
-            <div class="about-editable-content">
-              <img src="logo.png" alt="위브 로고" style="max-width:220px; width:100%; height:auto;" class="mx-auto mb-4">
-              <ul class="text-start mb-0">
-                <li>‘엮다’ 라는 의미이며 봉사단을 통해 사랑과 사랑을 잇고 위브(we give), 우리가 나눠준다는 의미를 함께 내포</li>
-                <li>W가 입이고 위 표정을 더해 항상 밝게 웃으며 봉사하는 청년의 얼굴을 상징</li>
-                <li>파란색과 폰트는 청년봉사단의 활기찬 모습을 나타냄</li>
-                <li>봉사 성격에 따라 산타버전, 동물 버전 등으로 응용해 꾸밀 수 있는 장점 보유</li>
-                <li>로고 아래쪽의 점들은 점자를 표현</li>
-              </ul>
-            </div>
+            <img src="logo.png" alt="위브 로고" style="max-width:220px; width:100%; height:auto;" class="mx-auto mb-4">
+            <ul class="text-start mb-0">
+              <li>‘엮다’ 라는 의미이며 봉사단을 통해 사랑과 사랑을 잇고 위브(we give), 우리가 나눠준다는 의미를 함께 내포</li>
+              <li>W가 입이고 위 표정을 더해 항상 밝게 웃으며 봉사하는 청년의 얼굴을 상징</li>
+              <li>파란색과 폰트는 청년봉사단의 활기찬 모습을 나타냄</li>
+              <li>봉사 성격에 따라 산타버전, 동물 버전 등으로 응용해 꾸밀 수 있는 장점 보유</li>
+              <li>로고 아래쪽의 점들은 점자를 표현</li>
+            </ul>
           </div>
         </div>
 
-        <div id="relatedsites-panel" class="about-panel d-none" data-about-key="relatedsites">
+        <div id="relatedsites-panel" class="about-panel d-none">
           <div class="card shadow-sm border-0 p-4 mb-4">
             <h4 class="fw-bold mb-3">관련사이트</h4>
-            <div class="about-editable-content">
-              <div class="list-group">
-                <a href="https://blog.naver.com/nyjvcyouth" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                  <span><i class="fas fa-blog text-primary me-2"></i>위브 블로그</span>
-                  <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
-                <a href="https://www.instagram.com/nyjvcyouth?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                  <span><i class="fab fa-instagram text-primary me-2"></i>위브 인스타그램</span>
-                  <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
-                <a href="https://www.nyjvc.or.kr/" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                  <span><i class="fas fa-link text-primary me-2"></i>남양주시자원봉사센터</span>
-                  <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
-              </div>
+            <div class="list-group">
+              <a href="https://blog.naver.com/nyjvcyouth" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-blog text-primary me-2"></i>위브 블로그</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.instagram.com/nyjvcyouth?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fab fa-instagram text-primary me-2"></i>위브 인스타그램</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
+              <a href="https://www.nyjvc.or.kr/" target="_blank" rel="noopener" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-link text-primary me-2"></i>남양주시자원봉사센터</span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
             </div>
           </div>
         </div>
 
-        <div id="awards-panel" class="about-panel" data-about-key="awards">
+        <div id="awards-panel" class="about-panel">
           <div class="card shadow-sm border-0 p-4 mb-4">
             <h4 class="fw-bold">상장 수여 기준</h4>
-            <div class="about-editable-content">
-              <p class="mb-2"><strong>봉사 시간 점수 (+)</strong></p>
-              <ul>
-                <li>봉사시간 1시간 당 <strong>0.25점</strong> 가산 (예: 봉사시간 4시간 → 1점)</li>
-                <li>청년봉사단 활동 시간과 회의(기획 회의 포함) 시간을 합산하여 산정</li>
-                <li>청년봉사단 외 활동은 점수에 반영되지 않음</li>
-                <li>1년간 청년봉사단 활동 개근 시 <strong>가산점 2점</strong> 부여 (기획회의·홍보팀·비정기 활동 제외)</li>
-                <li>뒷풀이(회식) 등 봉사와 직접 관련 없는 활동은 점수 미부여</li>
-              </ul>
-              <p class="mb-2"><strong>홍보팀 활동 점수 (+)</strong></p>
-              <p>홍보팀에 참여하여 1년간 정상적으로 활동 시 <strong>5점</strong> 부여</p>
-              <p class="mb-2"><strong>패널티 점수 (-)</strong></p>
-              <p>봉사 활동 참여 신청 후 미참여 시, 사유와 관계없이 <strong>0.25점</strong> 차감</p>
-              <p class="mb-2"><strong>추가 사항</strong></p>
-              <ul>
-                <li>단장·부단장은 센터 판단에 따라 우선순위 부여 가능</li>
-                <li>같은 상에 대해 2년 이내 수상 이력 보유자는 후보에서 제외</li>
-                <li>정기 시상(연말 평가회)은 당해연도 점수 적용, 비정기 시상은 최근 3년 누적 점수 적용</li>
-                <li>청년 봉사단 외 봉사 포함 총 봉사 시간이 <strong>100시간 미만</strong>인 자는 수상 후보에서 제외</li>
-              </ul>
-            </div>
+            <p class="mb-2"><strong>봉사 시간 점수 (+)</strong></p>
+            <ul>
+              <li>봉사시간 1시간 당 <strong>0.25점</strong> 가산 (예: 봉사시간 4시간 → 1점)</li>
+              <li>청년봉사단 활동 시간과 회의(기획 회의 포함) 시간을 합산하여 산정</li>
+              <li>청년봉사단 외 활동은 점수에 반영되지 않음</li>
+              <li>1년간 청년봉사단 활동 개근 시 <strong>가산점 2점</strong> 부여 (기획회의·홍보팀·비정기 활동 제외)</li>
+              <li>뒷풀이(회식) 등 봉사와 직접 관련 없는 활동은 점수 미부여</li>
+            </ul>
+            <p class="mb-2"><strong>홍보팀 활동 점수 (+)</strong></p>
+            <p>홍보팀에 참여하여 1년간 정상적으로 활동 시 <strong>5점</strong> 부여</p>
+            <p class="mb-2"><strong>패널티 점수 (-)</strong></p>
+            <p>봉사 활동 참여 신청 후 미참여 시, 사유와 관계없이 <strong>0.25점</strong> 차감</p>
+            <p class="mb-2"><strong>추가 사항</strong></p>
+            <ul>
+              <li>단장·부단장은 센터 판단에 따라 우선순위 부여 가능</li>
+              <li>같은 상에 대해 2년 이내 수상 이력 보유자는 후보에서 제외</li>
+              <li>정기 시상(연말 평가회)은 당해연도 점수 적용, 비정기 시상은 최근 3년 누적 점수 적용</li>
+              <li>청년 봉사단 외 봉사 포함 총 봉사 시간이 <strong>100시간 미만</strong>인 자는 수상 후보에서 제외</li>
+            </ul>
           </div>
         </div>
 
-        <div id="rules-panel" class="about-panel d-none" data-about-key="rules">
+        <div id="rules-panel" class="about-panel d-none">
           <div class="card shadow-sm border-0 p-4 mb-4">
             <h4 class="fw-bold">규칙 및 규약</h4>
-            <div class="about-editable-content">
-              <h5 class="mt-3">목적</h5>
-              <p>남양주청년봉사단은 자원봉사활동을 통해 청년들의 역량강화와 친목을 도모하며, 지역사회 문제해결에 함께 참여하여 자원봉사 문화를 이끌어나갈 차세대 리더를 양성하는데 목적을 둔다.</p>
-              <h5>자격</h5>
-              <p>청년봉사단원의 자격은 만 19세~39세의 남양주시 거주 또는 근무(재학) 중인 자로 한다.</p>
-              <h5>모집</h5>
-              <p>청년봉사단의 모집은 매 년 1월~2월 남양주시자원봉사센터를 통한 공개 모집을 원칙으로 한다.</p>
-              <h5>임원</h5>
-              <p>임원은 단장 1명, 부단장 1명, 기획부장 1명, 홍보부장 1명으로 하며 임기는 2년이다. 단장은 전년도 활동 70% 이상 참여한 자 중 단원 투표로 결정한다. 부단장과 기획부장은 단장의 지명으로 선출한다. 임원은 개인사정 또는 센터 판단에 따라 사임할 수 있으며, 결원이 발생하면 센터가 잔여기간 수행할 임원을 임명한다.</p>
-              <h5>조직</h5>
-              <p>조직은 기획팀과 홍보팀으로 구성하며 팀원은 1년마다 모집을 통해 구성한다. 단장·부단장은 당연직이다.</p>
-              <h5>의무</h5>
-              <p>청년봉사단은 월 1회 활동을 원칙으로 하며, 1년간 활동 미참여 시 차기 연도 봉사단 가입을 불허한다(발대식·평가회 제외).</p>
-              <h5>수상</h5>
-              <p>수상은 예외 없이 "남양주청년봉사단 상장 수여 기준"을 통해 선정한다.</p>
-              <h5>재정</h5>
-              <p>연회비는 3만원이며 운영비는 연회비·찬조금·후원금 등을 적립하여 사용한다. 운영비는 금융권에 예치하며 임원진 명의로 개설 후 관리한다. 기금 지출은 임원회의를 통해 결정하며 매년 평가회에서 지출 내역을 보고한다.</p>
-              <h5>기타</h5>
-              <p>기타 정하지 않은 사항은 단원과의 협의를 통해 결정한다.</p>
-            </div>
+            <h5 class="mt-3">목적</h5>
+            <p>남양주청년봉사단은 자원봉사활동을 통해 청년들의 역량강화와 친목을 도모하며, 지역사회 문제해결에 함께 참여하여 자원봉사 문화를 이끌어나갈 차세대 리더를 양성하는데 목적을 둔다.</p>
+            <h5>자격</h5>
+            <p>청년봉사단원의 자격은 만 19세~39세의 남양주시 거주 또는 근무(재학) 중인 자로 한다.</p>
+            <h5>모집</h5>
+            <p>청년봉사단의 모집은 매 년 1월~2월 남양주시자원봉사센터를 통한 공개 모집을 원칙으로 한다.</p>
+            <h5>임원</h5>
+            <p>임원은 단장 1명, 부단장 1명, 기획부장 1명, 홍보부장 1명으로 하며 임기는 2년이다. 단장은 전년도 활동 70% 이상 참여한 자 중 단원 투표로 결정한다. 부단장과 기획부장은 단장의 지명으로 선출한다. 임원은 개인사정 또는 센터 판단에 따라 사임할 수 있으며, 결원이 발생하면 센터가 잔여기간 수행할 임원을 임명한다.</p>
+            <h5>조직</h5>
+            <p>조직은 기획팀과 홍보팀으로 구성하며 팀원은 1년마다 모집을 통해 구성한다. 단장·부단장은 당연직이다.</p>
+            <h5>의무</h5>
+            <p>청년봉사단은 월 1회 활동을 원칙으로 하며, 1년간 활동 미참여 시 차기 연도 봉사단 가입을 불허한다(발대식·평가회 제외).</p>
+            <h5>수상</h5>
+            <p>수상은 예외 없이 "남양주청년봉사단 상장 수여 기준"을 통해 선정한다.</p>
+            <h5>재정</h5>
+            <p>연회비는 3만원이며 운영비는 연회비·찬조금·후원금 등을 적립하여 사용한다. 운영비는 금융권에 예치하며 임원진 명의로 개설 후 관리한다. 기금 지출은 임원회의를 통해 결정하며 매년 평가회에서 지출 내역을 보고한다.</p>
+            <h5>기타</h5>
+            <p>기타 정하지 않은 사항은 단원과의 협의를 통해 결정한다.</p>
           </div>
         </div>
 
-        <div id="history-panel" class="about-panel d-none" data-about-key="history">
+        <div id="history-panel" class="about-panel d-none">
           <div class="card shadow-sm border-0 p-4 mb-4">
             <h4 class="fw-bold">연혁</h4>
-            <div class="mt-3 about-editable-content">
+            <div class="mt-3">
               <h5>2022년</h5>
               <ul>
                 <li>단장: 이도은, 부단장: 강한솔</li>
@@ -435,39 +384,37 @@
           </div>
         </div>
 
-        <div id="fees-panel" class="about-panel d-none" data-about-key="fees">
+        <div id="fees-panel" class="about-panel d-none">
           <div class="card shadow-sm border-0 p-4 mb-4">
             <h4 class="fw-bold">회비</h4>
-            <div class="about-editable-content">
-              <h5 class="mt-3">규칙</h5>
-              <ul>
-                <li>연회비 3만원</li>
-                <li>회비 미납부 시, 봉사단 활동 불가능</li>
-                <li>봉사단 탈퇴 시 회비 미환급</li>
-                <li>찬조금, 후원금 등이 있을 시 회비에 포함하여 운영</li>
-                <li>운영비는 금융권에 예치하며, 임원진 명의로 개설 후 관리 및 지출</li>
-                <li>매년 평가회에 임원진은 단원들에게 기금의 지출 내역 및 잔액을 보고</li>
-                <li>1년간 활동 후 남은 회비는 내년으로 이월</li>
-              </ul>
+            <h5 class="mt-3">규칙</h5>
+            <ul>
+              <li>연회비 3만원</li>
+              <li>회비 미납부 시, 봉사단 활동 불가능</li>
+              <li>봉사단 탈퇴 시 회비 미환급</li>
+              <li>찬조금, 후원금 등이 있을 시 회비에 포함하여 운영</li>
+              <li>운영비는 금융권에 예치하며, 임원진 명의로 개설 후 관리 및 지출</li>
+              <li>매년 평가회에 임원진은 단원들에게 기금의 지출 내역 및 잔액을 보고</li>
+              <li>1년간 활동 후 남은 회비는 내년으로 이월</li>
+            </ul>
 
-              <h5 class="mt-3">목적 및 사용처</h5>
-              <ul>
-                <li>노쇼 방지비</li>
-                <li>워크샵 비용 - 숙소 등</li>
-                <li>이벤트 비용 - 게임 상품 비용, 연말 상장 수상자 축하 꽃 등 구입 비용 등</li>
-                <li>연말 센터 운영비가 부족할 시, 회비에서 충당하여 활동비로 사용(봉사 물품 구입, 식사비 등)</li>
-              </ul>
+            <h5 class="mt-3">목적 및 사용처</h5>
+            <ul>
+              <li>노쇼 방지비</li>
+              <li>워크샵 비용 - 숙소 등</li>
+              <li>이벤트 비용 - 게임 상품 비용, 연말 상장 수상자 축하 꽃 등 구입 비용 등</li>
+              <li>연말 센터 운영비가 부족할 시, 회비에서 충당하여 활동비로 사용(봉사 물품 구입, 식사비 등)</li>
+            </ul>
 
-              <h5 class="mt-3">계좌</h5>
-              <ul>
-                <li>계좌 관리자 : 단장 강인수</li>
-                <li>계좌 번호 : 3333-32-7242838</li>
-                <li>카카오 뱅크 모임 통장 사용</li>
-                <li>카카오 뱅크를 가입했고 회비를 납부한 단원은 언제든지 계좌의 거래 내역 확인 가능</li>
-                <li>카카오 뱅크를 가입하지 않더라도 위 계좌 번호로 계좌이체하여 회비 납부 가능</li>
-                <li>모임 통장 체크 카드를 발급하여 오프라인에서도 사용</li>
-              </ul>
-            </div>
+            <h5 class="mt-3">계좌</h5>
+            <ul>
+              <li>계좌 관리자 : 단장 강인수</li>
+              <li>계좌 번호 : 3333-32-7242838</li>
+              <li>카카오 뱅크 모임 통장 사용</li>
+              <li>카카오 뱅크를 가입했고 회비를 납부한 단원은 언제든지 계좌의 거래 내역 확인 가능</li>
+              <li>카카오 뱅크를 가입하지 않더라도 위 계좌 번호로 계좌이체하여 회비 납부 가능</li>
+              <li>모임 통장 체크 카드를 발급하여 오프라인에서도 사용</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -505,14 +452,6 @@
     </div>
 
     <div id="activities-overview-pane">
-    <div class="d-flex justify-content-end mb-3">
-      <div id="activities-content-admin-tools" class="d-none d-inline-flex gap-2">
-        <button type="button" class="btn btn-sm btn-outline-primary" id="activities-content-edit-toggle">활동 소개 편집</button>
-        <button type="button" class="btn btn-sm btn-primary d-none" id="activities-content-save-btn">활동 소개 저장</button>
-      </div>
-    </div>
-
-    <div id="activities-overview-editable" data-content-key="activities_overview">
 
     <div class="row g-4">
       <div class="col-md-6 col-lg-4">
@@ -582,8 +521,6 @@
           <li><strong>2022:</strong> 발대식, 수제간식/노즈워크 전달, 플로깅, 유기견 봉사, 마을안전학교, 이그나이트, 광릉숲 축제, 중간평가회/평가회, 자원봉사대축제</li>
         </ul>
       </div>
-    </div>
-
     </div>
 
     </div>
@@ -670,7 +607,10 @@
         <h2 class="h3 fw-bold mb-1">운영진 승인 대시보드</h2>
         <p class="text-muted mb-0">오늘 일정, 승인 대기, Q&A 미답변 등을 빠르게 확인하세요.</p>
       </div>
-      <button class="btn btn-sm btn-outline-primary" id="ops-dashboard-refresh-btn">새로고침</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary" id="ops-dashboard-refresh-btn">새로고침</button>
+        <button class="btn btn-sm btn-outline-secondary" id="ops-client-telemetry-reset-btn">클라이언트 카운터 초기화</button>
+      </div>
     </div>
 
     <div class="row g-3 mb-4" id="ops-dashboard-cards">
@@ -681,6 +621,9 @@
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">공지 예약</div><div class="h4 mb-0" id="ops-card-notices">-</div></div></div></div>
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Q&A 미답변</div><div class="h4 mb-0" id="ops-card-qna">-</div></div></div></div>
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">지출 입력 알림</div><div class="h4 mb-0" id="ops-card-expense">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">403 요청 거절 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-403">0</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">429 과다요청 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-429">0</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">업로드 실패 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-upload-fail">0</div></div></div></div>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -1045,13 +988,6 @@
   <div class="container position-relative z-1">
     <div class="row align-items-center">
       <div class="col-lg-8 mx-auto text-center">
-        <div class="d-flex justify-content-end mb-3">
-          <div id="join-content-admin-tools" class="d-none d-inline-flex gap-2">
-            <button type="button" class="btn btn-sm btn-outline-light" id="join-content-edit-toggle">참여 안내 편집</button>
-            <button type="button" class="btn btn-sm btn-light d-none" id="join-content-save-btn">참여 안내 저장</button>
-          </div>
-        </div>
-        <div id="join-editable" data-content-key="join">
         <h2 class="display-4 fw-bold mb-4">
           <i class="fas fa-handshake me-3"></i>함께하세요
         </h2>
@@ -1125,7 +1061,6 @@
               <p class="mt-3 mb-0 small text-muted">현금 후원뿐 아니라 물품 후원도 가능합니다. 물품 후원은 이메일/전화로 먼저 문의해 주세요.</p>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
@@ -2340,20 +2275,9 @@
 
   function updateAboutPhotoAdminControls() {
     const tools = document.getElementById('about-photo-admin-tools');
-    const contentTools = document.getElementById('about-content-admin-tools');
-    const activitiesTools = document.getElementById('activities-content-admin-tools');
-    const joinTools = document.getElementById('join-content-admin-tools');
-    const homeStatsTools = document.getElementById('home-stats-admin-tools');
-    const heroBgTools = document.getElementById('hero-bg-admin-tools');
     const user = getCurrentUser();
-    const canManage = !!(user && user.status === 'active' && isStaffUser(user));
-    const canManageHomeStats = !!(user && user.status === 'active' && isAdminUser(user));
+    const canManage = !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
     if (tools) tools.classList.toggle('d-none', !canManage);
-    if (contentTools) contentTools.classList.toggle('d-none', !canManage);
-    if (activitiesTools) activitiesTools.classList.toggle('d-none', !canManage);
-    if (joinTools) joinTools.classList.toggle('d-none', !canManage);
-    if (homeStatsTools) homeStatsTools.classList.toggle('d-none', !canManageHomeStats);
-    if (heroBgTools) heroBgTools.classList.toggle('d-none', !canManageHomeStats);
   }
 
   function updateDetailMeta(prefix, payload = {}) {
@@ -3066,306 +2990,29 @@
     }
 
     const statsForm = document.getElementById('update-stats-form');
-    const homeStatsEditToggleBtn = document.getElementById('home-stats-edit-toggle');
-    const homeStatsSaveBtn = document.getElementById('home-stats-save-btn');
-    let homeStatsEditMode = false;
-    const heroBgUploadBtn = document.getElementById('hero-bg-upload-btn');
-    const heroBgUploadInput = document.getElementById('hero-bg-upload-input');
-    const heroBgAdjustToggleBtn = document.getElementById('hero-bg-adjust-toggle-btn');
-    const heroBgSaveBtn = document.getElementById('hero-bg-save-btn');
-    const heroBgEditor = document.getElementById('hero-bg-editor');
-    const heroBgPreviewCanvas = document.getElementById('hero-bg-preview-canvas');
-    const heroBgConfig = {
-      imageUrl: 'Background.jpg',
-      posX: 50,
-      posY: 45,
-    };
-
-    function applyHeroBackgroundConfig() {
-      const safeImage = String(heroBgConfig.imageUrl || 'Background.jpg').replace(/'/g, "%27");
-      document.documentElement.style.setProperty('--hero-bg-image', `url('${safeImage}')`);
-      document.documentElement.style.setProperty('--hero-bg-pos-x', `${heroBgConfig.posX}%`);
-      document.documentElement.style.setProperty('--hero-bg-pos-y', `${heroBgConfig.posY}%`);
-    }
-
-    async function loadHeroBackgroundConfig() {
-      try {
-        const data = await apiRequest('/content/blocks', { method: 'GET' });
-        const block = String(data?.items?.hero_background?.contentHtml || '').trim();
-        if (!block) {
-          applyHeroBackgroundConfig();
-          return;
-        }
-        const parsed = JSON.parse(block);
-        if (parsed && typeof parsed === 'object') {
-          if (parsed.imageUrl) heroBgConfig.imageUrl = String(parsed.imageUrl);
-          if (Number.isFinite(Number(parsed.posX))) heroBgConfig.posX = Math.max(0, Math.min(100, Number(parsed.posX)));
-          if (Number.isFinite(Number(parsed.posY))) heroBgConfig.posY = Math.max(0, Math.min(100, Number(parsed.posY)));
-        }
-      } catch (_) {
-      }
-      applyHeroBackgroundConfig();
-    }
-
-    async function saveHeroBackgroundConfig() {
-      if (!isActiveAdminUser()) {
-        alert('운영자 권한이 없습니다.');
-        return;
-      }
-      try {
-        await apiRequest('/content/blocks', {
-          method: 'PUT',
-          body: JSON.stringify({
-            key: 'hero_background',
-            contentHtml: JSON.stringify({
-              imageUrl: heroBgConfig.imageUrl,
-              posX: heroBgConfig.posX,
-              posY: heroBgConfig.posY,
-            }),
-          }),
-        });
-        alert('홈 배경 설정이 저장되었습니다.');
-      } catch (error) {
-        alert(error.message || '홈 배경 저장에 실패했습니다.');
-      }
-    }
-
-    async function uploadHeroBackgroundImage(file) {
-      if (!isActiveAdminUser()) {
-        alert('운영자 권한이 없습니다.');
-        return;
-      }
-      if (!file) return;
-      try {
-        const csrf = await ensureCsrfToken();
-        const formData = new FormData();
-        formData.append('key', 'hero_background');
-        formData.append('file', file);
-
-        const response = await fetch('/api/about/sections/image', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: csrf ? { 'X-CSRF-Token': csrf } : {},
-          body: formData,
-        });
-        const payload = await response.json().catch(() => ({}));
-        const data = payload?.data || payload;
-        if (!response.ok) {
-          throw new Error(payload?.error || payload?.message || '배경 이미지 업로드에 실패했습니다.');
-        }
-        if (data?.imageUrl) {
-          heroBgConfig.imageUrl = String(data.imageUrl);
-          applyHeroBackgroundConfig();
-        }
-        await saveHeroBackgroundConfig();
-      } catch (error) {
-        alert(error.message || '배경 이미지 업로드에 실패했습니다.');
-      }
-    }
-
-    function bindHeroBackgroundDrag() {
-      if (!heroBgPreviewCanvas) return;
-      let dragging = false;
-
-      const updateFromPointer = (event) => {
-        const rect = heroBgPreviewCanvas.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
-        const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-        const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-        heroBgConfig.posX = Math.round((x / rect.width) * 1000) / 10;
-        heroBgConfig.posY = Math.round((y / rect.height) * 1000) / 10;
-        applyHeroBackgroundConfig();
-      };
-
-      heroBgPreviewCanvas.addEventListener('pointerdown', (event) => {
-        if (!isActiveAdminUser()) return;
-        dragging = true;
-        heroBgPreviewCanvas.classList.add('dragging');
-        heroBgPreviewCanvas.setPointerCapture(event.pointerId);
-        updateFromPointer(event);
-      });
-
-      heroBgPreviewCanvas.addEventListener('pointermove', (event) => {
-        if (!dragging) return;
-        updateFromPointer(event);
-      });
-
-      const stopDragging = (event) => {
-        if (!dragging) return;
-        dragging = false;
-        heroBgPreviewCanvas.classList.remove('dragging');
-        if (event?.pointerId !== undefined) {
-          try {
-            heroBgPreviewCanvas.releasePointerCapture(event.pointerId);
-          } catch (_) {}
-        }
-      };
-
-      heroBgPreviewCanvas.addEventListener('pointerup', stopDragging);
-      heroBgPreviewCanvas.addEventListener('pointercancel', stopDragging);
-      heroBgPreviewCanvas.addEventListener('pointerleave', stopDragging);
-    }
-
-    function isActiveAdminUser() {
-      const user = getCurrentUser();
-      return !!(user && user.status === 'active' && isAdminUser(user));
-    }
-
-    function applyHomeStatsEditMode() {
-      const editableIds = ['stat-generation', 'stat-members', 'stat-activities', 'stat-impact'];
-      const enabled = isActiveAdminUser() && homeStatsEditMode;
-      editableIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.contentEditable = enabled ? 'true' : 'false';
-        el.classList.toggle('border', enabled);
-        el.classList.toggle('rounded', enabled);
-        el.classList.toggle('px-2', enabled);
-        el.classList.toggle('py-1', enabled);
-      });
-      if (homeStatsSaveBtn) homeStatsSaveBtn.classList.toggle('d-none', !enabled);
-      if (homeStatsEditToggleBtn) {
-        homeStatsEditToggleBtn.textContent = enabled ? '홈 통계 편집 종료' : '홈 통계 편집';
-      }
-    }
-
-    async function saveHomeStatsFromCards() {
-      if (!isActiveAdminUser()) {
-        alert('운영자 권한이 없습니다.');
-        return;
-      }
-      const nextStats = {
-        generation: String(document.getElementById('stat-generation')?.textContent || '').trim(),
-        members: String(document.getElementById('stat-members')?.textContent || '').trim(),
-        activities: String(document.getElementById('stat-activities')?.textContent || '').trim(),
-        impact: String(document.getElementById('stat-impact')?.textContent || '').trim()
-      };
-      try {
-        await apiRequest('/content/blocks', {
-          method: 'PUT',
-          body: JSON.stringify({
-            key: 'home_stats',
-            contentHtml: JSON.stringify(nextStats)
-          })
-        });
-        saveStats(nextStats);
-        renderStats();
-        alert('홈 통계가 저장되었습니다.');
-      } catch (error) {
-        alert(error.message || '홈 통계 저장에 실패했습니다.');
-      }
-    }
-
-    async function loadHomeStatsFromServer() {
-      try {
-        const data = await apiRequest('/content/blocks', { method: 'GET' });
-        const raw = String(data?.items?.home_stats?.contentHtml || '').trim();
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') return;
-        const next = {
-          generation: String(parsed.generation || ''),
-          members: String(parsed.members || ''),
-          activities: String(parsed.activities || ''),
-          impact: String(parsed.impact || '')
-        };
-        if (!next.generation || !next.members || !next.activities || !next.impact) return;
-        saveStats(next);
-        renderStats();
-        if (statsForm) {
-          statsForm.generation.value = next.generation;
-          statsForm.members.value = next.members;
-          statsForm.activities.value = next.activities;
-          statsForm.impact.value = next.impact;
-        }
-      } catch (_) {
-      }
-    }
-
     if (statsForm) {
       const stats = getStats();
       statsForm.generation.value = stats.generation;
       statsForm.members.value = stats.members;
       statsForm.activities.value = stats.activities;
       statsForm.impact.value = stats.impact;
-      statsForm.onsubmit = async (e) => {
+      statsForm.onsubmit = (e) => {
         e.preventDefault();
         const user = getCurrentUser();
-        if (!user || user.status !== 'active' || !isAdminUser(user)) {
+        if (!user || (!user.isAdmin && !ADMIN_EMAILS.includes(user.email))) {
           alert('권한이 없습니다.');
           return;
         }
-        const nextStats = {
+        saveStats({
           generation: e.target.generation.value,
           members: e.target.members.value,
           activities: e.target.activities.value,
           impact: e.target.impact.value
-        };
-        try {
-          await apiRequest('/content/blocks', {
-            method: 'PUT',
-            body: JSON.stringify({
-              key: 'home_stats',
-              contentHtml: JSON.stringify(nextStats)
-            })
-          });
-          saveStats(nextStats);
-          renderStats();
-          alert('홈 통계가 저장되었습니다.');
-        } catch (error) {
-          alert(error.message || '홈 통계 저장에 실패했습니다.');
-        }
+        });
+        renderStats();
+        alert('홈 통계가 저장되었습니다.');
       };
     }
-
-    if (homeStatsEditToggleBtn) {
-      homeStatsEditToggleBtn.addEventListener('click', () => {
-        if (!isActiveAdminUser()) {
-          alert('운영자 권한이 없습니다.');
-          return;
-        }
-        homeStatsEditMode = !homeStatsEditMode;
-        applyHomeStatsEditMode();
-      });
-    }
-    if (homeStatsSaveBtn) {
-      homeStatsSaveBtn.addEventListener('click', async () => {
-        await saveHomeStatsFromCards();
-      });
-    }
-
-    if (heroBgUploadBtn && heroBgUploadInput) {
-      heroBgUploadBtn.addEventListener('click', () => {
-        if (!isActiveAdminUser()) {
-          alert('운영자 권한이 없습니다.');
-          return;
-        }
-        heroBgUploadInput.click();
-      });
-      heroBgUploadInput.addEventListener('change', async (event) => {
-        const file = event.target.files?.[0];
-        if (file) await uploadHeroBackgroundImage(file);
-        heroBgUploadInput.value = '';
-      });
-    }
-
-    if (heroBgAdjustToggleBtn && heroBgEditor) {
-      heroBgAdjustToggleBtn.addEventListener('click', () => {
-        if (!isActiveAdminUser()) {
-          alert('운영자 권한이 없습니다.');
-          return;
-        }
-        heroBgEditor.classList.toggle('d-none');
-      });
-    }
-
-    if (heroBgSaveBtn) {
-      heroBgSaveBtn.addEventListener('click', async () => {
-        await saveHeroBackgroundConfig();
-      });
-    }
-
-    bindHeroBackgroundDrag();
 
     // Initial render
     renderNews();
@@ -3373,9 +3020,6 @@
     renderQna();
     renderGallery();
     renderStats();
-    loadHomeStatsFromServer();
-    loadHeroBackgroundConfig();
-    applyHomeStatsEditMode();
     setNewsWriteButtons();
     setJoinActionPanel('inquiry');
     loadVolunteerEvents().catch(() => {});
@@ -3446,11 +3090,24 @@
     }
 
     const opsRefreshBtn = document.getElementById('ops-dashboard-refresh-btn');
+    const opsTelemetryResetBtn = document.getElementById('ops-client-telemetry-reset-btn');
     const opsPendingSearchInput = document.getElementById('ops-pending-search');
     const opsPendingSearchBtn = document.getElementById('ops-pending-search-btn');
     if (opsRefreshBtn) {
       opsRefreshBtn.addEventListener('click', async () => {
         await loadOpsDashboard(opsPendingPage);
+      });
+    }
+
+    if (opsTelemetryResetBtn) {
+      opsTelemetryResetBtn.addEventListener('click', async () => {
+        if (typeof resetClientTelemetry === 'function') {
+          resetClientTelemetry();
+        }
+        await loadOpsDashboard(opsPendingPage);
+        if (typeof notifyInfo === 'function') {
+          notifyInfo('클라이언트 카운터를 초기화했습니다.');
+        }
       });
     }
 
@@ -3562,7 +3219,7 @@
         if (target) {
           target.classList.add('panel-active');
           if (panelId === 'about') {
-            showAboutTab('executives');
+            showHistory();
           }
           if (panelId === 'activities') {
             openActivitiesOverviewTab();
@@ -3632,306 +3289,70 @@
     setActiveNavStates('home');
     syncHomeStats('home');
     // About sub-tab handling
-    const ABOUT_TABS = ['executives', 'history', 'logo', 'relatedsites', 'rules', 'awards', 'fees'];
-    let activeAboutTab = 'executives';
-    let aboutEditMode = false;
-
-    function getAboutPanel(tab) {
-      return document.getElementById(`${tab}-panel`);
-    }
-
-    function getAboutButton(tab) {
-      return document.getElementById(`btn-${tab}`);
-    }
-
-    function currentAboutCanManage() {
-      const user = getCurrentUser();
-      return !!(user && user.status === 'active' && isStaffUser(user));
-    }
-
-    function ensureSectionImageElement(panel) {
-      if (!panel) return null;
-      const card = panel.querySelector('.card');
-      if (!card) return null;
-      let image = card.querySelector('.about-section-image');
-      if (!image) {
-        image = document.createElement('img');
-        image.className = 'about-section-image img-fluid rounded-3 mb-3 d-none';
-        image.alt = '소개 탭 이미지';
-        card.insertBefore(image, card.children[1] || null);
-      }
-      return image;
-    }
+    const btnLogo = document.getElementById('btn-logo');
+    const btnAwards = document.getElementById('btn-awards');
+    const btnRules = document.getElementById('btn-rules');
+    const btnHistory = document.getElementById('btn-history');
+    const btnRelatedSites = document.getElementById('btn-relatedsites');
+    const btnFees = document.getElementById('btn-fees');
+    const logoPanel = document.getElementById('logo-panel');
+    const relatedSitesPanel = document.getElementById('relatedsites-panel');
+    const awardsPanel = document.getElementById('awards-panel');
+    const rulesPanel = document.getElementById('rules-panel');
+    const historyPanel = document.getElementById('history-panel');
+    const feesPanel = document.getElementById('fees-panel');
 
     function hideAllAbout() {
-      ABOUT_TABS.forEach((tab) => {
-        const panel = getAboutPanel(tab);
-        const button = getAboutButton(tab);
-        if (panel) panel.classList.add('d-none');
-        if (button) button.classList.remove('active');
-      });
+      [logoPanel, relatedSitesPanel, awardsPanel, rulesPanel, historyPanel, feesPanel].forEach(p => p && p.classList.add('d-none'));
+      [btnLogo, btnRelatedSites, btnAwards, btnRules, btnHistory, btnFees].forEach(b => b && b.classList.remove('active'));
     }
 
-    function applyAboutEditMode() {
-      const saveBtn = document.getElementById('about-content-save-btn');
-      const toggleBtn = document.getElementById('about-content-edit-toggle');
-      const canManage = currentAboutCanManage();
-      const enabled = canManage && aboutEditMode;
-
-      ABOUT_TABS.forEach((tab) => {
-        const panel = getAboutPanel(tab);
-        const editable = panel?.querySelector('.about-editable-content');
-        if (!editable) return;
-        editable.contentEditable = enabled ? 'true' : 'false';
-        editable.classList.toggle('border', enabled);
-        editable.classList.toggle('rounded', enabled);
-        editable.classList.toggle('p-2', enabled);
-      });
-
-      if (saveBtn) saveBtn.classList.toggle('d-none', !enabled);
-      if (toggleBtn) toggleBtn.textContent = enabled ? '편집 종료' : '현재 탭 편집';
-    }
-
-    function showAboutTab(tab) {
-      const target = ABOUT_TABS.includes(tab) ? tab : 'executives';
-      activeAboutTab = target;
+    function showLogo() {
       hideAllAbout();
-      const panel = getAboutPanel(target);
-      const button = getAboutButton(target);
-      if (panel) panel.classList.remove('d-none');
-      if (button) button.classList.add('active');
+      logoPanel.classList.remove('d-none');
+      btnLogo.classList.add('active');
     }
 
-    async function loadAboutSections() {
-      try {
-        const data = await apiRequest('/about/sections', { method: 'GET' });
-        const items = data.items || {};
-        ABOUT_TABS.forEach((tab) => {
-          const section = items[tab];
-          if (!section) return;
-          const panel = getAboutPanel(tab);
-          const editable = panel?.querySelector('.about-editable-content');
-          if (editable && typeof section.contentHtml === 'string' && section.contentHtml.trim()) {
-            editable.innerHTML = section.contentHtml;
-          }
-          const image = ensureSectionImageElement(panel);
-          if (image && section.imageUrl) {
-            image.src = section.imageUrl;
-            image.classList.remove('d-none');
-          }
-        });
-      } catch (_) {
-      }
+    function showAwards() {
+      hideAllAbout();
+      awardsPanel.classList.remove('d-none');
+      btnAwards.classList.add('active');
     }
 
-    async function saveCurrentAboutTab() {
-      if (!currentAboutCanManage()) {
-        alert('운영진 권한이 필요합니다.');
-        return;
-      }
-      const panel = getAboutPanel(activeAboutTab);
-      const editable = panel?.querySelector('.about-editable-content');
-      const image = panel?.querySelector('.about-section-image');
-      if (!panel || !editable) return;
-      try {
-        await apiRequest('/about/sections', {
-          method: 'PUT',
-          body: JSON.stringify({
-            key: activeAboutTab,
-            contentHtml: editable.innerHTML,
-            imageUrl: image && !image.classList.contains('d-none') ? image.src : ''
-          })
-        });
-        alert('소개 탭 내용이 저장되었습니다.');
-      } catch (error) {
-        alert(error.message || '소개 탭 저장에 실패했습니다.');
-      }
+    function showRelatedSites() {
+      hideAllAbout();
+      relatedSitesPanel.classList.remove('d-none');
+      btnRelatedSites.classList.add('active');
     }
 
-    async function uploadCurrentAboutImage(file) {
-      if (!currentAboutCanManage()) {
-        alert('운영진 권한이 필요합니다.');
-        return;
-      }
-      const panel = getAboutPanel(activeAboutTab);
-      if (!panel || !file) return;
-      try {
-        const token = await ensureCsrfToken();
-        const formData = new FormData();
-        formData.append('key', activeAboutTab);
-        formData.append('file', file);
-
-        const response = await fetch('/api/about/sections/image', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: token ? { 'X-CSRF-Token': token } : {},
-          body: formData
-        });
-        const payload = await response.json().catch(() => ({}));
-        const data = payload?.data || payload;
-        if (!response.ok) {
-          throw new Error(payload?.error || payload?.message || '이미지 업로드에 실패했습니다.');
-        }
-        const image = ensureSectionImageElement(panel);
-        if (image && data.imageUrl) {
-          image.src = data.imageUrl;
-          image.classList.remove('d-none');
-        }
-        alert('소개 탭 사진이 업로드되었습니다.');
-      } catch (error) {
-        alert(error.message || '이미지 업로드에 실패했습니다.');
-      }
+    function showRules() {
+      hideAllAbout();
+      rulesPanel.classList.remove('d-none');
+      btnRules.classList.add('active');
     }
 
-    ABOUT_TABS.forEach((tab) => {
-      const button = getAboutButton(tab);
-      if (!button) return;
-      button.addEventListener('click', () => showAboutTab(tab));
-    });
-
-    const aboutEditToggleBtn = document.getElementById('about-content-edit-toggle');
-    const aboutSaveBtn = document.getElementById('about-content-save-btn');
-    const aboutImageBtn = document.getElementById('about-content-image-btn');
-    const aboutImageInput = document.getElementById('about-content-image-input');
-
-    if (aboutEditToggleBtn) {
-      aboutEditToggleBtn.addEventListener('click', () => {
-        if (!currentAboutCanManage()) {
-          alert('운영진 권한이 필요합니다.');
-          return;
-        }
-        aboutEditMode = !aboutEditMode;
-        applyAboutEditMode();
-      });
-    }
-    if (aboutSaveBtn) {
-      aboutSaveBtn.addEventListener('click', saveCurrentAboutTab);
-    }
-    if (aboutImageBtn && aboutImageInput) {
-      aboutImageBtn.addEventListener('click', () => {
-        if (!currentAboutCanManage()) {
-          alert('운영진 권한이 필요합니다.');
-          return;
-        }
-        aboutImageInput.click();
-      });
-      aboutImageInput.addEventListener('change', async (event) => {
-        const file = event.target.files?.[0];
-        if (file) await uploadCurrentAboutImage(file);
-        aboutImageInput.value = '';
-      });
+    function showHistory() {
+      hideAllAbout();
+      historyPanel.classList.remove('d-none');
+      btnHistory.classList.add('active');
     }
 
-    showAboutTab('executives');
-    applyAboutEditMode();
-    updateAboutPhotoAdminControls();
-    loadAboutSections();
-
-    const contentEditState = {
-      activities_overview: false,
-      join: false
-    };
-
-    function sectionCanManage() {
-      const user = getCurrentUser();
-      return !!(user && user.status === 'active' && isStaffUser(user));
+    function showFees() {
+      hideAllAbout();
+      feesPanel.classList.remove('d-none');
+      btnFees.classList.add('active');
     }
 
-    function applyContentBlockEditMode(key) {
-      const target = document.querySelector(`[data-content-key="${key}"]`);
-      const saveBtn = document.getElementById(`${key === 'activities_overview' ? 'activities' : 'join'}-content-save-btn`);
-      const toggleBtn = document.getElementById(`${key === 'activities_overview' ? 'activities' : 'join'}-content-edit-toggle`);
-      if (!target) return;
-      const enabled = sectionCanManage() && !!contentEditState[key];
-      target.classList.toggle('border', enabled);
-      target.classList.toggle('rounded', enabled);
-      target.classList.toggle('p-2', enabled);
-      target.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, small').forEach((node) => {
-        node.contentEditable = enabled ? 'true' : 'false';
-        node.classList.toggle('rounded', enabled);
-      });
-      if (saveBtn) saveBtn.classList.toggle('d-none', !enabled);
-      if (toggleBtn) {
-        toggleBtn.textContent = key === 'activities_overview'
-          ? (enabled ? '활동 소개 편집 종료' : '활동 소개 편집')
-          : (enabled ? '참여 안내 편집 종료' : '참여 안내 편집');
-      }
+    if (btnLogo && btnRelatedSites && btnAwards && btnRules && btnHistory && btnFees) {
+      btnLogo.addEventListener('click', showLogo);
+      btnRelatedSites.addEventListener('click', showRelatedSites);
+      btnAwards.addEventListener('click', showAwards);
+      btnRules.addEventListener('click', showRules);
+      btnHistory.addEventListener('click', showHistory);
+      btnFees.addEventListener('click', showFees);
+      // default
+      showHistory();
     }
-
-    async function loadContentBlocks() {
-      try {
-        const data = await apiRequest('/content/blocks', { method: 'GET' });
-        const items = data.items || {};
-        Object.entries(items).forEach(([key, value]) => {
-          const target = document.querySelector(`[data-content-key="${key}"]`);
-          if (!target) return;
-          const html = String(value?.contentHtml || '').trim();
-          if (html) target.innerHTML = html;
-        });
-      } catch (_) {
-      }
-    }
-
-    async function saveContentBlock(key) {
-      if (!sectionCanManage()) {
-        alert('운영진 권한이 필요합니다.');
-        return;
-      }
-      const target = document.querySelector(`[data-content-key="${key}"]`);
-      if (!target) return;
-      try {
-        await apiRequest('/content/blocks', {
-          method: 'PUT',
-          body: JSON.stringify({
-            key,
-            contentHtml: target.innerHTML
-          })
-        });
-        alert('내용이 저장되었습니다.');
-      } catch (error) {
-        alert(error.message || '저장에 실패했습니다.');
-      }
-    }
-
-    const activitiesEditToggleBtn = document.getElementById('activities-content-edit-toggle');
-    const activitiesSaveBtn = document.getElementById('activities-content-save-btn');
-    if (activitiesEditToggleBtn) {
-      activitiesEditToggleBtn.addEventListener('click', () => {
-        if (!sectionCanManage()) {
-          alert('운영진 권한이 필요합니다.');
-          return;
-        }
-        contentEditState.activities_overview = !contentEditState.activities_overview;
-        applyContentBlockEditMode('activities_overview');
-      });
-    }
-    if (activitiesSaveBtn) {
-      activitiesSaveBtn.addEventListener('click', async () => {
-        await saveContentBlock('activities_overview');
-      });
-    }
-
-    const joinEditToggleBtn = document.getElementById('join-content-edit-toggle');
-    const joinSaveBtn = document.getElementById('join-content-save-btn');
-    if (joinEditToggleBtn) {
-      joinEditToggleBtn.addEventListener('click', () => {
-        if (!sectionCanManage()) {
-          alert('운영진 권한이 필요합니다.');
-          return;
-        }
-        contentEditState.join = !contentEditState.join;
-        applyContentBlockEditMode('join');
-      });
-    }
-    if (joinSaveBtn) {
-      joinSaveBtn.addEventListener('click', async () => {
-        await saveContentBlock('join');
-      });
-    }
-
-    applyContentBlockEditMode('activities_overview');
-    applyContentBlockEditMode('join');
-    loadContentBlocks();
 
     document.querySelectorAll('[data-about-tab]').forEach(item => {
       item.addEventListener('click', (e) => {
@@ -3940,7 +3361,12 @@
         document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
         document.getElementById('about').classList.add('panel-active');
         syncHomeStats('about');
-        showAboutTab(tab);
+        if (tab === 'logo') showLogo();
+        if (tab === 'relatedsites') showRelatedSites();
+        if (tab === 'awards') showAwards();
+        if (tab === 'rules') showRules();
+        if (tab === 'history') showHistory();
+        if (tab === 'fees') showFees();
       });
     });
 

@@ -38,3 +38,8 @@ Public endpoints and hook registration behavior remain unchanged.
 
 `models.py` and `db_repository.py` are kept only for legacy compatibility (historical Alembic usage).
 They are **not** the active runtime DB path.
+
+## Docs
+
+- Testing guide: `TESTING.md`
+- Legacy response migration: `LEGACY_RESPONSE_MIGRATION.md`

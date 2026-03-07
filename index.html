@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-bs-spy="scroll" data-bs-target="#navbar" data-bs-offset="80">
+<a class="skip-link" href="#home">본문으로 바로가기</a>
 
 <header class="site-header fixed-top shadow-sm" id="navbar" style="background: #31b7ff;">
   <nav class="navbar navbar-expand-lg navbar-light" style="background: #31b7ff;">
@@ -22,7 +23,7 @@
         </div>
         <span class="d-none d-sm-inline text-white">남양주청년봉사단 위브</span>
       </a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-label="메뉴 열기">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navMenu">
@@ -84,14 +85,14 @@
   <div class="hero-bg"></div>
   <div class="container position-relative z-1">
     <div class="row align-items-center hero-content-row">
-      <div class="col-lg-8 mx-auto text-center">
-        <div class="mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
+      <div class="col-lg-8 mx-auto text-center hero-content-shell">
+        <div class="hero-logo-stage mb-4 animate__animated animate__fadeInDown" style="animation-delay:0.1s;">
           <img src="logo.png" alt="위브 로고" class="hero-main-logo">
         </div>
         <p class="lead fs-5 mb-4 animate__animated animate__fadeInUp" style="animation-delay:0.2s;">
           남양주의 청년 봉사자들이 <strong>연결(Weave)하고 성장</strong>하는 커뮤니티
         </p>
-        <p class="text-white-50 mb-5 animate__animated animate__fadeInUp" style="animation-delay:0.3s;">
+        <p class="hero-subtext mb-5 animate__animated animate__fadeInUp" style="animation-delay:0.3s;">
           함께 나누고, 함께 성장하고, 함께 변화하는 지역사회
         </p>
         <div class="d-flex gap-3 justify-content-center flex-wrap animate__animated animate__fadeInUp" style="animation-delay:0.4s;">
@@ -606,7 +607,10 @@
         <h2 class="h3 fw-bold mb-1">운영진 승인 대시보드</h2>
         <p class="text-muted mb-0">오늘 일정, 승인 대기, Q&A 미답변 등을 빠르게 확인하세요.</p>
       </div>
-      <button class="btn btn-sm btn-outline-primary" id="ops-dashboard-refresh-btn">새로고침</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary" id="ops-dashboard-refresh-btn">새로고침</button>
+        <button class="btn btn-sm btn-outline-secondary" id="ops-client-telemetry-reset-btn">클라이언트 카운터 초기화</button>
+      </div>
     </div>
 
     <div class="row g-3 mb-4" id="ops-dashboard-cards">
@@ -617,6 +621,9 @@
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">공지 예약</div><div class="h4 mb-0" id="ops-card-notices">-</div></div></div></div>
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Q&A 미답변</div><div class="h4 mb-0" id="ops-card-qna">-</div></div></div></div>
       <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">지출 입력 알림</div><div class="h4 mb-0" id="ops-card-expense">-</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">403 요청 거절 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-403">0</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">429 과다요청 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-429">0</div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">업로드 실패 (클라이언트)</div><div class="h4 mb-0" id="ops-card-client-upload-fail">0</div></div></div></div>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -3083,11 +3090,24 @@
     }
 
     const opsRefreshBtn = document.getElementById('ops-dashboard-refresh-btn');
+    const opsTelemetryResetBtn = document.getElementById('ops-client-telemetry-reset-btn');
     const opsPendingSearchInput = document.getElementById('ops-pending-search');
     const opsPendingSearchBtn = document.getElementById('ops-pending-search-btn');
     if (opsRefreshBtn) {
       opsRefreshBtn.addEventListener('click', async () => {
         await loadOpsDashboard(opsPendingPage);
+      });
+    }
+
+    if (opsTelemetryResetBtn) {
+      opsTelemetryResetBtn.addEventListener('click', async () => {
+        if (typeof resetClientTelemetry === 'function') {
+          resetClientTelemetry();
+        }
+        await loadOpsDashboard(opsPendingPage);
+        if (typeof notifyInfo === 'function') {
+          notifyInfo('클라이언트 카운터를 초기화했습니다.');
+        }
       });
     }
 

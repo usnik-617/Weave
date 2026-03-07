@@ -1,4 +1,4 @@
-function setEditorHtml(editorId, html) {
+﻿function setEditorHtml(editorId, html) {
   const editor = document.getElementById(editorId);
   if (editor) editor.innerHTML = html || '';
 }
@@ -16,7 +16,7 @@ function ensureRepresentativeImageLabel(editorId, options = {}) {
   if (showLabel) {
     const label = document.createElement('div');
     label.className = 'representative-label text-primary fw-bold small mb-1';
-    label.textContent = '[대표]';
+    label.textContent = '[???';
     first.parentNode?.insertBefore(label, first);
   }
   return images.map((img) => String(img.getAttribute('src') || '').trim()).filter(Boolean);
@@ -106,7 +106,7 @@ function insertImagesToEditor(editorId, imageDataUrls = []) {
   imageDataUrls.forEach((dataUrl) => {
     const imageNode = document.createElement('img');
     imageNode.src = dataUrl;
-    imageNode.alt = '업로드 이미지';
+    imageNode.alt = '?낅줈???대?吏';
     imageNode.style.maxWidth = '100%';
     imageNode.style.height = 'auto';
     imageNode.style.display = 'block';
@@ -134,6 +134,8 @@ const IMAGE_UPLOAD_MIN_MAX_BYTES = 140 * 1024;
 const IMAGE_UPLOAD_HARD_MAX_BYTES = 820 * 1024;
 const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
 const IMAGE_UPLOAD_MIN_QUALITY = 0.45;
+const WRITE_DRAFT_NEWS_KEY = 'weave_draft_news';
+const WRITE_DRAFT_GALLERY_KEY = 'weave_draft_gallery';
 
 function getDataUrlByteSize(dataUrl) {
   const text = String(dataUrl || '');
@@ -159,7 +161,7 @@ function loadImageFromDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('이미지를 불러오지 못했습니다.'));
+    img.onerror = () => reject(new Error('?대?吏瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??'));
     img.src = dataUrl;
   });
 }
@@ -219,7 +221,7 @@ function getAdaptiveImageMaxBytes() {
 
 function readImageFileToDataUrl(file, onDone) {
   if (!file || !file.type.startsWith('image/')) {
-    alert('이미지 파일만 업로드할 수 있습니다.');
+    notifyMessage('?대?吏 ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.');
     return;
   }
   const reader = new FileReader();
@@ -233,15 +235,80 @@ function readImageFileToDataUrl(file, onDone) {
   reader.readAsDataURL(file);
 }
 
+function bindWriteDraftAutosave({ formId, editorId, storageKey, fields = [] }) {
+  const form = document.getElementById(formId);
+  const editor = document.getElementById(editorId);
+  if (!form || !editor || !storageKey) return;
+
+  const saveDraft = () => {
+    const snapshot = {
+      content: String(editor.innerHTML || ''),
+      updatedAt: new Date().toISOString()
+    };
+    fields.forEach((fieldName) => {
+      const field = form.elements[fieldName];
+      if (!field) return;
+      snapshot[fieldName] = field.type === 'checkbox' ? !!field.checked : String(field.value || '');
+    });
+    localStorage.setItem(storageKey, JSON.stringify(snapshot));
+  };
+
+  const restoreDraft = () => {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    } catch (_) {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== 'object') return;
+    const hasMeaningfulDraft = String(parsed.content || '').trim() || fields.some((name) => String(parsed[name] || '').trim());
+    if (!hasMeaningfulDraft) return;
+    editor.innerHTML = String(parsed.content || '');
+    fields.forEach((fieldName) => {
+      const field = form.elements[fieldName];
+      if (!field) return;
+      if (field.type === 'checkbox') {
+        field.checked = !!parsed[fieldName];
+      } else {
+        field.value = String(parsed[fieldName] || '');
+      }
+    });
+  };
+
+  restoreDraft();
+  editor.addEventListener('input', saveDraft);
+  fields.forEach((fieldName) => {
+    const field = form.elements[fieldName];
+    if (!field) return;
+    field.addEventListener('input', saveDraft);
+    field.addEventListener('change', saveDraft);
+  });
+}
+
+function initWriteDraftAutosave() {
+  bindWriteDraftAutosave({
+    formId: 'add-news-form',
+    editorId: 'news-editor',
+    storageKey: WRITE_DRAFT_NEWS_KEY,
+    fields: ['title', 'author', 'postTab', 'volunteerStartDate', 'volunteerEndDate', 'publishAt']
+  });
+  bindWriteDraftAutosave({
+    formId: 'add-gallery-form',
+    editorId: 'gallery-editor',
+    storageKey: WRITE_DRAFT_GALLERY_KEY,
+    fields: ['title', 'year', 'publishAt']
+  });
+}
+
 function readAnyFileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     if (!file) {
-      reject(new Error('파일이 비어 있습니다.'));
+      reject(new Error('?뚯씪??鍮꾩뼱 ?덉뒿?덈떎.'));
       return;
     }
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('파일을 읽지 못했습니다.'));
+    reader.onerror = () => reject(new Error('?뚯씪???쎌? 紐삵뻽?듬땲??'));
     reader.readAsDataURL(file);
   });
 }
@@ -249,7 +316,7 @@ function readAnyFileToDataUrl(file) {
 function readImageFileToDataUrlAsync(file) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type.startsWith('image/')) {
-      reject(new Error('이미지 파일만 업로드할 수 있습니다.'));
+      reject(new Error('?대?吏 ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.'));
       return;
     }
     readImageFileToDataUrl(file, (dataUrl) => resolve(String(dataUrl || '')));
@@ -264,7 +331,7 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
   const applyFiles = async (files) => {
     const imageFiles = Array.from(files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
     if (!imageFiles.length) {
-      alert('이미지 파일만 업로드할 수 있습니다.');
+      notifyMessage('?대?吏 ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.');
       return;
     }
     const uploadedImages = [];
@@ -273,7 +340,7 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
         const dataUrl = await readImageFileToDataUrlAsync(file);
         uploadedImages.push(dataUrl);
       } catch (error) {
-        alert(error.message || '이미지 업로드에 실패했습니다.');
+        notifyMessage(error.message || '?대?吏 ?낅줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎.');
         return;
       }
     }
@@ -355,7 +422,7 @@ async function insertActivityFilesToEditor(files = []) {
     const isPdf = String(file.type || '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(String(file.name || ''));
     if (!isPdf) continue;
     const dataUrl = await readAnyFileToDataUrl(file);
-    insertFileLinkToEditor('activity-editor', `[PDF] ${String(file.name || '첨부파일')}`, dataUrl);
+    insertFileLinkToEditor('activity-editor', `[PDF] ${String(file.name || '泥⑤??뚯씪')}`, dataUrl);
   }
   if (imageDataUrls.length) {
     insertImagesToEditor('activity-editor', imageDataUrls);
@@ -367,14 +434,14 @@ async function buildNoticeAttachments(files = []) {
   const normalized = Array.from(files || []);
   if (!normalized.length) return null;
   if (normalized.length > 5) {
-    throw new Error('첨부 파일은 최대 5개까지 업로드할 수 있습니다.');
+    throw new Error('泥⑤? ?뚯씪? 理쒕? 5媛쒓퉴吏 ?낅줈?쒗븷 ???덉뒿?덈떎.');
   }
 
   const attachments = [];
   for (let index = 0; index < normalized.length; index++) {
     const file = normalized[index];
     const dataUrl = await readAnyFileToDataUrl(file);
-    const fallbackName = `첨부파일_${index + 1}`;
+    const fallbackName = `泥⑤??뚯씪_${index + 1}`;
     attachments.push({
       id: `att_${Date.now()}_${index}`,
       original_name: file.name || fallbackName,
@@ -396,12 +463,12 @@ function bindAboutPhotoUploader() {
 
   const hasPermission = () => {
     const user = getCurrentUser();
-    return !!(user && user.status === 'active' && (String(user.role || '').toUpperCase() === 'ADMIN' || isAdminUser(user)));
+    return !!(user && user.status === 'active' && isStaffUser(user));
   };
 
   const ensurePermission = () => {
     if (hasPermission()) return true;
-    alert('운영자 권한이 필요합니다.');
+    notifyMessage('?댁쁺??沅뚰븳???꾩슂?⑸땲??');
     return false;
   };
 
@@ -412,7 +479,7 @@ function bindAboutPhotoUploader() {
       if (img) img.src = dataUrl;
       try {
         localStorage.setItem(ABOUT_VOLUNTEER_PHOTO_KEY, dataUrl);
-        alert('소개 사진이 변경되었습니다.');
+        notifyMessage('?뚭컻 ?ъ쭊??蹂寃쎈릺?덉뒿?덈떎.');
       } catch (error) {
         const quotaExceeded = error && (error.name === 'QuotaExceededError' || error.code === 22);
         if (quotaExceeded) {
@@ -420,12 +487,12 @@ function bindAboutPhotoUploader() {
             const tightened = await resizeImageDataUrlToMaxBytes(dataUrl, IMAGE_UPLOAD_MIN_MAX_BYTES);
             localStorage.setItem(ABOUT_VOLUNTEER_PHOTO_KEY, tightened);
             if (img) img.src = tightened;
-            alert('소개 사진이 자동으로 용량 조정되어 저장되었습니다.');
+            notifyMessage('?뚭컻 ?ъ쭊???먮룞?쇰줈 ?⑸웾 議곗젙?섏뼱 ??λ릺?덉뒿?덈떎.');
           } catch (_) {
-            alert('사진 용량이 커서 저장소 한도를 초과했습니다. 이미지 용량을 줄이거나 기존 업로드 이미지를 정리한 뒤 다시 시도해주세요.');
+            notifyMessage('?ъ쭊 ?⑸웾??而ㅼ꽌 ??μ냼 ?쒕룄瑜?珥덇낵?덉뒿?덈떎. ?대?吏 ?⑸웾??以꾩씠嫄곕굹 湲곗〈 ?낅줈???대?吏瑜??뺣━?????ㅼ떆 ?쒕룄?댁＜?몄슂.');
           }
         } else {
-          alert('사진 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+          notifyMessage('?ъ쭊 ???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.');
         }
       }
       input.value = '';
@@ -522,6 +589,7 @@ function resetWriteForms() {
     setEditorHtml('news-editor', '');
     setImagePreview('news-image-preview', '');
     updateVolunteerDateFieldVisibility(newsForm);
+    localStorage.removeItem(WRITE_DRAFT_NEWS_KEY);
   }
   if (galleryForm) {
     galleryForm.reset();
@@ -531,6 +599,7 @@ function resetWriteForms() {
     setEditorHtml('gallery-editor', '');
     setImagePreview('gallery-image-preview', '');
     ensureGalleryYearOptions();
+    localStorage.removeItem(WRITE_DRAFT_GALLERY_KEY);
   }
   const activityForm = document.getElementById('calendar-create-form');
   if (activityForm) {

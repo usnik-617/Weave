@@ -1,4 +1,42 @@
 // ============ NEWS SECTION ============
+function isFutureScheduled(item) {
+  const publishAt = String(item?.publishAt || '').trim();
+  if (!publishAt) return false;
+  const publishDate = new Date(publishAt);
+  if (Number.isNaN(publishDate.getTime())) return false;
+  return publishDate.getTime() > Date.now();
+}
+
+function buildRouteStatePayload(panel = 'news') {
+  const keys = (typeof ROUTE_STATE_KEYS === 'object' && ROUTE_STATE_KEYS) || {
+    panel: 'panel', newsTab: 'newsTab', q: 'q', page: 'page', faqQ: 'faqQ', faqPage: 'faqPage',
+    qnaQ: 'qnaQ', qnaPage: 'qnaPage', galleryQ: 'galleryQ', galleryPage: 'galleryPage', galleryFilter: 'galleryFilter'
+  };
+  return {
+    [keys.panel]: panel,
+    [keys.newsTab]: currentNewsTab || 'notice',
+    [keys.q]: newsSearchKeyword || '',
+    [keys.page]: String(newsCurrentPage || 1),
+    [keys.faqQ]: faqSearchKeyword || '',
+    [keys.faqPage]: String(faqCurrentPage || 1),
+    [keys.qnaQ]: qnaSearchKeyword || '',
+    [keys.qnaPage]: String(qnaCurrentPage || 1),
+    [keys.galleryQ]: gallerySearchKeyword || '',
+    [keys.galleryPage]: String(galleryCurrentPage || 1),
+    [keys.galleryFilter]: String(galleryCurrentFilter || '*')
+  };
+}
+
+function syncNewsRouteState() {
+  if (typeof updateAppUrlState !== 'function') return;
+  updateAppUrlState(buildRouteStatePayload('news'));
+}
+
+function syncGalleryRouteState() {
+  if (typeof updateAppUrlState !== 'function') return;
+  updateAppUrlState(buildRouteStatePayload('gallery'));
+}
+
 function getFilteredNewsItems() {
   const content = getContent();
   return content.news
@@ -66,10 +104,11 @@ function renderNews() {
     const user = getCurrentUser();
     const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
     const recommendCount = getRecommendCount(getPostKey('news', item.id));
+    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${item.id}</td>
-      <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a></td>
+      <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a>${scheduledBadge}</td>
       <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
       <td>${item.date}</td>
       <td>${item.views || 0}</td>
@@ -87,6 +126,7 @@ function renderNews() {
     e.preventDefault();
     if (newsCurrentPage > 1) {
       newsCurrentPage -= 1;
+      syncNewsRouteState();
       renderNews();
     }
   });
@@ -99,6 +139,7 @@ function renderNews() {
     li.addEventListener('click', (e) => {
       e.preventDefault();
       newsCurrentPage = page;
+      syncNewsRouteState();
       renderNews();
     });
     pagination.appendChild(li);
@@ -111,6 +152,7 @@ function renderNews() {
       e.preventDefault();
       if (newsCurrentPage < totalPages) {
         newsCurrentPage += 1;
+        syncNewsRouteState();
         renderNews();
       }
     });
@@ -158,6 +200,7 @@ function renderFaq() {
     e.preventDefault();
     if (faqCurrentPage > 1) {
       faqCurrentPage -= 1;
+      syncNewsRouteState();
       renderFaq();
     }
   });
@@ -170,6 +213,7 @@ function renderFaq() {
     li.addEventListener('click', (e) => {
       e.preventDefault();
       faqCurrentPage = page;
+      syncNewsRouteState();
       renderFaq();
     });
     pagination.appendChild(li);
@@ -182,6 +226,7 @@ function renderFaq() {
     e.preventDefault();
     if (faqCurrentPage < totalPages) {
       faqCurrentPage += 1;
+      syncNewsRouteState();
       renderFaq();
     }
   });
@@ -226,6 +271,7 @@ function renderQna() {
     e.preventDefault();
     if (qnaCurrentPage > 1) {
       qnaCurrentPage -= 1;
+      syncNewsRouteState();
       renderQna();
     }
   });
@@ -238,6 +284,7 @@ function renderQna() {
     li.addEventListener('click', (e) => {
       e.preventDefault();
       qnaCurrentPage = page;
+      syncNewsRouteState();
       renderQna();
     });
     pagination.appendChild(li);
@@ -250,6 +297,7 @@ function renderQna() {
     e.preventDefault();
     if (qnaCurrentPage < totalPages) {
       qnaCurrentPage += 1;
+      syncNewsRouteState();
       renderQna();
     }
   });
@@ -322,7 +370,7 @@ function openQnaDetail(id) {
   const item = (data.qna || []).find(q => q.id === id);
   if (!item) return;
   if (item.isSecret && !operator) {
-    alert('비밀글은 운영자만 열람할 수 있습니다.');
+    notifyMessage('비밀글은 운영자만 열람할 수 있습니다.');
     return;
   }
 
@@ -410,24 +458,28 @@ function openNotice(id) {
       const previewUrl = file.preview_url || file.inline_url || appendInlineQuery(fileUrl);
       const mimeType = String(file.mime_type || '').toLowerCase();
       const fileName = String(file.original_name || file.name || '첨부파일');
+      const fileSize = Number(file.size || 0);
+      const sizeText = fileSize > 0 ? ` · ${(fileSize / 1024).toFixed(1)}KB` : '';
       const lowerName = fileName.toLowerCase();
       const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
       const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName);
       if (isPdf) {
         return `
-          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener">PDF 미리보기</a>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener">다운로드</a>
+          <span class="small text-muted d-block mt-2"><i class="fas fa-file-pdf me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
+          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener" aria-label="PDF 새 탭 열기: ${escapeHtml(fileName)}">새 탭에서 보기</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
         `;
       }
       if (!isImage) {
         return `
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener">${escapeHtml(fileName)} 다운로드</a>
+          <span class="small text-muted d-block mt-2"><i class="fas fa-paperclip me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
         `;
       }
       const imageThumb = file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl;
       return `
         <a class="d-inline-block mt-2 me-2" href="${fileUrl}" target="_blank" rel="noopener">
-          <img src="${imageThumb}" alt="${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
+          <img src="${imageThumb}" alt="첨부 이미지 미리보기: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
         </a>
       `;
     }).join('');
@@ -508,6 +560,9 @@ function renderGallery() {
   const pagination = document.getElementById('gallery-pagination');
   const totalCount = document.getElementById('gallery-total-count');
   if (!grid || !pagination || !totalCount) return;
+  document.querySelectorAll('.gallery-filter button[data-filter]').forEach((btn) => {
+    btn.classList.toggle('active', String(btn.dataset.filter || '*') === String(galleryCurrentFilter || '*'));
+  });
   grid.innerHTML = makeSkeletonCards(6);
 
   try {
@@ -566,6 +621,7 @@ function renderGallery() {
       e.preventDefault();
       if (galleryCurrentPage > 1) {
         galleryCurrentPage -= 1;
+        syncGalleryRouteState();
         renderGallery();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -579,6 +635,7 @@ function renderGallery() {
       li.addEventListener('click', (e) => {
         e.preventDefault();
         galleryCurrentPage = page;
+        syncGalleryRouteState();
         renderGallery();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
@@ -592,6 +649,7 @@ function renderGallery() {
       e.preventDefault();
       if (galleryCurrentPage < totalPages) {
         galleryCurrentPage += 1;
+        syncGalleryRouteState();
         renderGallery();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -713,7 +771,7 @@ function openGalleryDetail(id) {
 
 function startEditNews(id) {
   const user = getCurrentUser();
-  if (!user) return alert('로그인이 필요합니다.');
+  if (!user) return notifyMessage('로그인이 필요합니다.');
   const type = arguments[1] || 'notice';
   const data = getContent();
   const source = type === 'faq' ? (data.faq || []) : (type === 'qna' ? (data.qna || []) : data.news);
@@ -754,7 +812,7 @@ function startEditNews(id) {
 
 function startEditGallery(id) {
   const user = getCurrentUser();
-  if (!user) return alert('로그인이 필요합니다.');
+  if (!user) return notifyMessage('로그인이 필요합니다.');
   const data = getContent();
   const item = data.gallery.find(g => g.id === id);
   if (!item) return;
