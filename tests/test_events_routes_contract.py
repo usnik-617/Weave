@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from contract_assertions import assert_item_has_keys, assert_paginated_items_contract
+
 
 def test_general_user_cannot_list_events(
     client,
@@ -42,6 +44,7 @@ def test_member_event_list_exposes_capacity_and_participant_status(
     target = next((item for item in items if item.get("id") == event_id), None)
 
     assert target is not None
+    assert_item_has_keys(target, ("id", "title", "capacity", "participantCount", "myStatus"))
     assert int(target.get("capacity") or 0) >= 0
     assert int(target.get("participantCount") or 0) >= 1
     assert target.get("myStatus") == "registered"
@@ -83,7 +86,12 @@ def test_events_list_permission_contract_by_role(
     if expected_status == 200:
         assert payload.get("success") is True
         data = payload.get("data") or {}
-        assert "items" in data
-        assert "pagination" in data
+        assert_paginated_items_contract(data)
+        items = data.get("items") or []
+        if items:
+            assert_item_has_keys(
+                items[0],
+                ("id", "title", "capacity", "participantCount", "myStatus"),
+            )
     else:
         assert payload.get("success") is False

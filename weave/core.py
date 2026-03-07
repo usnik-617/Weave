@@ -25,7 +25,6 @@ from flask import (
     session,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 
@@ -867,209 +866,9 @@ def init_db():
     )
     conn.commit()
 
-    admin_email = "admin@weave.com"
-    admin_defaults = {
-        "name": "관리자",
-        "username": "admin",
-        "email": admin_email,
-        "phone": "010-0000-0000",
-        "birth_date": "1990.01.01",
-        "role": "ADMIN",
-        "status": "active",
-        "generation": "운영",
-        "interests": "운영 총괄",
-        "certificates": "CPR",
-        "availability": "상시",
-    }
-    admin_now = now_iso()
-    admin_row = cur.execute(
-        "SELECT * FROM users WHERE username = ?", (admin_defaults["username"],)
-    ).fetchone()
-    if not admin_row:
-        admin_row = cur.execute(
-            "SELECT * FROM users WHERE email = ?", (admin_defaults["email"],)
-        ).fetchone()
+    from weave import core_db_bootstrap
 
-    if admin_row:
-        needs_password_reset = not check_password_hash(
-            admin_row["password_hash"], DEFAULT_ADMIN_PASSWORD
-        )
-        password_hash_value = (
-            generate_password_hash(DEFAULT_ADMIN_PASSWORD)
-            if needs_password_reset
-            else admin_row["password_hash"]
-        )
-        cur.execute(
-            """
-            UPDATE users
-            SET name = ?,
-                username = ?,
-                email = ?,
-                phone = ?,
-                birth_date = ?,
-                password_hash = ?,
-                role = ?,
-                is_admin = 1,
-                status = ?,
-                approved_at = COALESCE(approved_at, ?),
-                generation = CASE WHEN generation IS NULL OR generation = '' THEN ? ELSE generation END,
-                interests = CASE WHEN interests IS NULL OR interests = '' THEN ? ELSE interests END,
-                certificates = CASE WHEN certificates IS NULL OR certificates = '' THEN ? ELSE certificates END,
-                availability = CASE WHEN availability IS NULL OR availability = '' THEN ? ELSE availability END
-            WHERE id = ?
-            """,
-            (
-                admin_defaults["name"],
-                admin_defaults["username"],
-                admin_defaults["email"],
-                admin_defaults["phone"],
-                admin_defaults["birth_date"],
-                password_hash_value,
-                admin_defaults["role"],
-                admin_defaults["status"],
-                admin_now,
-                admin_defaults["generation"],
-                admin_defaults["interests"],
-                admin_defaults["certificates"],
-                admin_defaults["availability"],
-                admin_row["id"],
-            ),
-        )
-    else:
-        cur.execute(
-            """
-            INSERT INTO users (
-                name, username, email, phone, birth_date, password_hash, join_date,
-                role, is_admin, status, approved_at, generation, interests, certificates, availability, nickname, nickname_updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                admin_defaults["name"],
-                admin_defaults["username"],
-                admin_defaults["email"],
-                admin_defaults["phone"],
-                admin_defaults["birth_date"],
-                generate_password_hash(DEFAULT_ADMIN_PASSWORD),
-                admin_now,
-                admin_defaults["role"],
-                1,
-                admin_defaults["status"],
-                admin_now,
-                admin_defaults["generation"],
-                admin_defaults["interests"],
-                admin_defaults["certificates"],
-                admin_defaults["availability"],
-                admin_defaults["username"],
-                admin_now,
-            ),
-        )
-
-    seed_rules = cur.execute("SELECT id FROM rules_versions LIMIT 1").fetchone()
-    if not seed_rules:
-        cur.execute(
-            """
-            INSERT INTO rules_versions (version_tag, effective_date, summary, content, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                "v1.0",
-                datetime.now().date().isoformat(),
-                "초기 운영 규칙 등록",
-                "규칙/규약 초기 버전",
-                now_iso(),
-            ),
-        )
-
-    seed_year = datetime.now().year
-    sample_activities = [
-        {
-            "title": "유기견 봉사",
-            "description": "유기견 보호소 환경정리 및 산책 봉사",
-            "start_at": f"{seed_year}-03-14T09:30:00",
-            "end_at": f"{seed_year}-03-14T12:00:00",
-            "place": "남양주 유기동물 보호소",
-            "supplies": "편한 복장, 장갑",
-            "gather_time": "09:20",
-            "manager_name": "운영진",
-            "recruitment_limit": 30,
-        },
-        {
-            "title": "백봉산 플로깅 및 산불조심 캠페인 봉사",
-            "description": "백봉산 일대 플로깅 및 산불예방 캠페인 진행",
-            "start_at": f"{seed_year}-03-28T09:00:00",
-            "end_at": f"{seed_year}-03-28T12:30:00",
-            "place": "백봉산 입구",
-            "supplies": "집게, 봉투, 물",
-            "gather_time": "08:50",
-            "manager_name": "운영진",
-            "recruitment_limit": 40,
-        },
-    ]
-    for item in sample_activities:
-        already_exists = cur.execute(
-            "SELECT id FROM activities WHERE title = ? AND start_at = ? LIMIT 1",
-            (item["title"], item["start_at"]),
-        ).fetchone()
-        if already_exists:
-            continue
-        cur.execute(
-            """
-            INSERT INTO activities (
-                title, description, start_at, end_at, place, supplies, gather_time,
-                manager_name, recruitment_limit, created_by, created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
-            """,
-            (
-                item["title"],
-                item["description"],
-                item["start_at"],
-                item["end_at"],
-                item["place"],
-                item["supplies"],
-                item["gather_time"],
-                item["manager_name"],
-                item["recruitment_limit"],
-                now_iso(),
-            ),
-        )
-
-    cur.execute(
-        """
-        UPDATE activities
-        SET start_at = ?, end_at = ?
-        WHERE title = ?
-          AND start_at = ?
-          AND end_at = ?
-        """,
-        (
-            f"{seed_year}-03-28T09:00:00",
-            f"{seed_year}-03-28T12:30:00",
-            "백봉산 플로깅 및 산불조심 캠페인 봉사",
-            f"{seed_year}-03-21T09:00:00",
-            f"{seed_year}-03-21T12:30:00",
-        ),
-    )
-
-    cur.execute(
-        """
-        DELETE FROM activities
-        WHERE title = ?
-          AND start_at = ?
-          AND id NOT IN (
-              SELECT MIN(id)
-              FROM activities
-              WHERE title = ? AND start_at = ?
-          )
-        """,
-        (
-            "백봉산 플로깅 및 산불조심 캠페인 봉사",
-            f"{seed_year}-03-28T09:00:00",
-            "백봉산 플로깅 및 산불조심 캠페인 봉사",
-            f"{seed_year}-03-28T09:00:00",
-        ),
-    )
+    core_db_bootstrap.seed_initial_data(cur, DEFAULT_ADMIN_PASSWORD)
 
     conn.commit()
 
@@ -1157,24 +956,9 @@ def record_user_activity(
 
 
 def mark_dormant_users(reference_time=None):
-    # TODO(core-split): this updates user status in bulk; move with caution together
-    # with scheduler/ops paths after adding explicit regression coverage.
-    ref = reference_time or datetime.now()
-    threshold = (ref - timedelta(days=365)).isoformat()
-    conn = get_db_connection()
-    rows = conn.execute(
-        "SELECT id FROM users WHERE status = 'active' AND COALESCE(last_active_at, join_date) < ?",
-        (threshold,),
-    ).fetchall()
-    if rows:
-        ids = [row["id"] for row in rows]
-        placeholders = ",".join(["?"] * len(ids))
-        conn.execute(
-            f"UPDATE users SET status = 'dormant' WHERE id IN ({placeholders})", ids
-        )
-        conn.commit()
-    conn.close()
-    return len(rows)
+    from weave import core_user_state_service
+
+    return core_user_state_service.mark_dormant_users(reference_time)
 
 
 def serialize_activity_row(row):
@@ -1202,85 +986,21 @@ def csv_response(filename, headers, rows):
 
 
 def send_event_change_notifications(conn, event_id, title):
-    users = conn.execute(
-        """
-        SELECT u.email, u.id
-        FROM event_participants p
-        JOIN users u ON u.id = p.user_id
-        WHERE p.event_id = ? AND p.status = 'registered'
-        """,
-        (event_id,),
-    ).fetchall()
-    sent = 0
-    for user in users:
-        key_target = f"{event_id}:{user['id']}"
-        if notification_already_sent(conn, "event_changed", "event_user", key_target):
-            continue
-        if send_email(
-            user["email"], "[Weave] 일정 변경 안내", f"일정이 변경되었습니다: {title}"
-        ):
-            mark_notification_sent(
-                conn, "event_changed", "event_user", key_target, user["email"]
-            )
-            sent += 1
-    return sent
+    from weave import core_notification_service
+
+    return core_notification_service.send_event_change_notifications(conn, event_id, title)
 
 
 def send_due_event_reminders(reference_time=None):
-    return send_event_reminders(reference_time)
+    from weave import core_notification_service
+
+    return core_notification_service.send_due_event_reminders(reference_time)
 
 
 def send_event_reminders(reference_time=None):
-    now = reference_time or datetime.now()
-    start = now.isoformat()
-    end = (now + timedelta(hours=24)).isoformat()
-    conn = get_db_connection()
-    events = conn.execute(
-        "SELECT id, title, event_date FROM events WHERE event_date >= ? AND event_date <= ?",
-        (start, end),
-    ).fetchall()
-    sent_count = 0
-    for event in events:
-        recipients = conn.execute(
-            """
-            SELECT u.id, u.email
-            FROM event_participants p
-            JOIN users u ON u.id = p.user_id
-            WHERE p.event_id = ? AND p.status = 'registered'
-            """,
-            (event["id"],),
-        ).fetchall()
-        for user in recipients:
-            already_sent = conn.execute(
-                "SELECT id FROM email_notifications WHERE user_id = ? AND event_id = ? AND type = 'event_reminder_24h'",
-                (user["id"], event["id"]),
-            ).fetchone()
-            if already_sent:
-                continue
-            if send_email(
-                user["email"],
-                "[Weave] 활동 리마인더",
-                f"내일 예정된 일정 안내: {event['title']} ({event['event_date']})",
-            ):
-                conn.execute(
-                    "INSERT OR IGNORE INTO email_notifications (user_id, event_id, type, sent_at) VALUES (?, ?, 'event_reminder_24h', ?)",
-                    (user["id"], event["id"], now_iso()),
-                )
-                sent_count += 1
-            else:
-                logger.error(
-                    json.dumps(
-                        {
-                            "action": "send_event_reminder_failed",
-                            "user_id": user["id"],
-                            "event_id": event["id"],
-                        },
-                        ensure_ascii=False,
-                    )
-                )
-    conn.commit()
-    conn.close()
-    return sent_count
+    from weave import core_notification_service
+
+    return core_notification_service.send_event_reminders(reference_time)
 
 
 def _update_nickname_common(conn, me, nickname, bypass_window=False):

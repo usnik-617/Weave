@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from contract_assertions import assert_item_has_keys, assert_paginated_items_contract
+
 
 def _future_iso(hours=72):
     return (datetime.now() + timedelta(hours=hours)).replace(microsecond=0).isoformat()
@@ -31,27 +33,25 @@ def test_posts_list_contract_keeps_endpoint_and_core_response_keys(
     assert payload.get("success") is True
 
     data = payload.get("data") or {}
-    assert "items" in data
-    assert "pagination" in data
+    assert_paginated_items_contract(data)
 
     items = data.get("items") or []
-    pagination = data.get("pagination") or {}
-    for key in ("total", "page", "pageSize", "totalPages"):
-        assert key in pagination
 
     if items:
         sample = items[0]
-        for key in (
-            "id",
-            "category",
-            "type",
-            "title",
-            "status",
-            "author",
-            "created_at",
-            "updated_at",
-        ):
-            assert key in sample
+        assert_item_has_keys(
+            sample,
+            (
+                "id",
+                "category",
+                "type",
+                "title",
+                "status",
+                "author",
+                "created_at",
+                "updated_at",
+            ),
+        )
 
 
 @pytest.mark.parametrize(

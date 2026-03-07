@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import uuid
 
 
 def _set_user_nickname_state(user_id, nickname=None, nickname_updated_at=None):
@@ -25,6 +26,19 @@ def _set_user_nickname_state(user_id, nickname=None, nickname_updated_at=None):
 
 def _iso_days_ago(days):
     return (datetime.now() - timedelta(days=days)).replace(microsecond=0).isoformat()
+
+
+def _signup_payload(nickname, suffix=None):
+    token = suffix or uuid.uuid4().hex[:8]
+    return {
+        "name": f"Tester{token}",
+        "nickname": nickname,
+        "email": f"u{token}@example.com",
+        "birthDate": "2000.01.01",
+        "phone": f"010-12{token[:2]}-{token[2:6]}",
+        "username": f"user_{token}",
+        "password": "Password!123",
+    }
 
 
 def test_valid_nickname_change_is_allowed(client, create_user, login_as, csrf_headers):
@@ -156,3 +170,69 @@ def test_legacy_nickname_endpoint_keeps_180_day_policy_contract(
     assert second_payload.get("success") is False
     second_details = second_payload.get("details") or {}
     assert isinstance(second_details.get("next_allowed_at"), str)
+
+
+def test_signup_rejects_invalid_nickname_format(client, csrf_headers):
+    payload = _signup_payload("bad nick!")
+
+    response = client.post(
+        "/api/auth/signup",
+        json=payload,
+        headers=csrf_headers(),
+    )
+
+    assert response.status_code == 400
+    body = response.get_json() or {}
+    assert body.get("success") is False
+    assert isinstance(body.get("error"), str)
+
+
+def test_signup_rejects_duplicate_nickname(client, csrf_headers):
+    nickname = "가입중복88"
+    first = client.post(
+        "/api/auth/signup",
+        json=_signup_payload(nickname, suffix="dupaa001"),
+        headers=csrf_headers(),
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/auth/signup",
+        json=_signup_payload(nickname, suffix="dupaa002"),
+        headers=csrf_headers(),
+    )
+
+    assert second.status_code == 409
+    body = second.get_json() or {}
+    assert body.get("success") is False
+    assert "닉네임" in str(body.get("error") or "")
+
+
+def test_modern_and_legacy_nickname_endpoints_keep_error_schema_consistent(
+    client, create_user, login_as, csrf_headers
+):
+    user = create_user(role="MEMBER")
+    login_as(user)
+
+    modern = client.patch(
+        "/api/me/nickname",
+        json={"nickname": "재검증11"},
+        headers=csrf_headers(),
+    )
+    legacy = client.post(
+        "/api/user/nickname",
+        json={"nickname": "재검증22"},
+        headers=csrf_headers(),
+    )
+
+    assert modern.status_code == 403
+    assert legacy.status_code == 403
+
+    modern_body = modern.get_json() or {}
+    legacy_body = legacy.get_json() or {}
+
+    for body in (modern_body, legacy_body):
+        assert body.get("success") is False
+        assert isinstance(body.get("error"), str)
+        details = body.get("details") or {}
+        assert isinstance(details.get("next_allowed_at"), str)
