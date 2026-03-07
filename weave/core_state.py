@@ -80,6 +80,12 @@ def reset_login_failures_by_ip(ip):
         core.LOGIN_ATTEMPTS.pop(ip, None)
 
 
+def clear_all_rate_limit_state():
+    from weave import core
+
+    core.LOGIN_ATTEMPTS.clear()
+
+
 def _cache_now():
     from weave import core
 

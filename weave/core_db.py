@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import contextmanager
 from functools import wraps
 
 from weave import core
@@ -30,3 +31,13 @@ def db_write_retry(func):
             raise last_error
 
     return wrapper
+
+
+@contextmanager
+def transaction(conn):
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise

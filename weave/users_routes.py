@@ -1,21 +1,28 @@
-import csv
-import io
-import json
 import sqlite3
 from datetime import datetime
 
 from weave import core as weave_core
+from weave import error_messages
+from weave import user_activity_service, user_profile_service, user_role_request_service
+from weave import user_role_request_command_service
+from weave import user_export_service
 from weave.authz import get_current_user_row, normalize_role, role_at_least
 from weave.core import (
     Response,
     get_db_connection,
-    jsonify,
     log_audit,
     record_user_activity,
     request,
     session,
+    transaction,
 )
-from weave.responses import error_response, success_response, user_row_to_dict
+from weave.responses import (
+    error_response,
+    error_response_legacy,
+    success_response,
+    success_response_legacy,
+    user_row_to_dict,
+)
 from weave.time_utils import now_iso
 from weave.validators import validate_nickname
 
@@ -25,7 +32,7 @@ def delete_my_account():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
 
     deleted_at = now_iso()
     anonymized = f"deleted-{me['id']}-{int(datetime.now().timestamp())}"
@@ -54,7 +61,7 @@ def my_activity_history():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response_legacy(error_messages.USER_LOGIN_REQUIRED, 401)
     rows = conn.execute(
         """
         SELECT a.id AS activity_id, a.title, a.start_at, a.end_at, a.place,
@@ -67,36 +74,9 @@ def my_activity_history():
         (me["id"],),
     ).fetchall()
 
-    total_hours = sum(float(row["hours"] or 0) for row in rows)
-    total_points = sum(int(row["points"] or 0) for row in rows) - sum(
-        int(row["penalty_points"] or 0) for row in rows
-    )
-    items = [
-        {
-            "activityId": row["activity_id"],
-            "title": row["title"],
-            "startAt": row["start_at"],
-            "endAt": row["end_at"],
-            "place": row["place"],
-            "status": row["status"],
-            "attendanceStatus": row["attendance_status"],
-            "hours": row["hours"],
-            "points": row["points"],
-            "penaltyPoints": row["penalty_points"],
-        }
-        for row in rows
-    ]
     conn.close()
-    return jsonify(
-        {
-            "ok": True,
-            "summary": {
-                "totalHours": round(total_hours, 2),
-                "totalPoints": total_points,
-                "certificateDownloadUrl": "/api/me/certificate.csv",
-            },
-            "items": items,
-        }
+    return success_response_legacy(
+        user_activity_service.build_my_activity_history_response(rows)
     )
 
 
@@ -105,7 +85,7 @@ def my_certificate_csv():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response_legacy(error_messages.USER_LOGIN_REQUIRED, 401)
     rows = conn.execute(
         """
         SELECT a.title, a.start_at, a.end_at, a.place, ap.hours, ap.attendance_status
@@ -118,26 +98,8 @@ def my_certificate_csv():
     ).fetchall()
     conn.close()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        ["이름", "아이디", "활동명", "시작", "종료", "장소", "출석상태", "봉사시간"]
-    )
-    for row in rows:
-        writer.writerow(
-            [
-                me["name"],
-                me["username"],
-                row["title"],
-                row["start_at"],
-                row["end_at"],
-                row["place"],
-                row["attendance_status"],
-                row["hours"],
-            ]
-        )
-
-    response = Response(output.getvalue(), mimetype="text/csv; charset=utf-8")
+    csv_text = user_export_service.build_certificate_csv_text(me, rows)
+    response = Response(csv_text, mimetype="text/csv; charset=utf-8")
     response.headers["Content-Disposition"] = (
         "attachment; filename=my_activity_certificate.csv"
     )
@@ -150,27 +112,9 @@ def user_profile():
     if not row:
         conn.close()
         return success_response({"user": None})
-    summary = conn.execute(
-        """
-        SELECT COALESCE(SUM(minutes), 0) AS total_minutes,
-               COUNT(DISTINCT event_id) AS attended_events
-        FROM volunteer_activity
-        WHERE user_id = ?
-        """,
-        (row["id"],),
-    ).fetchone()
+    data = user_profile_service.get_user_profile_payload(conn, row, user_row_to_dict)
     conn.close()
-    return success_response(
-        {
-            "user": user_row_to_dict(row),
-            "volunteerSummary": {
-                "totalVolunteerHours": round(
-                    float(summary["total_minutes"] or 0) / 60.0, 2
-                ),
-                "totalEventsAttended": int(summary["attended_events"] or 0),
-            },
-        }
-    )
+    return success_response(data)
 
 
 def update_my_nickname():
@@ -184,7 +128,7 @@ def update_my_nickname():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
 
     updated, err = weave_core._update_nickname_common(
         conn, me, nickname, bypass_window=False
@@ -214,7 +158,7 @@ def list_my_activity():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     rows = conn.execute(
         """
         SELECT activity_type, target_type, target_id, metadata_json, created_at
@@ -226,20 +170,7 @@ def list_my_activity():
         (me["id"],),
     ).fetchall()
     conn.close()
-    return success_response(
-        {
-            "items": [
-                {
-                    "type": row["activity_type"],
-                    "targetType": row["target_type"],
-                    "targetId": row["target_id"],
-                    "metadata": json.loads(row["metadata_json"] or "{}"),
-                    "createdAt": row["created_at"],
-                }
-                for row in rows
-            ]
-        }
-    )
+    return success_response(user_activity_service.build_list_my_activity_items(rows))
 
 
 def admin_update_user_nickname(user_id):
@@ -253,10 +184,10 @@ def admin_update_user_nickname(user_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not role_at_least(me["role"], "VICE_LEADER"):
         conn.close()
-        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+        return error_response(error_messages.ROLE_REQUEST_VICE_LEADER_REQUIRED, 403)
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not target:
         conn.close()
@@ -298,7 +229,7 @@ def request_member_role():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     conn.close()
     if normalize_role(me["role"]) != "GENERAL":
         return error_response("일반 회원만 단원 승격을 요청할 수 있습니다.", 400)
@@ -311,7 +242,7 @@ def request_executive_role():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     conn.close()
     if normalize_role(me["role"]) != "MEMBER":
         return error_response("단원만 임원 승격을 요청할 수 있습니다.", 400)
@@ -323,14 +254,13 @@ def request_role_change_internal(target):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
 
     current = normalize_role(me["role"])
     target = normalize_role(target)
-    allowed = {("GENERAL", "MEMBER"), ("MEMBER", "EXECUTIVE")}
-    if (current, target) not in allowed:
+    if not user_role_request_service.validate_transition(current, target):
         conn.close()
-        return error_response("요청 가능한 역할 전환이 아닙니다.", 400)
+        return error_response(error_messages.ROLE_REQUEST_INVALID_TRANSITION, 400)
 
     pending = conn.execute(
         "SELECT id FROM role_requests WHERE user_id = ? AND status = 'PENDING'",
@@ -338,28 +268,31 @@ def request_role_change_internal(target):
     ).fetchone()
     if pending:
         conn.close()
-        return error_response("이미 처리 대기 중인 요청이 있습니다.", 409)
-
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO role_requests (user_id, from_role, to_role, status, created_at)
-        VALUES (?, ?, ?, 'PENDING', ?)
-        """,
-        (me["id"], current, target, now_iso()),
-    )
-    request_id = cur.lastrowid
-    log_audit(
-        conn,
-        "request_role_change",
-        "role_request",
-        request_id,
-        me["id"],
-        {"from": current, "to": target},
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"request_id": request_id}, 201)
+        return error_response(error_messages.ROLE_REQUEST_PENDING_EXISTS, 409)
+    try:
+        with transaction(conn):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO role_requests (user_id, from_role, to_role, status, created_at)
+                VALUES (?, ?, ?, 'PENDING', ?)
+                """,
+                (me["id"], current, target, now_iso()),
+            )
+            request_id = cur.lastrowid
+            log_audit(
+                conn,
+                "request_role_change",
+                "role_request",
+                request_id,
+                me["id"],
+                {"from": current, "to": target},
+            )
+        return success_response({"request_id": request_id}, 201)
+    except Exception:
+        return error_response("역할 요청 처리 중 오류가 발생했습니다.", 500)
+    finally:
+        conn.close()
 
 
 def list_role_requests():
@@ -372,10 +305,10 @@ def list_role_requests():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not role_at_least(me["role"], "VICE_LEADER"):
         conn.close()
-        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
+        return error_response(error_messages.ROLE_REQUEST_VICE_LEADER_REQUIRED, 403)
     total = conn.execute(
         "SELECT COUNT(*) AS c FROM role_requests WHERE status = ?", (status,)
     ).fetchone()["c"]
@@ -392,15 +325,7 @@ def list_role_requests():
     ).fetchall()
     conn.close()
     return success_response(
-        {
-            "items": [dict(row) for row in rows],
-            "pagination": {
-                "total": int(total or 0),
-                "page": page,
-                "pageSize": page_size,
-                "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
-            },
-        }
+        user_role_request_service.role_requests_page_data(total, rows, page, page_size)
     )
 
 
@@ -409,41 +334,29 @@ def _decide_role_request(request_id, approve=True):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not role_at_least(me["role"], "VICE_LEADER"):
         conn.close()
-        return error_response("부단장 이상만 접근할 수 있습니다.", 403)
-    req = conn.execute(
-        "SELECT * FROM role_requests WHERE id = ?", (request_id,)
-    ).fetchone()
-    if not req:
+        return error_response(error_messages.ROLE_REQUEST_VICE_LEADER_REQUIRED, 403)
+    try:
+        with transaction(conn):
+            next_status, err = user_role_request_command_service.decide_role_request(
+                conn,
+                request_id,
+                me,
+                approve,
+                now_iso,
+                log_audit,
+            )
+            if err == "not_found":
+                return error_response(error_messages.ROLE_REQUEST_NOT_FOUND, 404)
+            if err == "already_decided":
+                return error_response(error_messages.ROLE_REQUEST_ALREADY_DECIDED, 409)
+        return success_response({"request_id": request_id, "status": next_status})
+    except Exception:
+        return error_response("요청 처리 저장 중 오류가 발생했습니다.", 500)
+    finally:
         conn.close()
-        return error_response("요청을 찾을 수 없습니다.", 404)
-    if req["status"] != "PENDING":
-        conn.close()
-        return error_response("이미 처리된 요청입니다.", 409)
-
-    next_status = "APPROVED" if approve else "REJECTED"
-    conn.execute(
-        "UPDATE role_requests SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?",
-        (next_status, now_iso(), me["id"], request_id),
-    )
-    if approve:
-        conn.execute(
-            "UPDATE users SET role = ?, is_admin = CASE WHEN ? = 'ADMIN' THEN 1 ELSE is_admin END WHERE id = ?",
-            (req["to_role"], req["to_role"], req["user_id"]),
-        )
-    log_audit(
-        conn,
-        f"role_request_{next_status.lower()}",
-        "role_request",
-        request_id,
-        me["id"],
-        {"user_id": req["user_id"]},
-    )
-    conn.commit()
-    conn.close()
-    return success_response({"request_id": request_id, "status": next_status})
 
 
 def approve_role_request(request_id):

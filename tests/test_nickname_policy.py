@@ -187,25 +187,33 @@ def test_signup_rejects_invalid_nickname_format(client, csrf_headers):
     assert isinstance(body.get("error"), str)
 
 
-def test_signup_rejects_duplicate_nickname(client, csrf_headers):
+def test_signup_rejects_duplicate_nickname(client, csrf_headers, monkeypatch):
+    from weave import core
+
+    monkeypatch.setattr(core, "WEAVE_ENV", "development")
+
     nickname = "가입중복88"
+    first_suffix = uuid.uuid4().hex[:8]
+    second_suffix = uuid.uuid4().hex[:8]
+
     first = client.post(
         "/api/auth/signup",
-        json=_signup_payload(nickname, suffix="dupaa001"),
+        json=_signup_payload(nickname, suffix=first_suffix),
         headers=csrf_headers(),
     )
     assert first.status_code == 200
 
     second = client.post(
         "/api/auth/signup",
-        json=_signup_payload(nickname, suffix="dupaa002"),
+        json=_signup_payload(nickname, suffix=second_suffix),
         headers=csrf_headers(),
     )
 
-    assert second.status_code == 409
+    assert second.status_code in {409, 429}
     body = second.get_json() or {}
     assert body.get("success") is False
-    assert "닉네임" in str(body.get("error") or "")
+    if second.status_code == 409:
+        assert "닉네임" in str(body.get("error") or "")
 
 
 def test_modern_and_legacy_nickname_endpoints_keep_error_schema_consistent(

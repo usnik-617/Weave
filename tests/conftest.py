@@ -33,6 +33,16 @@ def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return app
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_state(monkeypatch: pytest.MonkeyPatch):
+    import weave.core as core
+
+    monkeypatch.setattr(core, "WEAVE_ENV", "development")
+    core.clear_all_rate_limit_state()
+    yield
+    core.clear_all_rate_limit_state()
+
+
 @pytest.fixture()
 def client(app):
     with app.test_client() as test_client:
@@ -114,6 +124,7 @@ def create_post_record(app):
     def _create_post_record(category="notice", author_id=None, publish_at=None, title=None):
         from weave.core import get_db_connection
         from weave.core import invalidate_cache
+        from weave import cache_keys
         from weave.time_utils import now_iso
 
         conn = get_db_connection()
@@ -133,10 +144,23 @@ def create_post_record(app):
         post_id = cur.lastrowid
         conn.commit()
         conn.close()
-        invalidate_cache("posts:list:")
+        for prefix in cache_keys.POSTS_LIST_PREFIXES:
+            invalidate_cache(prefix)
         return post_id
 
     return _create_post_record
+
+
+@pytest.fixture()
+def role_matrix_cases():
+    return [
+        (None, 401),
+        ("GENERAL", 403),
+        ("MEMBER", 200),
+        ("EXECUTIVE", 200),
+        ("LEADER", 200),
+        ("ADMIN", 200),
+    ]
 
 
 @pytest.fixture()

@@ -1,8 +1,23 @@
 from flask import jsonify, request
 
+from weave.errors.codes import error_code
+
+
+def _assert_api_payload_shape(payload, success_value):
+    assert isinstance(payload, dict)
+    assert payload.get("success") is success_value
+
+
+def _assert_legacy_payload_shape(payload):
+    assert isinstance(payload, dict)
+    assert "ok" in payload
+    assert "success" in payload
+
 
 def success_response(data=None, status_code=200):
-    return jsonify({"success": True, "data": data}), status_code
+    payload = {"success": True, "data": data}
+    _assert_api_payload_shape(payload, True)
+    return jsonify(payload), status_code
 
 
 def success_response_legacy(data=None, status_code=200):
@@ -12,13 +27,27 @@ def success_response_legacy(data=None, status_code=200):
             if key == "success":
                 continue
             body[key] = value
+    _assert_legacy_payload_shape(body)
     return jsonify(body), status_code
 
 
-def error_response(message, code=400, details=None):
+def error_response(message, code=400, details=None, code_key=None):
     body = {"success": False, "error": str(message)}
     if details is not None:
         body["details"] = details
+    if code_key:
+        body["error_code"] = error_code(code_key)
+    _assert_api_payload_shape(body, False)
+    return jsonify(body), code
+
+
+def error_response_legacy(message, code=400, details=None, code_key=None):
+    body = {"ok": False, "message": str(message), "success": False, "error": str(message)}
+    if details is not None:
+        body["details"] = details
+    if code_key:
+        body["error_code"] = error_code(code_key)
+    _assert_legacy_payload_shape(body)
     return jsonify(body), code
 
 

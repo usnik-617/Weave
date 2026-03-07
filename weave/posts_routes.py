@@ -13,7 +13,13 @@ from weave.authz import (
     role_to_icon,
     role_to_label,
 )
-from weave import gallery_routes, notice_routes, qna_routes
+from weave import (
+    error_messages,
+    gallery_routes,
+    notice_routes,
+    post_template_service,
+    qna_routes,
+)
 from weave import post_policy
 from weave.core import (
     UPLOAD_DIR,
@@ -35,7 +41,12 @@ from weave.files import (
     save_uploaded_file,
     upload_url_to_path,
 )
-from weave.responses import error_response, success_response, success_response_legacy
+from weave.responses import (
+    error_response,
+    error_response_legacy,
+    success_response,
+    success_response_legacy,
+)
 from weave.time_utils import now_iso, parse_iso_datetime
 
 
@@ -163,16 +174,16 @@ def update_about_section():
     image_url = str(payload.get("imageUrl", "")).strip()
 
     if section_key not in ABOUT_SECTION_KEYS:
-        return error_response("유효하지 않은 소개 탭 키입니다.", 400)
+        return error_response(error_messages.POST_ABOUT_SECTION_INVALID, 400)
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if me["status"] != "active" or not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
-        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
 
     conn.execute(
         """
@@ -194,29 +205,29 @@ def update_about_section():
 def upload_about_section_image():
     section_key = _normalize_key(request.form.get("key", ""), ABOUT_SECTION_KEY_ALIASES)
     if section_key not in ABOUT_SECTION_KEYS:
-        return error_response("유효하지 않은 소개 탭 키입니다.", 400)
+        return error_response(error_messages.POST_ABOUT_SECTION_INVALID, 400)
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if me["status"] != "active":
         conn.close()
-        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
 
     if section_key == "hero_background":
         if not is_admin_like(me):
             conn.close()
-            return error_response("운영자만 배경 이미지를 수정할 수 있습니다.", 403)
+            return error_response(error_messages.POST_ADMIN_ONLY_BACKGROUND_IMAGE, 403)
     elif not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
-        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
 
     file_storage = request.files.get("file")
     if not file_storage:
         conn.close()
-        return error_response("이미지 파일이 필요합니다.", 400)
+        return error_response(error_messages.POST_IMAGE_FILE_REQUIRED, 400)
 
     original_name = secure_filename(str(file_storage.filename or ""))
     extension = Path(original_name).suffix.lower()
@@ -230,7 +241,7 @@ def upload_about_section_image():
     }
     if extension not in image_exts or mime_type not in image_mimes:
         conn.close()
-        return error_response("소개 탭 이미지는 jpg/jpeg/png/webp/gif만 업로드할 수 있습니다.", 400)
+        return error_response(error_messages.POST_IMAGE_FILE_TYPE_INVALID, 400)
 
     file_info, err = save_uploaded_file(file_storage)
     if err:
@@ -238,7 +249,7 @@ def upload_about_section_image():
         return error_response(err, 400)
     if not file_info:
         conn.close()
-        return error_response("파일 처리에 실패했습니다.", 400)
+        return error_response(error_messages.POST_FILE_PROCESS_FAILED, 400)
 
     image_url = _stored_path_to_upload_url(file_info["stored_path"])
     conn.execute(
@@ -286,29 +297,29 @@ def update_content_block():
     content_html = str(payload.get("contentHtml", ""))
 
     if block_key not in CONTENT_BLOCK_KEYS:
-        return error_response("유효하지 않은 콘텐츠 키입니다.", 400)
+        return error_response(error_messages.POST_CONTENT_BLOCK_INVALID, 400)
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if me["status"] != "active":
         conn.close()
-        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
 
     if block_key in {"home_stats", "hero_background"}:
         if not is_admin_like(me):
             conn.close()
             message = (
-                "운영자만 홈 통계를 수정할 수 있습니다."
+                error_messages.POST_HOME_STATS_ADMIN_ONLY
                 if block_key == "home_stats"
-                else "운영자만 홈 배경 설정을 수정할 수 있습니다."
+                else error_messages.POST_HERO_BACKGROUND_ADMIN_ONLY
             )
             return error_response(message, 403)
     elif not role_at_least(me["role"], "EXECUTIVE"):
         conn.close()
-        return error_response("운영진 이상만 수정할 수 있습니다.", 403)
+        return error_response(error_messages.POST_EXEC_REQUIRED, 403)
 
     conn.execute(
         """
@@ -330,8 +341,8 @@ def get_press_kit():
     return success_response_legacy(
         {
             "ok": True,
-            "logoGuide": "로고는 원본 비율을 유지하고, 주변 여백을 확보해 사용하세요.",
-            "officialIntro": "남양주청년봉사단 위브는 지역과 청년을 연결해 지속 가능한 변화를 만드는 청년 봉사 커뮤니티입니다.",
+            "logoGuide": "로고는 기본 비율을 유지하고, 주변 여백을 확보해 사용하세요.",
+            "officialIntro": "고양시 청소년봉사단 위브는 지역사회 문제를 해결하기 위한 변화를 만드는 봉사 커뮤니티입니다.",
             "downloads": [
                 {"label": "공식 로고", "url": "/logo.png"},
                 {"label": "기관 소개문구", "url": "/api/press-kit"},
@@ -372,12 +383,7 @@ def create_rules_version():
     content = str(payload.get("content", "")).strip()
 
     if not version or not effective_date or not summary:
-        return (
-            jsonify(
-                {"ok": False, "message": "version/effectiveDate/summary는 필수입니다."}
-            ),
-            400,
-        )
+        return error_response_legacy("version/effectiveDate/summary는 필수입니다.", 400)
 
     conn = get_db_connection()
     conn.execute(
@@ -386,9 +392,7 @@ def create_rules_version():
     )
     conn.commit()
     conn.close()
-    return success_response_legacy(
-        {"ok": True, "message": "개정 이력이 등록되었습니다."}
-    )
+    return success_response_legacy({"ok": True, "message": "개정 이력이 기록되었습니다."})
 
 
 def get_annual_report(year):
@@ -424,11 +428,7 @@ def get_templates():
     return success_response_legacy(
         {
             "ok": True,
-            "items": [
-                {"type": "notice", "label": "공지 템플릿"},
-                {"type": "review", "label": "활동 후기 템플릿"},
-                {"type": "minutes", "label": "회의록 템플릿"},
-            ],
+            "items": post_template_service.list_template_items(),
         }
     )
 
@@ -436,17 +436,10 @@ def get_templates():
 def generate_template():
     payload = request.get_json(silent=True) or {}
     template_type = str(payload.get("type", "")).strip().lower()
-    title = str(payload.get("title", "제목"))
-
-    templates = {
-        "notice": f"[공지] {title}\n\n1) 일정\n2) 장소\n3) 준비물\n4) 유의사항",
-        "review": f"[활동후기] {title}\n\n- 활동 개요\n- 참여 소감\n- 다음 개선점",
-        "minutes": f"[회의록] {title}\n\n- 참석자\n- 논의 안건\n- 결정 사항\n- 액션 아이템",
-    }
-
-    content = templates.get(template_type)
+    title = post_template_service.default_template_title(payload.get("title"))
+    content = post_template_service.build_template_content(template_type, title)
     if not content:
-        return jsonify({"ok": False, "message": "지원하지 않는 템플릿입니다."}), 400
+        return error_response_legacy(error_messages.POST_TEMPLATE_UNSUPPORTED, 400)
     return success_response_legacy({"ok": True, "content": content})
 
 
@@ -559,23 +552,21 @@ def create_post():
     payload = request.get_json(silent=True) or {}
     category = post_policy.normalize_create_category(payload.get("category", ""))
     if not post_policy.is_creatable_category(category):
-        return error_response(
-            "type(category)는 notice|review|recruit|qna|gallery만 허용됩니다.", 400
-        )
+        return error_response(error_messages.POST_INVALID_CATEGORY, 400)
     title = str(payload.get("title", "")).strip()
     if not title:
-        return error_response("title은 필수입니다.", 400)
+        return error_response(error_messages.POST_TITLE_REQUIRED, 400)
     publish_at = str(payload.get("publish_at", "")).strip() or None
     if publish_at and not parse_iso_datetime(publish_at):
-        return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+        return error_response(error_messages.POST_PUBLISH_AT_INVALID, 400)
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if me["status"] == "suspended":
         conn.close()
-        return error_response("정지된 계정은 게시글을 작성할 수 없습니다.", 403)
+        return error_response(error_messages.POST_SUSPENDED_FORBIDDEN, 403)
 
     permission_error = post_policy.create_permission_error(category, me)
     if permission_error:
@@ -592,7 +583,7 @@ def create_post():
         publish_at = str(payload.get("publish_at", "")).strip() or None
         if publish_at and not parse_iso_datetime(publish_at):
             conn.close()
-            return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+            return error_response(error_messages.POST_PUBLISH_AT_INVALID, 400)
         status = post_visibility_status(publish_at)
         volunteer_start = str(payload.get("volunteerStartDate", "")).strip() or None
         volunteer_end = (
@@ -653,13 +644,13 @@ def get_post(post_id):
     ).fetchone()
     if not row:
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return error_response(error_messages.POST_NOT_FOUND, 404)
 
     can_view_scheduled = post_policy.can_view_scheduled_post_detail(me)
     publish_at_dt = parse_iso_datetime(row["publish_at"]) if row["publish_at"] else None
     if not can_view_scheduled and publish_at_dt and publish_at_dt > datetime.now():
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return error_response(error_messages.POST_NOT_FOUND, 404)
 
     comments = conn.execute(
         """
@@ -747,23 +738,23 @@ def update_post(post_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     post = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return error_response(error_messages.POST_NOT_FOUND, 404)
 
     if not (
         role_at_least(me["role"], "EXECUTIVE")
         or int(post["author_id"] or 0) == int(me["id"])
     ):
         conn.close()
-        return error_response("작성자 또는 운영권한이 필요합니다.", 403)
+        return error_response(error_messages.POST_AUTHOR_OR_EXEC_REQUIRED, 403)
 
     category = str(payload.get("category", post["category"]))
     if not category:
         conn.close()
-        return error_response("category는 필수입니다.", 400)
+        return error_response(error_messages.POST_CATEGORY_REQUIRED, 400)
     next_category = category.lower()
 
     permission_error = post_policy.update_permission_error(next_category, me)
@@ -780,7 +771,7 @@ def update_post(post_id):
         )
         if publish_at and not parse_iso_datetime(publish_at):
             conn.close()
-            return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
+            return error_response(error_messages.POST_PUBLISH_AT_INVALID, 400)
         status = post_visibility_status(publish_at)
 
         conn.execute(
@@ -816,17 +807,17 @@ def delete_post(post_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     post = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return error_response(error_messages.POST_NOT_FOUND, 404)
     if not (
         role_at_least(me["role"], "EXECUTIVE")
         or int(post["author_id"] or 0) == int(me["id"])
     ):
         conn.close()
-        return error_response("작성자 또는 운영권한이 필요합니다.", 403)
+        return error_response(error_messages.POST_AUTHOR_OR_EXEC_REQUIRED, 403)
     category = str(post["category"] or "").lower()
     delete_handler = _delete_category_handler(category)
     if delete_handler:
@@ -863,11 +854,11 @@ def recommend_post(post_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     post = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return error_response(error_messages.POST_NOT_FOUND, 404)
 
     existing = conn.execute(
         "SELECT id FROM recommends WHERE post_id = ? AND user_id = ?",
@@ -875,7 +866,7 @@ def recommend_post(post_id):
     ).fetchone()
     if existing:
         conn.close()
-        return error_response("이미 추천하셨습니다.", 409)
+        return error_response(error_messages.POST_ALREADY_RECOMMENDED, 409)
 
     conn.execute(
         "INSERT INTO recommends (post_id, user_id, created_at) VALUES (?, ?, ?)",

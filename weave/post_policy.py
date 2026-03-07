@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from weave.authz import can_create_gallery, can_create_notice, role_at_least
+from weave import cache_keys
 
 # Categories accepted by POST /api/posts create.
 CREATE_ALLOWED_CATEGORIES = ("notice", "review", "recruit", "qna", "gallery")
@@ -9,7 +10,7 @@ CREATE_ALLOWED_CATEGORIES = ("notice", "review", "recruit", "qna", "gallery")
 LIST_ALLOWED_CATEGORIES = ("notice", "faq", "qna", "gallery", "review", "recruit")
 
 # Keep cache invalidation targets explicit and centralized.
-CACHE_INVALIDATION_PREFIXES = ("posts:list:notice:", "posts:list:gallery:")
+CACHE_INVALIDATION_PREFIXES = cache_keys.POSTS_LIST_PREFIXES
 
 # Category aliases used by list filtering.
 LIST_CATEGORY_ALIASES = {
@@ -69,4 +70,4 @@ def should_cache_post_list(category, keyword):
 
 
 def post_list_cache_key(category, page, page_size, can_include_scheduled):
-    return f"posts:list:{category}:{page}:{page_size}:{int(bool(can_include_scheduled))}"
+    return cache_keys.post_list_key(category, page, page_size, can_include_scheduled)

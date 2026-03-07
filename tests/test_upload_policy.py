@@ -4,6 +4,8 @@ import io
 
 import pytest
 
+from contract_assertions import assert_error_contract
+
 
 def test_gallery_rejects_pdf_upload(
     client, create_user, login_as, csrf_headers, create_post_record
@@ -208,4 +210,38 @@ def test_upload_endpoint_permission_contract_by_role(
         assert payload.get("success") is True
         assert int(((payload.get("data") or {}).get("file_id") or 0)) > 0
     else:
-        assert payload.get("success") is False
+        assert_error_contract(payload)
+
+
+def test_upload_and_download_error_schema_consistency(
+    client, create_user, login_as, csrf_headers
+):
+    login_as(None)
+
+    upload_unauth = client.post(
+        "/api/posts/99999/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "x.pdf", "application/pdf")},
+        headers=csrf_headers(),
+        content_type="multipart/form-data",
+    )
+    assert upload_unauth.status_code == 401
+    assert_error_contract(upload_unauth.get_json() or {})
+
+    download_unauth = client.get("/api/post-files/99999/download")
+    assert download_unauth.status_code == 401
+    assert_error_contract(download_unauth.get_json() or {})
+
+    invalid_path = client.get("/uploads/../../etc/passwd")
+    assert invalid_path.status_code == 400
+    assert_error_contract(invalid_path.get_json() or {})
+
+    general = create_user(role="GENERAL")
+    login_as(general)
+    forbidden_upload = client.post(
+        "/api/posts/99999/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "x.pdf", "application/pdf")},
+        headers=csrf_headers(),
+        content_type="multipart/form-data",
+    )
+    assert forbidden_upload.status_code == 403
+    assert_error_contract(forbidden_upload.get_json() or {})

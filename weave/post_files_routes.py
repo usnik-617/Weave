@@ -1,6 +1,4 @@
 import os
-import shutil
-from pathlib import Path
 
 from werkzeug.utils import secure_filename
 
@@ -11,98 +9,34 @@ from weave.core import (
     log_audit,
     request,
     send_file,
+    transaction,
 )
 from weave.files import (
     compute_file_sha256_from_filestorage,
     remove_file_safely,
     save_uploaded_file,
 )
+from weave import file_error_policy
 from weave import post_file_delivery, post_file_policy
+from weave import post_file_thumbnail_service
 from weave.responses import error_response, success_response
 from weave.time_utils import now_iso, parse_iso_datetime
-
-
-def _thumbnail_save_format(ext):
-    return post_file_policy.thumbnail_save_format(ext)
-
-
-def _generate_gallery_thumbnail(original_file_info):
-    original_path = str(original_file_info["stored_path"])
-    original_ext = Path(original_path).suffix.lower()
-    thumb_ext, save_format = _thumbnail_save_format(original_ext)
-    original_stem = Path(original_path).stem
-    thumb_name = f"{original_stem}_thumb{thumb_ext}"
-    thumb_path = str(Path(original_path).with_name(thumb_name))
-
-    try:
-        from PIL import Image
-    except Exception:
-        try:
-            shutil.copyfile(original_path, thumb_path)
-        except Exception:
-            remove_file_safely(thumb_path)
-            return None, "갤러리 썸네일 생성에 실패했습니다."
-        mime_map = {
-            ".jpg": "image/jpeg",
-            ".png": "image/png",
-            ".webp": "image/webp",
-            ".gif": "image/gif",
-        }
-        return {
-            "stored_path": thumb_path,
-            "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
-            "size": int(
-                os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0
-            ),
-            "url": post_file_policy.stored_path_to_upload_url(thumb_path, UPLOAD_DIR),
-        }, None
-
-    try:
-        with Image.open(original_path) as image:
-            image.thumbnail((400, 400))
-            if save_format == "JPEG" and image.mode in ("RGBA", "LA", "P"):
-                image = image.convert("RGB")
-            save_kwargs = {}
-            if save_format in ("JPEG", "WEBP"):
-                save_kwargs["quality"] = 85
-            image.save(thumb_path, format=save_format, **save_kwargs)
-    except Exception:
-        remove_file_safely(thumb_path)
-        try:
-            shutil.copyfile(original_path, thumb_path)
-        except Exception:
-            remove_file_safely(thumb_path)
-            return None, "갤러리 썸네일 생성에 실패했습니다."
-
-    mime_map = {
-        ".jpg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-        ".gif": "image/gif",
-    }
-    return {
-        "stored_path": thumb_path,
-        "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
-        "size": int(os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0),
-        "url": post_file_policy.stored_path_to_upload_url(thumb_path, UPLOAD_DIR),
-    }, None
-
 
 def upload_post_file(post_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return file_error_policy.unauthorized()
     if not role_at_least(me["role"], "MEMBER"):
         conn.close()
-        return error_response("단원 이상만 파일을 업로드할 수 있습니다.", 403)
+        return file_error_policy.member_required_upload()
     post = conn.execute(
         "SELECT id, category FROM posts WHERE id = ?", (post_id,)
     ).fetchone()
     if not post:
         conn.close()
-        return error_response("게시글을 찾을 수 없습니다.", 404)
+        return file_error_policy.post_not_found()
 
     file_storage = request.files.get("file")
     post_category = str(post["category"] or "").lower()
@@ -119,7 +53,7 @@ def upload_post_file(post_id):
     expires_at = post_file_policy.normalize_expires_at(request.form)
     if expires_at and not parse_iso_datetime(expires_at):
         conn.close()
-        return error_response("expires_at은 ISO 형식이어야 합니다.", 400)
+        return file_error_policy.expires_at_invalid()
 
     file_hash = compute_file_sha256_from_filestorage(file_storage)
     existing = conn.execute(
@@ -133,6 +67,7 @@ def upload_post_file(post_id):
         (file_hash,),
     ).fetchone()
 
+    is_new_file_saved = False
     if existing and os.path.exists(existing["stored_path"]):
         file_info = {
             "original_name": filename,
@@ -148,53 +83,66 @@ def upload_post_file(post_id):
             return error_response(err, 400)
         if not file_info:
             conn.close()
-            return error_response("파일 처리에 실패했습니다.", 400)
+            return file_error_policy.upload_processing_failed()
         created_at = now_iso()
+        is_new_file_saved = True
 
     thumb_info = None
     if post_file_policy.should_generate_gallery_thumbnail(post_category):
-        thumb_info, thumb_err = _generate_gallery_thumbnail(file_info)
+        thumb_info, thumb_err = post_file_thumbnail_service.generate_gallery_thumbnail(
+            file_info, UPLOAD_DIR
+        )
         if thumb_err:
-            remove_file_safely(file_info["stored_path"])
+            if is_new_file_saved:
+                remove_file_safely(file_info["stored_path"])
             conn.close()
             return error_response(thumb_err, 500)
 
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO post_files (post_id, original_name, stored_path, mime_type, size, hash_sha256, uploaded_at, created_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            post_id,
-            file_info["original_name"],
-            file_info["stored_path"],
-            file_info["mime_type"],
-            int(file_info["size"]),
-            file_hash,
-            created_at,
-            created_at,
-            expires_at,
-        ),
-    )
-    file_id = cur.lastrowid
-    if post_file_policy.should_generate_gallery_thumbnail(post_category):
-        if thumb_info is None:
-            remove_file_safely(file_info["stored_path"])
-            conn.close()
-            return error_response("갤러리 썸네일 생성에 실패했습니다.", 500)
-        conn.execute(
-            "UPDATE posts SET image_url = ?, thumb_url = ? WHERE id = ?",
-            (
-                post_file_policy.stored_path_to_upload_url(
-                    file_info["stored_path"], UPLOAD_DIR
+    try:
+        with transaction(conn):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO post_files (post_id, original_name, stored_path, mime_type, size, hash_sha256, uploaded_at, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    post_id,
+                    file_info["original_name"],
+                    file_info["stored_path"],
+                    file_info["mime_type"],
+                    int(file_info["size"]),
+                    file_hash,
+                    created_at,
+                    created_at,
+                    expires_at,
                 ),
-                thumb_info["url"],
-                post_id,
-            ),
-        )
-    log_audit(conn, "upload_post_file", "post", post_id, me["id"])
-    conn.commit()
+            )
+            file_id = cur.lastrowid
+            if post_file_policy.should_generate_gallery_thumbnail(post_category):
+                if thumb_info is None:
+                    raise RuntimeError("missing_gallery_thumbnail")
+                conn.execute(
+                    "UPDATE posts SET image_url = ?, thumb_url = ? WHERE id = ?",
+                    (
+                        post_file_policy.stored_path_to_upload_url(
+                            file_info["stored_path"], UPLOAD_DIR
+                        ),
+                        thumb_info["url"],
+                        post_id,
+                    ),
+                )
+            log_audit(conn, "upload_post_file", "post", post_id, me["id"])
+    except Exception:
+        if is_new_file_saved:
+            remove_file_safely(file_info["stored_path"])
+        if thumb_info and thumb_info.get("stored_path"):
+            remove_file_safely(thumb_info["stored_path"])
+        conn.close()
+        if post_file_policy.should_generate_gallery_thumbnail(post_category):
+            return file_error_policy.gallery_thumb_failed(500)
+        return file_error_policy.upload_processing_failed()
+
     conn.close()
     return success_response({"file_id": file_id}, 201)
 
@@ -204,7 +152,7 @@ def list_post_files(post_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return file_error_policy.unauthorized()
     rows = conn.execute(
         """
         SELECT id, original_name, mime_type, size, uploaded_at, stored_path
@@ -237,16 +185,16 @@ def download_post_file(file_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return file_error_policy.unauthorized()
     row = conn.execute(
         "SELECT * FROM post_files WHERE id = ? AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)",
         (file_id, now_iso()),
     ).fetchone()
     conn.close()
     if not row:
-        return error_response("파일을 찾을 수 없습니다.", 404)
+        return file_error_policy.file_not_found()
     if not os.path.exists(row["stored_path"]):
-        return error_response("저장된 파일이 없습니다.", 404)
+        return file_error_policy.stored_file_missing()
     return post_file_delivery.send_download_response(
         row,
         post_file_policy.is_inline_requested(request.args),
@@ -257,14 +205,14 @@ def download_post_file(file_id):
 def serve_uploaded_file(filename):
     safe_rel = os.path.normpath(filename).replace("\\", "/").lstrip("/")
     if safe_rel.startswith("..") or "/../" in safe_rel:
-        return error_response("Invalid path", 400)
+        return file_error_policy.invalid_path()
 
     full_path = os.path.abspath(os.path.join(UPLOAD_DIR, safe_rel))
     uploads_root = os.path.abspath(UPLOAD_DIR)
     if not full_path.startswith(uploads_root):
-        return error_response("Invalid path", 400)
+        return file_error_policy.invalid_path()
     if not os.path.exists(full_path):
-        return error_response("파일을 찾을 수 없습니다.", 404)
+        return file_error_policy.file_not_found()
 
     upload_url = f"/uploads/{safe_rel}"
     conn = get_db_connection()
@@ -299,10 +247,10 @@ def serve_uploaded_file(filename):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return file_error_policy.unauthorized()
     if not role_at_least(me["role"], "MEMBER"):
         conn.close()
-        return error_response("단원 이상만 접근할 수 있습니다.", 403)
+        return file_error_policy.member_required_access()
     conn.close()
 
     if row and post_file_policy.is_pdf_mime(row["mime_type"]):

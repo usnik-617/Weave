@@ -211,6 +211,12 @@ def reset_login_failures_by_ip(ip):
     return core_state.reset_login_failures_by_ip(ip)
 
 
+def clear_all_rate_limit_state():
+    from weave import core_state
+
+    return core_state.clear_all_rate_limit_state()
+
+
 def write_app_log(level, action, user_id=None, extra=None):
     from weave import core_audit
 
@@ -237,6 +243,12 @@ def db_write_retry(func):
     from weave import core_db
 
     return core_db.db_write_retry(func)
+
+
+def transaction(conn):
+    from weave import core_db
+
+    return core_db.transaction(conn)
 
 
 def _cache_now():

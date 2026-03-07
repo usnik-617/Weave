@@ -1,4 +1,5 @@
 from weave.authz import get_current_user_row
+from weave import cache_keys, error_messages
 from weave.core import (
     get_cache,
     get_db_connection,
@@ -10,7 +11,13 @@ from weave.core import (
     write_app_log,
 )
 from weave import event_command_service, event_policy, event_query_service
-from weave.responses import error_response, success_response, success_response_legacy
+from weave.event_exceptions import EventNotFoundError
+from weave.responses import (
+    error_response,
+    error_response_legacy,
+    success_response,
+    success_response_legacy,
+)
 from weave.time_utils import parse_iso_datetime
 
 
@@ -26,7 +33,7 @@ def list_activities():
         date_value, view
     )
     items = event_query_service.list_activities_items(include_all, start_date, end_date)
-    return jsonify(
+    return success_response_legacy(
         {
             "ok": True,
             "view": view,
@@ -41,63 +48,39 @@ def create_activity():
     required = ["title", "startAt", "endAt"]
     for field in required:
         if not str(payload.get(field, "")).strip():
-            return jsonify({"ok": False, "message": f"{field} 값이 필요합니다."}), 400
+            return error_response_legacy(f"{field} 값이 필요합니다.", 400)
 
     title = str(payload.get("title", "")).strip()
     if len(title) > 120:
-        return (
-            jsonify({"ok": False, "message": "활동 제목은 120자 이하여야 합니다."}),
-            400,
-        )
+        return error_response_legacy("활동 제목은 120자 이하여야 합니다.", 400)
 
     start_at = str(payload.get("startAt", "")).strip()
     end_at = str(payload.get("endAt", "")).strip()
     start_dt = parse_iso_datetime(start_at)
     end_dt = parse_iso_datetime(end_at)
     if not start_dt or not end_dt:
-        return (
-            jsonify(
-                {"ok": False, "message": "시작/종료 시간 형식이 올바르지 않습니다."}
-            ),
-            400,
-        )
+        return error_response_legacy("시작/종료 시간 형식이 올바르지 않습니다.", 400)
     if end_dt <= start_dt:
-        return (
-            jsonify(
-                {"ok": False, "message": "종료 시간은 시작 시간보다 늦어야 합니다."}
-            ),
-            400,
-        )
+        return error_response_legacy("종료 시간은 시작 시간보다 늦어야 합니다.", 400)
 
     recruitment_limit = int(payload.get("recruitmentLimit", 0) or 0)
     if recruitment_limit < 0 or recruitment_limit > 1000:
-        return (
-            jsonify({"ok": False, "message": "모집 인원은 0~1000 범위여야 합니다."}),
-            400,
-        )
+        return error_response_legacy("모집 인원은 0~1000 범위여야 합니다.", 400)
 
     recurrence_group_id = str(payload.get("recurrenceGroupId", "")).strip()
     if recurrence_group_id and not event_policy.is_valid_recurrence_group_id(
         recurrence_group_id
     ):
-        return (
-            jsonify({"ok": False, "message": "반복 그룹 ID 형식이 올바르지 않습니다."}),
-            400,
-        )
+        return error_response_legacy("반복 그룹 ID 형식이 올바르지 않습니다.", 400)
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response_legacy(error_messages.EVENT_LOGIN_REQUIRED, 401)
     if not event_policy.can_manage_activity(me):
         conn.close()
-        return (
-            jsonify(
-                {"ok": False, "message": "운영진/관리자만 일정을 등록할 수 있습니다."}
-            ),
-            403,
-        )
+        return error_response_legacy(error_messages.EVENT_MANAGE_ACTIVITY_REQUIRED, 403)
     conn.close()
     row = event_command_service.create_activity_record(payload, me)
     return success_response_legacy(
@@ -111,37 +94,28 @@ def update_activity(activity_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response_legacy(error_messages.EVENT_LOGIN_REQUIRED, 401)
     if not event_policy.can_manage_activity(me):
         conn.close()
-        return (
-            jsonify({"ok": False, "message": "임원 이상만 일정을 수정할 수 있습니다."}),
-            403,
-        )
+        return error_response_legacy(error_messages.EVENT_MANAGE_ACTIVITY_REQUIRED, 403)
 
     target = conn.execute(
         "SELECT * FROM activities WHERE id = ?", (activity_id,)
     ).fetchone()
     if not target:
         conn.close()
-        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+        return error_response_legacy(error_messages.EVENT_ACTIVITY_NOT_FOUND, 404)
     if target["is_cancelled"]:
         conn.close()
-        return (
-            jsonify({"ok": False, "message": "취소된 일정은 수정할 수 없습니다."}),
-            409,
-        )
+        return error_response_legacy("취소된 일정은 수정할 수 없습니다.", 409)
 
     title = str(payload.get("title", target["title"] or "")).strip()
     if not title:
         conn.close()
-        return jsonify({"ok": False, "message": "title 값이 필요합니다."}), 400
+        return error_response_legacy("title 값이 필요합니다.", 400)
     if len(title) > 120:
         conn.close()
-        return (
-            jsonify({"ok": False, "message": "활동 제목은 120자 이하여야 합니다."}),
-            400,
-        )
+        return error_response_legacy("활동 제목은 120자 이하여야 합니다.", 400)
 
     start_at = str(payload.get("startAt", target["start_at"] or "")).strip()
     end_at = str(payload.get("endAt", target["end_at"] or "")).strip()
@@ -149,29 +123,16 @@ def update_activity(activity_id):
     end_dt = parse_iso_datetime(end_at)
     if not start_dt or not end_dt:
         conn.close()
-        return (
-            jsonify(
-                {"ok": False, "message": "시작/종료 시간 형식이 올바르지 않습니다."}
-            ),
-            400,
-        )
+        return error_response_legacy("시작/종료 시간 형식이 올바르지 않습니다.", 400)
     if end_dt <= start_dt:
         conn.close()
-        return (
-            jsonify(
-                {"ok": False, "message": "종료 시간은 시작 시간보다 늦어야 합니다."}
-            ),
-            400,
-        )
+        return error_response_legacy("종료 시간은 시작 시간보다 늦어야 합니다.", 400)
 
     raw_limit = payload.get("recruitmentLimit", target["recruitment_limit"])
     recruitment_limit = int(raw_limit or 0)
     if recruitment_limit < 0 or recruitment_limit > 1000:
         conn.close()
-        return (
-            jsonify({"ok": False, "message": "모집 인원은 0~1000 범위여야 합니다."}),
-            400,
-        )
+        return error_response_legacy("모집 인원은 0~1000 범위여야 합니다.", 400)
 
     conn.close()
     row = event_command_service.update_activity_record(activity_id, payload, target, me)
@@ -185,20 +146,17 @@ def delete_activity(activity_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return jsonify({"ok": False, "message": "로그인이 필요합니다."}), 401
+        return error_response_legacy(error_messages.EVENT_LOGIN_REQUIRED, 401)
     if not event_policy.can_manage_activity(me):
         conn.close()
-        return (
-            jsonify({"ok": False, "message": "임원 이상만 일정을 삭제할 수 있습니다."}),
-            403,
-        )
+        return error_response_legacy(error_messages.EVENT_MANAGE_ACTIVITY_REQUIRED, 403)
 
     target = conn.execute(
         "SELECT * FROM activities WHERE id = ?", (activity_id,)
     ).fetchone()
     if not target:
         conn.close()
-        return jsonify({"ok": False, "message": "활동을 찾을 수 없습니다."}), 404
+        return error_response_legacy(error_messages.EVENT_ACTIVITY_NOT_FOUND, 404)
     if target["is_cancelled"]:
         conn.close()
         return success_response_legacy(
@@ -215,14 +173,11 @@ def delete_activity(activity_id):
 def cancel_recurrence_group(group_id):
     group_id = str(group_id or "").strip()
     if not event_policy.is_valid_recurrence_group_id(group_id):
-        return (
-            jsonify({"ok": False, "message": "유효하지 않은 반복 그룹 ID입니다."}),
-            400,
-        )
+        return error_response_legacy("유효하지 않은 반복 그룹 ID입니다.", 400)
 
     activity_ids = event_query_service.get_active_activity_ids_by_group(group_id)
     if not activity_ids:
-        return jsonify({"ok": False, "message": "취소할 반복 그룹이 없습니다."}), 404
+        return error_response_legacy("취소할 반복 그룹이 없습니다.", 404)
     event_command_service.cancel_recurrence_group_records(activity_ids)
     return success_response_legacy(
         {
@@ -236,10 +191,7 @@ def cancel_recurrence_group(group_id):
 def recurrence_group_impact(group_id):
     group_id = str(group_id or "").strip()
     if not event_policy.is_valid_recurrence_group_id(group_id):
-        return (
-            jsonify({"ok": False, "message": "유효하지 않은 반복 그룹 ID입니다."}),
-            400,
-        )
+        return error_response_legacy("유효하지 않은 반복 그룹 ID입니다.", 400)
     impact = event_query_service.recurrence_group_impact_data(group_id)
 
     return success_response_legacy(
@@ -258,12 +210,12 @@ def list_events():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not event_policy.can_view_event(me):
         conn.close()
-        return error_response("단원 이상만 이벤트를 확인할 수 있습니다.", 403)
+        return error_response(error_messages.EVENT_VIEW_FORBIDDEN, 403)
     conn.close()
-    cache_key = f"events:list:{me['id']}:{page}:{page_size}"
+    cache_key = cache_keys.events_list_key(me["id"], page, page_size)
     cached = get_cache(cache_key)
     if cached is not None:
         return success_response(cached)
@@ -290,13 +242,13 @@ def create_event():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not event_policy.can_manage_event(me):
         conn.close()
-        return error_response("부단장 이상만 이벤트를 생성할 수 있습니다.", 403)
+        return error_response(error_messages.EVENT_MANAGE_FORBIDDEN, 403)
     conn.close()
     event_id = event_command_service.create_event_record(payload, me)
-    invalidate_cache("events:list:")
+    invalidate_cache(cache_keys.EVENTS_LIST_PREFIX)
     write_app_log(
         "info", "create_event", user_id=me["id"], extra={"event_id": event_id}
     )
@@ -309,14 +261,14 @@ def update_event(event_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not event_policy.can_manage_event(me):
         conn.close()
-        return error_response("부단장 이상만 이벤트를 수정할 수 있습니다.", 403)
+        return error_response(error_messages.EVENT_UPDATE_FORBIDDEN, 403)
     target = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not target:
         conn.close()
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
+        return error_response(error_messages.EVENT_NOT_FOUND, 404)
 
     start_datetime = str(
         payload.get(
@@ -333,8 +285,16 @@ def update_event(event_id):
             "start_datetime/end_datetime은 ISO 형식이어야 합니다.", 400
         )
     conn.close()
-    notified = event_command_service.update_event_record(event_id, payload, target, me)
-    invalidate_cache("events:list:")
+    try:
+        notified = event_command_service.update_event_record(
+            event_id,
+            payload,
+            target,
+            me,
+        )
+    except EventNotFoundError:
+        return error_response(error_messages.EVENT_NOT_FOUND, 404)
+    invalidate_cache(cache_keys.EVENTS_LIST_PREFIX)
     write_app_log(
         "info",
         "update_event",
@@ -349,14 +309,14 @@ def get_event_detail(event_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not event_policy.can_view_event(me):
         conn.close()
-        return error_response("단원 이상만 이벤트를 확인할 수 있습니다.", 403)
+        return error_response(error_messages.EVENT_VIEW_FORBIDDEN, 403)
     conn.close()
     data = event_query_service.event_detail_data(event_id, me["id"])
     if not data:
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
+        return error_response(error_messages.EVENT_NOT_FOUND, 404)
     return success_response(data)
 
 
@@ -376,15 +336,15 @@ def vote_event(event_id):
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response("Unauthorized", 401)
+        return error_response(error_messages.UNAUTHORIZED, 401)
     if not event_policy.can_vote_event(me):
         conn.close()
-        return error_response("단원 이상만 투표할 수 있습니다.", 403)
+        return error_response(error_messages.EVENT_VOTE_FORBIDDEN, 403)
 
     event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
     if not event:
         conn.close()
-        return error_response("이벤트를 찾을 수 없습니다.", 404)
+        return error_response(error_messages.EVENT_NOT_FOUND, 404)
 
     conn.close()
     event_command_service.upsert_event_vote(event_id, me, status)
