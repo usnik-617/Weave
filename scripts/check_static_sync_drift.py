@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
-import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
@@ -19,14 +19,30 @@ SYNC_PAIRS = [
 ]
 
 
-def sync() -> None:
+def sha256(path: Path) -> str:
+    data = path.read_bytes()
+    return hashlib.sha256(data).hexdigest()
+
+
+def main() -> int:
+    mismatches: list[str] = []
     for src, dst in SYNC_PAIRS:
-        if not src.exists():
-            raise FileNotFoundError(f"Missing source file: {src}")
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        print(f"synced: {src.relative_to(ROOT)} -> {dst.relative_to(ROOT)}")
+        if not src.exists() or not dst.exists():
+            mismatches.append(f"missing pair: {src} <-> {dst}")
+            continue
+        if sha256(src) != sha256(dst):
+            mismatches.append(f"out of sync: {src.relative_to(ROOT)} != {dst.relative_to(ROOT)}")
+
+    if mismatches:
+        print("Static/root mirror drift detected.")
+        print("Run: python scripts/sync_static_root.py")
+        for item in mismatches:
+            print(f"- {item}")
+        return 1
+
+    print("Static/root mirror is in sync.")
+    return 0
 
 
 if __name__ == "__main__":
-    sync()
+    raise SystemExit(main())

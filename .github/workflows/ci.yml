@@ -31,3 +31,48 @@ jobs:
 
       - name: Run pytest
         run: pytest -q
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Frontend guardrail check
+        run: npm run lint:frontend
+
+      - name: Static/root sync drift check
+        run: npm run check:sync-static-root
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright smoke
+        run: npx playwright test tests/routing-smoke.spec.js tests/auth-and-write.spec.js tests/route-state-telemetry.spec.js --reporter=line
+
+  e2e-full:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright full
+        run: npm run test:e2e:full

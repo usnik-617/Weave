@@ -217,6 +217,7 @@ function setActiveNavStates(panelId) {
 }
 
 function handleSessionExpired(path = '') {
+  if (window.__WEAVE_E2E__ === true) return;
   if (SESSION_EXPIRED_SHOWN) return;
   if (String(path || '').startsWith('/auth/')) return;
   if (!getCurrentUser()) return;
@@ -235,7 +236,7 @@ function handleSessionExpired(path = '') {
 function showPermissionDenied() {
   const modalEl = document.getElementById('permissionDeniedModal');
   if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
-    notifyError('沅뚰븳???놁뒿?덈떎.');
+    notifyError('권한이 없습니다.');
     return;
   }
   const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
@@ -329,14 +330,14 @@ async function apiRequest(path, options = {}) {
         showPermissionDenied();
       }
       const defaultMessage = response.status === 401
-        ? '?몄뀡??留뚮즺?섏뿀?듬땲??'
+        ? '세션이 만료되었습니다.'
         : response.status === 403
-          ? '沅뚰븳???놁뒿?덈떎.'
+          ? '권한이 없습니다.'
           : response.status === 404
-            ? '?붿껌????곸쓣 李얠쓣 ???놁뒿?덈떎.'
+            ? '요청 대상을 찾을 수 없습니다.'
             : response.status === 429
-              ? '?붿껌??留롮뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.'
-              : '?붿껌 泥섎━ 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.';
+              ? '요청이 많습니다. 잠시 후 다시 시도해주세요.'
+              : '요청 처리 중 오류가 발생했습니다.';
       throw new Error(data.error || data.message || defaultMessage);
     }
     if (data && data.success === true && data.data && typeof data.data === 'object') {
@@ -345,11 +346,11 @@ async function apiRequest(path, options = {}) {
     return data;
   } catch (error) {
     if (error && error.name === 'AbortError') {
-      throw new Error('?쒕쾭 ?묐떟??吏?곕릺怨??덉뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.');
+      throw new Error('서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
     }
     const errorMessage = String(error?.message || '');
     if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(errorMessage)) {
-      throw new Error('?쒕쾭???곌껐?????놁뒿?덈떎. ?ㅽ듃?뚰겕 ?곹깭瑜??뺤씤?????ㅼ떆 ?쒕룄?댁＜?몄슂.');
+      throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인 후 다시 시도해주세요.');
     }
     throw error;
   } finally {
@@ -528,7 +529,9 @@ function updateAuthUI() {
   if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
   if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
   if (typeof updateWriteTemplateVisibility === 'function') updateWriteTemplateVisibility();
-  updateAboutPhotoAdminControls();
+  if (typeof updateAboutPhotoAdminControls === 'function') updateAboutPhotoAdminControls();
+  if (typeof updateHomeHeroAdminControls === 'function') updateHomeHeroAdminControls();
+  if (typeof updateSiteEditorControls === 'function') updateSiteEditorControls();
 }
 
 function isValidBirthDate(value) {

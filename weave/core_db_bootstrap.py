@@ -311,6 +311,24 @@ def init_db(default_admin_password):
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS site_editor_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_json TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'save',
+            created_at TEXT NOT NULL,
+            created_by INTEGER
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_created_at ON site_editor_history(created_at DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_created_by ON site_editor_history(created_by)"
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -527,6 +545,18 @@ def init_db(default_admin_password):
             recipient TEXT NOT NULL,
             sent_at TEXT NOT NULL,
             UNIQUE(notification_type, target_type, target_id, recipient)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS site_editor_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_json TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'save',
+            created_at TEXT NOT NULL,
+            created_by INTEGER
         )
         """
     )

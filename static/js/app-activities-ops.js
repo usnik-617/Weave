@@ -1,4 +1,4 @@
-function getCalendarMonthLabel(baseDate = calendarBaseDate) {
+﻿function getCalendarMonthLabel(baseDate = calendarBaseDate) {
   return `${baseDate.getFullYear()}년 ${baseDate.getMonth() + 1}월`;
 }
 
@@ -442,20 +442,20 @@ async function renderActivitiesDayList(dateKey) {
 async function applyActivity(activityId) {
   try {
     const data = await apiRequest(`/activities/${activityId}/apply`, { method: 'POST' });
-    alert(`신청 완료 (${data.status})`);
+    notifyMessage(`신청 완료 (${data.status})`);
     await loadActivitiesCalendar();
   } catch (error) {
-    alert(error.message || '신청에 실패했습니다.');
+    notifyMessage(error.message || '신청에 실패했습니다.');
   }
 }
 
 async function cancelActivity(activityId) {
   try {
     await apiRequest(`/activities/${activityId}/cancel`, { method: 'POST' });
-    alert('신청을 취소했습니다.');
+    notifyMessage('신청을 취소했습니다.');
     await loadActivitiesCalendar();
   } catch (error) {
-    alert(error.message || '취소에 실패했습니다.');
+    notifyMessage(error.message || '취소에 실패했습니다.');
   }
 }
 
@@ -774,7 +774,7 @@ async function approvePendingUser(userId, role = 'member') {
     });
     await loadOpsDashboard(opsPendingPage);
   } catch (error) {
-    alert(error.message || '승인에 실패했습니다.');
+    notifyMessage(error.message || '승인에 실패했습니다.');
   }
 }
 
@@ -784,7 +784,7 @@ async function rejectPendingUser(userId) {
     await apiRequest(`/admin/users/${userId}/reject`, { method: 'POST' });
     await loadOpsDashboard(opsPendingPage);
   } catch (error) {
-    alert(error.message || '반려에 실패했습니다.');
+    notifyMessage(error.message || '반려에 실패했습니다.');
   }
 }
 
@@ -792,7 +792,7 @@ async function createActivityFromCalendar(event) {
   event.preventDefault();
   const user = getCurrentUser();
   if (!user || user.status !== 'active' || !isStaffUser(user)) {
-    alert('운영진/관리자 권한이 필요합니다.');
+    notifyMessage('운영진/관리자 권한이 필요합니다.');
     return;
   }
 
@@ -815,23 +815,23 @@ async function createActivityFromCalendar(event) {
     : '';
 
   if (!payload.title || !payload.startAt || !payload.endAt) {
-    alert('제목/시작/종료 시간을 입력해주세요.');
+    notifyMessage('제목/시작/종료 시간을 입력해주세요.');
     return;
   }
   if (payload.title.length > 120) {
-    alert('활동 제목은 120자 이하여야 합니다.');
+    notifyMessage('활동 제목은 120자 이하여야 합니다.');
     return;
   }
   if (new Date(payload.endAt).getTime() <= new Date(payload.startAt).getTime()) {
-    alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+    notifyMessage('종료 시간은 시작 시간보다 늦어야 합니다.');
     return;
   }
   if (payload.recruitmentLimit < 0 || payload.recruitmentLimit > 1000) {
-    alert('모집 인원은 0~1000 범위여야 합니다.');
+    notifyMessage('모집 인원은 0~1000 범위여야 합니다.');
     return;
   }
   if (repeatWeeks < 0 || repeatWeeks > 12) {
-    alert('반복 주 수는 0~12 사이로 입력해주세요.');
+    notifyMessage('반복 주 수는 0~12 사이로 입력해주세요.');
     return;
   }
 
@@ -854,7 +854,7 @@ async function createActivityFromCalendar(event) {
       if (form.activityAttachmentFiles) form.activityAttachmentFiles.value = '';
       form.manager.value = user.name || user.username || '';
       await loadActivitiesCalendar();
-      alert('일정이 수정되었습니다.');
+      notifyMessage('일정이 수정되었습니다.');
       return;
     }
 
@@ -887,9 +887,9 @@ async function createActivityFromCalendar(event) {
     if (form.activityAttachmentFiles) form.activityAttachmentFiles.value = '';
     form.manager.value = user.name || user.username || '';
     await loadActivitiesCalendar();
-    alert(`일정이 등록되었습니다. (총 ${repeatWeeks + 1}건) 같은 화면에서 바로 신청할 수 있습니다.`);
+    notifyMessage(`일정이 등록되었습니다. (총 ${repeatWeeks + 1}건) 같은 화면에서 바로 신청할 수 있습니다.`);
   } catch (error) {
-    alert(error.message || '일정 등록에 실패했습니다.');
+    notifyMessage(error.message || '일정 등록에 실패했습니다.');
   }
 }
 
@@ -933,16 +933,16 @@ async function deleteCalendarActivity(activityId) {
     const detailModal = getModalInstanceById('calendarActivityDetailModal');
     if (detailModal) detailModal.hide();
     await loadActivitiesCalendar();
-    alert('일정이 삭제되었습니다.');
+    notifyMessage('일정이 삭제되었습니다.');
   } catch (error) {
-    alert(error.message || '일정 삭제에 실패했습니다.');
+    notifyMessage(error.message || '일정 삭제에 실패했습니다.');
   }
 }
 
 async function openRecurrenceCancelModal(groupId) {
   const user = getCurrentUser();
   if (!user || user.status !== 'active' || !isStaffUser(user)) {
-    alert('운영진/관리자만 일괄 취소할 수 있습니다.');
+    notifyMessage('운영진/관리자만 일괄 취소할 수 있습니다.');
     return;
   }
   if (!groupId) return;
@@ -1019,8 +1019,9 @@ async function executeRecurrenceCancel() {
     }
     pendingRecurrenceCancelGroupId = '';
     await loadActivitiesCalendar();
-    alert(data.message || '반복 그룹이 취소되었습니다.');
+    notifyMessage(data.message || '반복 그룹이 취소되었습니다.');
   } catch (error) {
-    alert(error.message || '일괄 취소에 실패했습니다.');
+    notifyMessage(error.message || '일괄 취소에 실패했습니다.');
   }
 }
+

@@ -70,9 +70,30 @@ python -m pytest tests/test_posts_routes_contract.py
 npm run test:e2e
 ```
   - 내부적으로 `npm run sync:static-root && playwright test` 순서로 실행된다.
+  - 동기화의 기준 원본은 `static/`이며, 루트 `index.html`, `styles.css`, `js/*`는 미러 파일이다.
 - Playwright 단독 실행(필요 시):
 ```bash
 npx playwright test
+```
+
+- 전체 E2E(상세 리포터):
+```bash
+npm run test:e2e:full
+```
+
+Windows PowerShell 참고:
+- 실행 정책으로 `npm` 호출이 차단될 수 있으므로, 이 경우 `npm.cmd`를 사용한다.
+- 예시: `npm.cmd run test:e2e`
+
+## 프론트 품질/동기화 점검
+
+- 프론트 가드레일 + CSS 중복 블록 검사:
+```bash
+npm run lint:frontend
+```
+- `static -> root` 미러 동기화 드리프트 검사:
+```bash
+npm run check:sync-static-root
 ```
 
 참고:

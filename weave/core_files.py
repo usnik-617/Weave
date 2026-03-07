@@ -9,6 +9,14 @@ from werkzeug.utils import secure_filename
 
 from weave import core
 
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
 
 def save_uploaded_file(file_storage):
     if not file_storage:
@@ -49,6 +57,19 @@ def save_uploaded_file(file_storage):
         "mime_type": mime_type,
         "size": size,
     }, None
+
+
+def validate_image_upload_policy(file_storage):
+    if not file_storage:
+        return False, "이미지 파일이 필요합니다."
+    original_name = secure_filename(str(file_storage.filename or ""))
+    extension = Path(original_name).suffix.lower()
+    mime_type = str(file_storage.mimetype or "").lower()
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        return False, "소개 섹션 이미지는 jpg/jpeg/png/webp/gif만 업로드할 수 있습니다."
+    if mime_type not in ALLOWED_IMAGE_MIME_TYPES:
+        return False, "소개 섹션 이미지는 jpg/jpeg/png/webp/gif만 업로드할 수 있습니다."
+    return True, ""
 
 
 def remove_file_safely(path):

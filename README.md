@@ -43,3 +43,20 @@ They are **not** the active runtime DB path.
 
 - Testing guide: `TESTING.md`
 - Legacy response migration: `LEGACY_RESPONSE_MIGRATION.md`
+
+## Frontend Sync Rule
+
+- Canonical frontend source is under `static/`.
+- `scripts/sync_static_root.py` copies `static/*` into root mirror files (`index.html`, `styles.css`, `js/*`).
+- Edit `static/` first, then run `python scripts/sync_static_root.py` (or `npm run sync:static-root`).
+- Use `npm run check:sync-static-root` to detect accidental drift between `static/` and root mirror files.
+
+## Frontend Quality Checks
+
+- `npm run lint:frontend`: frontend guardrails + CSS duplicate block detection.
+- `npm run test:e2e:full`: full Playwright suite with line reporter.
+
+## Windows Shell Note
+
+- In PowerShell environments with execution-policy restrictions, use `npm.cmd` instead of `npm`.
+- Example: `npm.cmd run test:e2e`

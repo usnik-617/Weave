@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 from datetime import datetime
 
 from weave import core as weave_core
@@ -18,9 +18,7 @@ from weave.core import (
 )
 from weave.responses import (
     error_response,
-    error_response_legacy,
     success_response,
-    success_response_legacy,
     user_row_to_dict,
 )
 from weave.time_utils import now_iso
@@ -61,7 +59,7 @@ def my_activity_history():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response_legacy(error_messages.USER_LOGIN_REQUIRED, 401)
+        return error_response(error_messages.USER_LOGIN_REQUIRED, 401)
     rows = conn.execute(
         """
         SELECT a.id AS activity_id, a.title, a.start_at, a.end_at, a.place,
@@ -75,9 +73,7 @@ def my_activity_history():
     ).fetchall()
 
     conn.close()
-    return success_response_legacy(
-        user_activity_service.build_my_activity_history_response(rows)
-    )
+    return success_response(user_activity_service.build_my_activity_history_response(rows))
 
 
 def my_certificate_csv():
@@ -85,7 +81,7 @@ def my_certificate_csv():
     me = get_current_user_row(conn)
     if not me:
         conn.close()
-        return error_response_legacy(error_messages.USER_LOGIN_REQUIRED, 401)
+        return error_response(error_messages.USER_LOGIN_REQUIRED, 401)
     rows = conn.execute(
         """
         SELECT a.title, a.start_at, a.end_at, a.place, ap.hours, ap.attendance_status
@@ -377,3 +373,4 @@ def approve_role_request_legacy(request_id):
 
 def reject_role_request_legacy(request_id):
     return _decide_role_request(request_id, False)
+

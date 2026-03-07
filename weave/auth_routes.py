@@ -27,9 +27,7 @@ from weave.core import (
 )
 from weave.responses import (
     error_response,
-    error_response_legacy,
     success_response,
-    success_response_legacy,
     user_row_to_dict,
 )
 from weave.time_utils import now_iso
@@ -44,11 +42,9 @@ from weave.validators import (
 def auth_me():
     row = get_current_user_row()
     if not row:
-        return success_response_legacy(
-            {"user": None, "csrfToken": session.get("csrf_token")}
-        )
+        return success_response({"user": None, "csrfToken": session.get("csrf_token")})
     data = {"user": user_row_to_dict(row), "csrfToken": session.get("csrf_token")}
-    return success_response_legacy(data)
+    return success_response(data)
 
 
 def auth_csrf_token():
@@ -123,7 +119,7 @@ def auth_signup():
         "user": user_data,
     }
     payload["ok"] = True
-    return success_response_legacy(payload)
+    return success_response(payload)
 
 
 def auth_login():
@@ -198,10 +194,10 @@ def auth_login():
             "user": user_row_to_dict(row),
             "ok": True,
         }
-        return success_response_legacy(payload)
+        return success_response(payload)
 
     payload = {"user": user_row_to_dict(row), "ok": True}
-    return success_response_legacy(payload)
+    return success_response(payload)
 
 
 def auth_logout():
@@ -294,7 +290,7 @@ def auth_reset_password():
     clear_rate_limit("reset-password", username)
     write_app_log("info", "password_reset", user_id=row["id"])
     payload = {"ok": True, "message": "비밀번호가 재설정되었습니다."}
-    return success_response_legacy(payload)
+    return success_response(payload)
 
 
 def auth_unlock_account():
@@ -303,20 +299,20 @@ def auth_unlock_account():
     contact = normalize_contact(payload.get("contact", ""))
 
     if not username or not contact:
-        return error_response_legacy(error_messages.AUTH_UNLOCK_CONTACT_REQUIRED, 400)
+        return error_response(error_messages.AUTH_UNLOCK_CONTACT_REQUIRED, 400)
 
     conn = get_db_connection()
     row = auth_query_service.get_user_contacts_by_username(conn, username)
     if not row:
         conn.close()
-        return error_response_legacy(error_messages.AUTH_ACCOUNT_NOT_FOUND, 404)
+        return error_response(error_messages.AUTH_ACCOUNT_NOT_FOUND, 404)
 
     if contact not in (
         normalize_contact(row["email"]),
         normalize_contact(row["phone"]),
     ):
         conn.close()
-        return error_response_legacy(error_messages.AUTH_UNLOCK_MISMATCH, 403)
+        return error_response(error_messages.AUTH_UNLOCK_MISMATCH, 403)
 
     next_status = "active" if row["approved_at"] else "pending"
     with transaction(conn):
@@ -325,9 +321,7 @@ def auth_unlock_account():
             (next_status, row["id"]),
         )
     conn.close()
-    return success_response_legacy(
-        {"ok": True, "message": "계정 잠금이 해제되었습니다."}
-    )
+    return success_response({"ok": True, "message": "계정 잠금이 해제되었습니다."})
 
 
 def auth_withdraw():

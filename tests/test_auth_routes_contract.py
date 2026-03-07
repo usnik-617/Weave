@@ -72,3 +72,28 @@ def test_signup_contract_invalid_nickname_returns_400(client, csrf_headers):
     assert response.status_code == 400
     payload = response.get_json() or {}
     assert_error_contract(payload)
+
+
+def test_auth_me_contract_anonymous_returns_user_none(client):
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 200
+    payload = response.get_json() or {}
+    assert payload.get("success") is True
+    assert "data" in payload
+    assert payload["data"].get("user") is None
+
+
+def test_auth_me_contract_authenticated_returns_user(client, create_user, login_as):
+    user = create_user(role="MEMBER", status="active")
+    login_as(user)
+
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 200
+    payload = response.get_json() or {}
+    assert payload.get("success") is True
+    data = payload.get("data") or {}
+    assert data.get("user") is not None
+    assert data["user"].get("id") == user["id"]
+    assert data["user"].get("username") == user["username"]

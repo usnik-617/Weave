@@ -255,6 +255,30 @@ a:hover {
   display: flex !important;
 }
 
+#site-edit-history-select {
+  min-width: 180px;
+}
+
+body.site-edit-mode .site-editable-text {
+  outline: 2px dashed rgba(255, 193, 7, 0.9);
+  outline-offset: 2px;
+  border-radius: 6px;
+  background: rgba(255, 248, 220, 0.25);
+  cursor: text;
+}
+
+body.site-edit-mode .site-editable-text:focus {
+  outline-color: rgba(255, 140, 0, 0.95);
+  background: rgba(255, 248, 220, 0.42);
+}
+
+body.site-edit-mode .site-editable-image {
+  outline: 3px dashed rgba(255, 193, 7, 0.9);
+  outline-offset: 3px;
+  cursor: pointer;
+  filter: saturate(1.05);
+}
+
 .hero-text-bg {
   position: absolute;
   top: 50%;
@@ -290,27 +314,11 @@ a:hover {
   width: min(560px, 86vw);
   min-height: 240px;
   padding: 24px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.16);
-}
-
-.hero-logo-stage::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.34) 100%);
 }
 
 .hero-logo-stage .hero-main-logo {
   position: relative;
   z-index: 1;
-}
-
-.hero {
-  background: white !important;
 }
 
 #home {
@@ -332,6 +340,8 @@ a:hover {
   background-size: cover;
   background-repeat: no-repeat;
   background-position: var(--hero-bg-pos-x) var(--hero-bg-pos-y);
+  filter: blur(1px);
+  transform: scale(1.01);
   z-index: 0;
   pointer-events: none;
 }
@@ -346,7 +356,7 @@ a:hover {
 }
 
 #home::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.74) 100%);
+  background: linear-gradient(180deg, rgba(11, 18, 28, 0.32) 0%, rgba(11, 18, 28, 0.46) 100%);
 }
 
 #home-notice-carousel::after {
@@ -366,17 +376,8 @@ a:hover {
 
 #home p.lead,
 #home .hero-subtext {
-  color: #0f1d2d !important;
-  text-shadow: 0 2px 6px rgba(255, 255, 255, 0.82);
-}
-
-#home .hero-content-shell {
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 20px;
-  padding: clamp(18px, 3vw, 32px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(2px);
+  color: #f5f8ff !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 #home p.lead {
@@ -424,6 +425,7 @@ a:hover {
   background-position: var(--hero-bg-pos-x) var(--hero-bg-pos-y);
   cursor: grab;
   position: relative;
+  touch-action: none;
 }
 
 .hero-bg-preview-canvas::after {
@@ -442,6 +444,12 @@ a:hover {
 
 .hero-bg-preview-canvas.dragging {
   cursor: grabbing;
+}
+
+.site-editable-text:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .weave-calendar-table {

@@ -17,6 +17,9 @@ POST_IMAGE_FILE_TYPE_INVALID = "소개 섹션 이미지는 jpg/jpeg/png/webp/gif
 POST_FILE_PROCESS_FAILED = "파일 처리에 실패했습니다."
 POST_HOME_STATS_ADMIN_ONLY = "운영진만 홈 통계를 수정할 수 있습니다."
 POST_HERO_BACKGROUND_ADMIN_ONLY = "운영진만 홈 배경 설정을 수정할 수 있습니다."
+POST_SITE_EDITOR_HISTORY_EMPTY = "되돌릴 수정 이력이 없습니다."
+POST_SITE_EDITOR_HISTORY_NOT_FOUND = "선택한 수정 이력을 찾을 수 없습니다."
+POST_SITE_EDITOR_CONFLICT = "다른 관리자가 먼저 저장했습니다. 새로고침 후 다시 시도해주세요."
 
 __all__ = [
 	"POSTS_OPERATOR_REQUIRED",
@@ -38,4 +41,7 @@ __all__ = [
 	"POST_FILE_PROCESS_FAILED",
 	"POST_HOME_STATS_ADMIN_ONLY",
 	"POST_HERO_BACKGROUND_ADMIN_ONLY",
+	"POST_SITE_EDITOR_HISTORY_EMPTY",
+	"POST_SITE_EDITOR_HISTORY_NOT_FOUND",
+	"POST_SITE_EDITOR_CONFLICT",
 ]

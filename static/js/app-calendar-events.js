@@ -1,4 +1,4 @@
-function formatEventDateRange(startDatetime, endDatetime) {
+﻿function formatEventDateRange(startDatetime, endDatetime) {
   const start = formatKoreanDate(startDatetime || '');
   const end = formatKoreanDate(endDatetime || startDatetime || '');
   if (!startDatetime) return '-';
@@ -114,7 +114,7 @@ function openEventDetail(eventId) {
 async function submitVolunteerEventAction(eventId, action) {
   const user = getCurrentUser();
   if (!canJoinEvent(user)) {
-    alert('단원 이상만 참여 신청/취소할 수 있습니다.');
+    notifyMessage('단원 이상만 참여 신청/취소할 수 있습니다.');
     return;
   }
   const path = action === 'cancel' ? `/events/${eventId}/cancel` : `/events/${eventId}/join`;
@@ -122,7 +122,7 @@ async function submitVolunteerEventAction(eventId, action) {
     await apiRequest(path, { method: 'POST' });
     await loadVolunteerEvents();
   } catch (error) {
-    alert(error.message || '요청 처리 중 오류가 발생했습니다.');
+    notifyMessage(error.message || '요청 처리 중 오류가 발생했습니다.');
   }
 }
 
@@ -163,3 +163,4 @@ async function copyDonationAccount() {
     result.textContent = '복사에 실패했습니다. 계좌번호를 직접 선택해 복사해 주세요.';
   }
 }
+

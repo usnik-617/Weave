@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 from datetime import datetime
 
@@ -37,9 +37,7 @@ from weave.files import (
 )
 from weave.responses import (
     error_response,
-    error_response_legacy,
     success_response,
-    success_response_legacy,
 )
 from weave.time_utils import now_iso, parse_iso_datetime
 
@@ -89,7 +87,7 @@ def _validate_supported_category(category):
 
 
 def get_press_kit():
-    return success_response_legacy(
+    return success_response(
         {
             "ok": True,
             "logoGuide": "로고는 기본 비율을 유지하고, 주변 여백을 확보해 사용하세요.",
@@ -108,7 +106,7 @@ def list_rules_versions():
         "SELECT id, version_tag, effective_date, summary, content, created_at FROM rules_versions ORDER BY id DESC"
     ).fetchall()
     conn.close()
-    return success_response_legacy(
+    return success_response(
         {
             "ok": True,
             "items": [
@@ -134,7 +132,7 @@ def create_rules_version():
     content = str(payload.get("content", "")).strip()
 
     if not version or not effective_date or not summary:
-        return error_response_legacy("version/effectiveDate/summary는 필수입니다.", 400)
+        return error_response("version/effectiveDate/summary는 필수입니다.", 400)
 
     conn = get_db_connection()
     conn.execute(
@@ -143,7 +141,7 @@ def create_rules_version():
     )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "message": "개정 이력이 기록되었습니다."})
+    return success_response({"ok": True, "message": "개정 이력이 기록되었습니다."})
 
 
 def get_annual_report(year):
@@ -172,11 +170,11 @@ def get_annual_report(year):
     )
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "report": data})
+    return success_response({"ok": True, "report": data})
 
 
 def get_templates():
-    return success_response_legacy(
+    return success_response(
         {
             "ok": True,
             "items": post_template_service.list_template_items(),
@@ -190,8 +188,8 @@ def generate_template():
     title = post_template_service.default_template_title(payload.get("title"))
     content = post_template_service.build_template_content(template_type, title)
     if not content:
-        return error_response_legacy(error_messages.POST_TEMPLATE_UNSUPPORTED, 400)
-    return success_response_legacy({"ok": True, "content": content})
+        return error_response(error_messages.POST_TEMPLATE_UNSUPPORTED, 400)
+    return success_response({"ok": True, "content": content})
 
 
 def list_posts():
@@ -636,5 +634,6 @@ def recommend_post(post_id):
     ).fetchone()["c"]
     conn.close()
     return success_response({"recommend_count": int(count or 0)})
+
 
 

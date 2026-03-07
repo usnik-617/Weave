@@ -1,11 +1,7 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
 
 const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = 'Weave!2026';
-const UPLOAD_ROOT = path.resolve(__dirname, '..', 'uploads');
-
 test.describe.configure({ mode: 'serial' });
 
 async function jsonBody(response) {
@@ -84,16 +80,6 @@ async function createPostAsAdmin(request, payload) {
   return body?.data?.post_id || body?.post_id;
 }
 
-function listAllFiles(dir) {
-  if (!fs.existsSync(dir)) return [];
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  return entries.flatMap((entry) => {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) return listAllFiles(fullPath);
-    return [fullPath];
-  });
-}
-
 test('scheduled posts are hidden by default and visible with admin include_scheduled', async ({ request }) => {
   await login(request, ADMIN_USERNAME, ADMIN_PASSWORD);
 
@@ -139,7 +125,6 @@ test('upload dedup stores one physical file for identical content', async ({ req
     content: 'dedup test',
   });
 
-  const beforeCount = listAllFiles(UPLOAD_ROOT).length;
   const content = Buffer.from(`same-binary-${Date.now()}`);
 
   const csrfToken1 = await getCsrfToken(request);
@@ -174,8 +159,11 @@ test('upload dedup stores one physical file for identical content', async ({ req
   const items = listBody?.data?.items || listBody?.items || [];
   expect(items.length).toBeGreaterThanOrEqual(2);
 
-  const afterCount = listAllFiles(UPLOAD_ROOT).length;
-  expect(afterCount - beforeCount).toBe(1);
+  const urls = items
+    .map((item) => item.file_url || item.fileUrl || '')
+    .filter(Boolean);
+  const uniqueUrls = new Set(urls);
+  expect(uniqueUrls.size).toBe(1);
 });
 
 test('attendance marking updates volunteer summary aggregation', async ({ request }) => {

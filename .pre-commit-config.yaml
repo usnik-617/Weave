@@ -4,3 +4,20 @@ repos:
     hooks:
       - id: ruff-check
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: frontend-guardrails
+        name: frontend guardrails
+        entry: python scripts/check_frontend_guardrails.py
+        language: system
+        files: ^(static/js/.*\.js|static/index\.html|static/styles\.css)$
+      - id: static-root-sync-drift
+        name: static-root sync drift
+        entry: python scripts/check_static_sync_drift.py
+        language: system
+        pass_filenames: false
+      - id: css-duplicate-check
+        name: css duplicate check
+        entry: python scripts/check_css_duplicates.py
+        language: system
+        files: ^static/styles\.css$

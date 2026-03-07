@@ -1,7 +1,7 @@
-from weave.authz import role_at_least
+﻿from weave.authz import role_at_least
 from weave.core import get_current_user_row, get_db_connection, log_audit, request
 from weave.files import remove_file_safely, upload_url_to_path
-from weave.responses import error_response, success_response, success_response_legacy
+from weave.responses import error_response, success_response
 from weave.time_utils import now_iso, parse_iso_datetime
 
 
@@ -115,7 +115,7 @@ def list_gallery_albums():
     conn = get_db_connection()
     rows = conn.execute("SELECT * FROM gallery_albums ORDER BY id DESC").fetchall()
     conn.close()
-    return success_response_legacy(
+    return success_response(
         {
             "ok": True,
             "items": [
@@ -165,7 +165,7 @@ def create_gallery_album():
     album_id = cur.lastrowid
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "albumId": album_id})
+    return success_response({"ok": True, "albumId": album_id})
 
 
 def add_gallery_photos(album_id):
@@ -199,7 +199,7 @@ def add_gallery_photos(album_id):
 
     conn.commit()
     conn.close()
-    return success_response_legacy({"ok": True, "created": created})
+    return success_response({"ok": True, "created": created})
 
 
 def delete_gallery_photo(photo_id):
@@ -224,3 +224,4 @@ def delete_gallery_photo(photo_id):
     conn.close()
     log_audit(me["id"], "delete_gallery_photo", "gallery_photo", photo_id)
     return success_response({"ok": True})
+
