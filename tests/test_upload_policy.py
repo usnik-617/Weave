@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 
+import pytest
+
 
 def test_gallery_rejects_pdf_upload(
     client, create_user, login_as, csrf_headers, create_post_record
@@ -142,3 +144,68 @@ def test_gallery_upload_populates_image_url_and_thumb_url(
 
     assert image_url.startswith("/uploads/")
     assert thumb_url.startswith("/uploads/")
+
+
+def test_notice_pdf_download_inline_sets_pdf_headers(
+    client, create_user, login_as, csrf_headers, create_post_record
+):
+    executive = create_user(role="EXECUTIVE")
+    notice_id = create_post_record(category="notice", author_id=executive["id"])
+    login_as(executive)
+
+    upload = client.post(
+        f"/api/posts/{notice_id}/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "inline-check.pdf", "application/pdf")},
+        headers=csrf_headers(),
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    file_id = int((((upload.get_json() or {}).get("data") or {}).get("file_id") or 0))
+    assert file_id > 0
+
+    download = client.get(f"/api/post-files/{file_id}/download?inline=1")
+    assert download.status_code == 200
+    assert "application/pdf" in str(download.headers.get("Content-Type") or "")
+    assert "inline" in str(download.headers.get("Content-Disposition") or "").lower()
+
+
+@pytest.mark.parametrize(
+    "role, expected_status",
+    [
+        (None, 401),
+        ("GENERAL", 403),
+        ("MEMBER", 201),
+    ],
+)
+def test_upload_endpoint_permission_contract_by_role(
+    role,
+    expected_status,
+    client,
+    create_user,
+    login_as,
+    csrf_headers,
+    create_post_record,
+):
+    author = create_user(role="EXECUTIVE")
+    notice_id = create_post_record(category="notice", author_id=author["id"])
+
+    if role is None:
+        login_as(None)
+    else:
+        user = create_user(role=role)
+        login_as(user)
+
+    response = client.post(
+        f"/api/posts/{notice_id}/files",
+        data={"file": (io.BytesIO(b"%PDF-1.4\n%%EOF\n"), "policy.pdf", "application/pdf")},
+        headers=csrf_headers(),
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == expected_status
+    payload = response.get_json() or {}
+    if expected_status == 201:
+        assert payload.get("success") is True
+        assert int(((payload.get("data") or {}).get("file_id") or 0)) > 0
+    else:
+        assert payload.get("success") is False

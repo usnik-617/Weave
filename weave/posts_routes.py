@@ -7,8 +7,6 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 
 from weave.authz import (
-    can_create_gallery,
-    can_create_notice,
     is_admin_like,
     normalize_role,
     role_at_least,
@@ -16,6 +14,7 @@ from weave.authz import (
     role_to_label,
 )
 from weave import gallery_routes, notice_routes, qna_routes
+from weave import post_policy
 from weave.core import (
     UPLOAD_DIR,
     build_annual_report,
@@ -98,6 +97,41 @@ def _normalize_key(raw_key, aliases):
 def _stored_path_to_upload_url(stored_path):
     rel_path = os.path.relpath(stored_path, UPLOAD_DIR).replace("\\", "/")
     return f"/uploads/{rel_path}"
+
+
+def _invalidate_post_list_cache():
+    for prefix in post_policy.CACHE_INVALIDATION_PREFIXES:
+        invalidate_cache(prefix)
+
+
+def _create_category_handler(category):
+    if category == "notice":
+        return notice_routes.create_notice_post
+    if category == "gallery":
+        return gallery_routes.create_gallery_post
+    if category == "qna":
+        return qna_routes.create_qna_post
+    return None
+
+
+def _update_category_handler(category):
+    if category == "notice":
+        return notice_routes.update_notice_post
+    if category == "gallery":
+        return gallery_routes.update_gallery_post
+    if category == "qna":
+        return qna_routes.update_qna_post
+    return None
+
+
+def _delete_category_handler(category):
+    if category == "notice":
+        return notice_routes.delete_notice_post
+    if category == "gallery":
+        return gallery_routes.delete_gallery_post
+    if category == "qna":
+        return qna_routes.delete_qna_post
+    return None
 
 
 def list_about_sections():
@@ -430,14 +464,14 @@ def list_posts():
 
     conn = get_db_connection()
     me = get_current_user_row(conn)
-    can_include_scheduled = bool(
-        me and role_at_least(me["role"], "VICE_LEADER") and include_scheduled
+    can_include_scheduled = post_policy.can_include_scheduled_posts(
+        me, include_scheduled
     )
 
     where = ["1=1"]
     params = []
-    if category in ("notice", "faq", "qna", "gallery", "review", "recruit"):
-        mapped = "review" if category == "faq" else category
+    mapped = post_policy.normalize_list_category(category)
+    if mapped:
         where.append("p.category = ?")
         params.append(mapped)
     if keyword:
@@ -448,9 +482,9 @@ def list_posts():
         params.append(now_iso())
 
     where_sql = " AND ".join(where)
-    should_cache = category in ("notice", "gallery") and not keyword
-    cache_key = (
-        f"posts:list:{category}:{page}:{page_size}:{int(bool(can_include_scheduled))}"
+    should_cache = post_policy.should_cache_post_list(category, keyword)
+    cache_key = post_policy.post_list_cache_key(
+        category, page, page_size, can_include_scheduled
     )
     if should_cache:
         cached = get_cache(cache_key)
@@ -523,8 +557,8 @@ def list_posts():
 
 def create_post():
     payload = request.get_json(silent=True) or {}
-    category = str(payload.get("category", "")).strip().lower()
-    if category not in ("notice", "review", "recruit", "qna", "gallery"):
+    category = post_policy.normalize_create_category(payload.get("category", ""))
+    if not post_policy.is_creatable_category(category):
         return error_response(
             "type(category)는 notice|review|recruit|qna|gallery만 허용됩니다.", 400
         )
@@ -543,35 +577,14 @@ def create_post():
         conn.close()
         return error_response("정지된 계정은 게시글을 작성할 수 없습니다.", 403)
 
-    if category == "notice" and not can_create_notice(me):
+    permission_error = post_policy.create_permission_error(category, me)
+    if permission_error:
         conn.close()
-        return error_response("공지/갤러리 작성은 임원 이상만 가능합니다.", 403)
-    if category == "gallery" and not can_create_gallery(me):
-        conn.close()
-        return error_response("공지/갤러리 작성은 임원 이상만 가능합니다.", 403)
+        return error_response(permission_error, 403)
 
-    if category == "qna" and not role_at_least(me["role"], "GENERAL"):
-        conn.close()
-        return error_response("Q&A 작성 권한이 없습니다.", 403)
-
-    if category == "notice":
-        post_id, err = notice_routes.create_notice_post(
-            payload, conn, me, post_visibility_status
-        )
-        if err:
-            conn.close()
-            return err
-    elif category == "gallery":
-        post_id, err = gallery_routes.create_gallery_post(
-            payload, conn, me, post_visibility_status
-        )
-        if err:
-            conn.close()
-            return err
-    elif category == "qna":
-        post_id, err = qna_routes.create_qna_post(
-            payload, conn, me, post_visibility_status
-        )
+    create_handler = _create_category_handler(category)
+    if create_handler:
+        post_id, err = create_handler(payload, conn, me, post_visibility_status)
         if err:
             conn.close()
             return err
@@ -622,8 +635,7 @@ def create_post():
 
     conn.commit()
     conn.close()
-    invalidate_cache("posts:list:notice:")
-    invalidate_cache("posts:list:gallery:")
+    _invalidate_post_list_cache()
     return success_response({"post_id": post_id}, 201)
 
 
@@ -643,7 +655,7 @@ def get_post(post_id):
         conn.close()
         return error_response("게시글을 찾을 수 없습니다.", 404)
 
-    can_view_scheduled = role_at_least(me["role"], "VICE_LEADER") if me else False
+    can_view_scheduled = post_policy.can_view_scheduled_post_detail(me)
     publish_at_dt = parse_iso_datetime(row["publish_at"]) if row["publish_at"] else None
     if not can_view_scheduled and publish_at_dt and publish_at_dt > datetime.now():
         conn.close()
@@ -754,23 +766,14 @@ def update_post(post_id):
         return error_response("category는 필수입니다.", 400)
     next_category = category.lower()
 
-    if next_category == "notice" and not can_create_notice(me):
+    permission_error = post_policy.update_permission_error(next_category, me)
+    if permission_error:
         conn.close()
-        return error_response("공지 수정은 임원 이상만 가능합니다.", 403)
-    if next_category == "gallery" and not can_create_gallery(me):
-        conn.close()
-        return error_response("갤러리 수정은 임원 이상만 가능합니다.", 403)
+        return error_response(permission_error, 403)
 
-    if next_category == "notice":
-        err = notice_routes.update_notice_post(
-            post_id, payload, conn, me, post_visibility_status
-        )
-    elif next_category == "gallery":
-        err = gallery_routes.update_gallery_post(
-            post_id, payload, conn, me, post_visibility_status
-        )
-    elif next_category == "qna":
-        err = qna_routes.update_qna_post(post_id, payload, conn, me, post_visibility_status)
+    update_handler = _update_category_handler(next_category)
+    if update_handler:
+        err = update_handler(post_id, payload, conn, me, post_visibility_status)
     else:
         publish_at = (
             str(payload.get("publish_at", post["publish_at"] or "")).strip() or None
@@ -804,8 +807,7 @@ def update_post(post_id):
         return err
     conn.commit()
     conn.close()
-    invalidate_cache("posts:list:notice:")
-    invalidate_cache("posts:list:gallery:")
+    _invalidate_post_list_cache()
     return success_response({"post_id": post_id})
 
 
@@ -826,12 +828,9 @@ def delete_post(post_id):
         conn.close()
         return error_response("작성자 또는 운영권한이 필요합니다.", 403)
     category = str(post["category"] or "").lower()
-    if category == "notice":
-        err = notice_routes.delete_notice_post(post_id, conn, me)
-    elif category == "gallery":
-        err = gallery_routes.delete_gallery_post(post_id, conn, me)
-    elif category == "qna":
-        err = qna_routes.delete_qna_post(post_id, conn, me)
+    delete_handler = _delete_category_handler(category)
+    if delete_handler:
+        err = delete_handler(post_id, conn, me)
     else:
         files = conn.execute(
             "SELECT * FROM post_files WHERE post_id = ?", (post_id,)
@@ -855,8 +854,7 @@ def delete_post(post_id):
         return err
     conn.commit()
     conn.close()
-    invalidate_cache("posts:list:notice:")
-    invalidate_cache("posts:list:gallery:")
+    _invalidate_post_list_cache()
     return success_response({"deleted": True})
 
 

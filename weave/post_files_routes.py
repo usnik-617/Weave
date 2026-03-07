@@ -17,37 +17,13 @@ from weave.files import (
     remove_file_safely,
     save_uploaded_file,
 )
+from weave import post_file_delivery, post_file_policy
 from weave.responses import error_response, success_response
 from weave.time_utils import now_iso, parse_iso_datetime
 
 
-GALLERY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-GALLERY_IMAGE_MIME_TYPES = {
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-}
-NOTICE_ALLOWED_EXTENSIONS = GALLERY_IMAGE_EXTENSIONS | {".pdf"}
-NOTICE_ALLOWED_MIME_TYPES = GALLERY_IMAGE_MIME_TYPES | {"application/pdf"}
-
-
-def _stored_path_to_upload_url(stored_path):
-    rel_path = os.path.relpath(stored_path, UPLOAD_DIR).replace("\\", "/")
-    return f"/uploads/{rel_path}"
-
-
 def _thumbnail_save_format(ext):
-    lowered = str(ext or "").lower()
-    if lowered in (".jpg", ".jpeg"):
-        return ".jpg", "JPEG"
-    if lowered == ".png":
-        return ".png", "PNG"
-    if lowered == ".webp":
-        return ".webp", "WEBP"
-    if lowered == ".gif":
-        return ".gif", "GIF"
-    return ".jpg", "JPEG"
+    return post_file_policy.thumbnail_save_format(ext)
 
 
 def _generate_gallery_thumbnail(original_file_info):
@@ -78,7 +54,7 @@ def _generate_gallery_thumbnail(original_file_info):
             "size": int(
                 os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0
             ),
-            "url": _stored_path_to_upload_url(thumb_path),
+            "url": post_file_policy.stored_path_to_upload_url(thumb_path, UPLOAD_DIR),
         }, None
 
     try:
@@ -108,7 +84,7 @@ def _generate_gallery_thumbnail(original_file_info):
         "stored_path": thumb_path,
         "mime_type": mime_map.get(thumb_ext, "image/jpeg"),
         "size": int(os.path.getsize(thumb_path) if os.path.exists(thumb_path) else 0),
-        "url": _stored_path_to_upload_url(thumb_path),
+        "url": post_file_policy.stored_path_to_upload_url(thumb_path, UPLOAD_DIR),
     }, None
 
 
@@ -131,31 +107,16 @@ def upload_post_file(post_id):
     file_storage = request.files.get("file")
     post_category = str(post["category"] or "").lower()
     filename = secure_filename(str(file_storage.filename or "")) if file_storage else ""
-    extension = Path(filename).suffix.lower()
-    mime_type = str(file_storage.mimetype or "").lower() if file_storage else ""
+    extension = post_file_policy.extension_of(filename)
+    mime_type = post_file_policy.mime_of(file_storage.mimetype) if file_storage else ""
+    policy_error = post_file_policy.upload_policy_error_message(
+        post_category, extension, mime_type
+    )
+    if policy_error:
+        conn.close()
+        return error_response(policy_error, 400)
 
-    if post_category == "gallery":
-        if (
-            extension not in GALLERY_IMAGE_EXTENSIONS
-            or mime_type not in GALLERY_IMAGE_MIME_TYPES
-        ):
-            conn.close()
-            return error_response(
-                "갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)",
-                400,
-            )
-    elif post_category == "notice":
-        if (
-            extension not in NOTICE_ALLOWED_EXTENSIONS
-            or mime_type not in NOTICE_ALLOWED_MIME_TYPES
-        ):
-            conn.close()
-            return error_response(
-                "공지사항에는 이미지 또는 PDF만 첨부할 수 있습니다.", 400
-            )
-
-    expires_at = str(request.form.get("expires_at", "")).strip() if request.form else ""
-    expires_at = expires_at or None
+    expires_at = post_file_policy.normalize_expires_at(request.form)
     if expires_at and not parse_iso_datetime(expires_at):
         conn.close()
         return error_response("expires_at은 ISO 형식이어야 합니다.", 400)
@@ -191,7 +152,7 @@ def upload_post_file(post_id):
         created_at = now_iso()
 
     thumb_info = None
-    if post_category == "gallery":
+    if post_file_policy.should_generate_gallery_thumbnail(post_category):
         thumb_info, thumb_err = _generate_gallery_thumbnail(file_info)
         if thumb_err:
             remove_file_safely(file_info["stored_path"])
@@ -217,7 +178,7 @@ def upload_post_file(post_id):
         ),
     )
     file_id = cur.lastrowid
-    if post_category == "gallery":
+    if post_file_policy.should_generate_gallery_thumbnail(post_category):
         if thumb_info is None:
             remove_file_safely(file_info["stored_path"])
             conn.close()
@@ -225,7 +186,9 @@ def upload_post_file(post_id):
         conn.execute(
             "UPDATE posts SET image_url = ?, thumb_url = ? WHERE id = ?",
             (
-                _stored_path_to_upload_url(file_info["stored_path"]),
+                post_file_policy.stored_path_to_upload_url(
+                    file_info["stored_path"], UPLOAD_DIR
+                ),
                 thumb_info["url"],
                 post_id,
             ),
@@ -261,7 +224,9 @@ def list_post_files(post_id):
             "mime_type": row["mime_type"],
             "size": row["size"],
             "uploaded_at": row["uploaded_at"],
-            "file_url": _stored_path_to_upload_url(row["stored_path"]),
+            "file_url": post_file_policy.stored_path_to_upload_url(
+                row["stored_path"], UPLOAD_DIR
+            ),
         }
         items.append(item)
     return success_response({"items": items})
@@ -282,21 +247,10 @@ def download_post_file(file_id):
         return error_response("파일을 찾을 수 없습니다.", 404)
     if not os.path.exists(row["stored_path"]):
         return error_response("저장된 파일이 없습니다.", 404)
-    inline = str(request.args.get("inline", "")).strip().lower() in {"1", "true", "yes"}
-    if inline and str(row["mime_type"] or "").lower() == "application/pdf":
-        response = send_file(
-            row["stored_path"], mimetype="application/pdf", as_attachment=False
-        )
-        original_name = (
-            secure_filename(str(row["original_name"] or "document.pdf"))
-            or "document.pdf"
-        )
-        if not original_name.lower().endswith(".pdf"):
-            original_name = f"{original_name}.pdf"
-        response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
-        return response
-    return send_file(
-        row["stored_path"], as_attachment=True, download_name=row["original_name"]
+    return post_file_delivery.send_download_response(
+        row,
+        post_file_policy.is_inline_requested(request.args),
+        send_file,
     )
 
 
@@ -337,10 +291,10 @@ def serve_uploaded_file(filename):
 
     if post_match and post_match["category"] == "gallery":
         conn.close()
-        return send_file(full_path, conditional=True)
+        return post_file_delivery.send_uploaded_file(full_path, send_file)
     if about_match:
         conn.close()
-        return send_file(full_path, conditional=True)
+        return post_file_delivery.send_uploaded_file(full_path, send_file)
 
     me = get_current_user_row(conn)
     if not me:
@@ -351,18 +305,14 @@ def serve_uploaded_file(filename):
         return error_response("단원 이상만 접근할 수 있습니다.", 403)
     conn.close()
 
-    if row and str(row["mime_type"] or "").lower() == "application/pdf":
-        response = send_file(full_path, mimetype="application/pdf", conditional=True)
-        original_name = (
-            secure_filename(str(row["original_name"] or "document.pdf"))
-            or "document.pdf"
+    if row and post_file_policy.is_pdf_mime(row["mime_type"]):
+        return post_file_delivery.send_uploaded_pdf_inline(
+            full_path,
+            row["original_name"],
+            send_file,
         )
-        if not original_name.lower().endswith(".pdf"):
-            original_name = f"{original_name}.pdf"
-        response.headers["Content-Disposition"] = f'inline; filename="{original_name}"'
-        return response
 
-    return send_file(full_path, conditional=True)
+    return post_file_delivery.send_uploaded_file(full_path, send_file)
 
 
 def cleanup_orphan_files():

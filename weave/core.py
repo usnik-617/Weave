@@ -153,77 +153,63 @@ from weave.validators import (
 
 
 def get_client_ip():
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.remote_addr or "unknown"
+    from weave import core_utils
+
+    return core_utils.get_client_ip()
 
 
 def get_user_agent():
-    return request.headers.get("User-Agent", "")[:500]
+    from weave import core_utils
+
+    return core_utils.get_user_agent()
 
 
 def parse_rate_limit_bucket(ip):
-    now = datetime.now()
-    bucket = LOGIN_ATTEMPTS.get(ip, {"fails": [], "blocked_until": None})
-    bucket["fails"] = [
-        ts for ts in bucket.get("fails", []) if (now - ts) <= LOGIN_RATE_LIMIT_WINDOW
-    ]
-    blocked_until = bucket.get("blocked_until")
-    if blocked_until and blocked_until <= now:
-        bucket["blocked_until"] = None
-    LOGIN_ATTEMPTS[ip] = bucket
-    return bucket
+    from weave import core_state
+
+    return core_state.parse_rate_limit_bucket(ip)
 
 
 def get_rate_limit_key(action, username_hint=""):
-    return f"{action}:{get_client_ip()}:{str(username_hint or '').strip().lower()}"
+    from weave import core_state
+
+    return core_state.get_rate_limit_key(action, username_hint)
 
 
 def is_rate_limited(action, username_hint=""):
-    if WEAVE_ENV != "production":
-        return False, None
-    key = get_rate_limit_key(action, username_hint)
-    blocked, blocked_until = is_ip_blocked(key)
-    return blocked, blocked_until
+    from weave import core_state
+
+    return core_state.is_rate_limited(action, username_hint)
 
 
 def mark_rate_limit_failure(action, username_hint=""):
-    if WEAVE_ENV != "production":
-        return None
-    key = get_rate_limit_key(action, username_hint)
-    return register_login_failure(key)
+    from weave import core_state
+
+    return core_state.mark_rate_limit_failure(action, username_hint)
 
 
 def clear_rate_limit(action, username_hint=""):
-    if WEAVE_ENV != "production":
-        return
-    key = get_rate_limit_key(action, username_hint)
-    reset_login_failures_by_ip(key)
+    from weave import core_state
+
+    return core_state.clear_rate_limit(action, username_hint)
 
 
 def is_ip_blocked(ip):
-    bucket = parse_rate_limit_bucket(ip)
-    blocked_until = bucket.get("blocked_until")
-    if blocked_until and blocked_until > datetime.now():
-        return True, blocked_until
-    return False, None
+    from weave import core_state
+
+    return core_state.is_ip_blocked(ip)
 
 
 def register_login_failure(ip):
-    bucket = parse_rate_limit_bucket(ip)
-    now = datetime.now()
-    bucket["fails"].append(now)
-    if len(bucket["fails"]) >= LOGIN_RATE_LIMIT_COUNT:
-        bucket["blocked_until"] = now + LOGIN_RATE_LIMIT_BLOCK
-        bucket["fails"] = []
-    LOGIN_ATTEMPTS[ip] = bucket
-    return bucket.get("blocked_until")
+    from weave import core_state
+
+    return core_state.register_login_failure(ip)
 
 
 def reset_login_failures_by_ip(ip):
-    if ip in LOGIN_ATTEMPTS:
-        LOGIN_ATTEMPTS.pop(ip, None)
+    from weave import core_state
+
+    return core_state.reset_login_failures_by_ip(ip)
 
 
 def write_app_log(level, action, user_id=None, extra=None):
@@ -255,30 +241,27 @@ def db_write_retry(func):
 
 
 def _cache_now():
-    return time.time()
+    from weave import core_state
+
+    return core_state._cache_now()
 
 
 def get_cache(key):
-    with APP_CACHE_LOCK:
-        cached = APP_CACHE.get(key)
-        if not cached:
-            return None
-        if cached["expires_at"] <= _cache_now():
-            APP_CACHE.pop(key, None)
-            return None
-        return cached["value"]
+    from weave import core_state
+
+    return core_state.get_cache(key)
 
 
 def set_cache(key, value, ttl_seconds=CACHE_TTL_SECONDS):
-    with APP_CACHE_LOCK:
-        APP_CACHE[key] = {"value": value, "expires_at": _cache_now() + int(ttl_seconds)}
+    from weave import core_state
+
+    return core_state.set_cache(key, value, ttl_seconds)
 
 
 def invalidate_cache(prefix):
-    with APP_CACHE_LOCK:
-        keys = [key for key in APP_CACHE.keys() if str(key).startswith(str(prefix))]
-        for key in keys:
-            APP_CACHE.pop(key, None)
+    from weave import core_state
+
+    return core_state.invalidate_cache(prefix)
 
 
 def log_audit(*args, **kwargs):
@@ -445,6 +428,8 @@ def ensure_attendance_migration(cur):
 
 
 def init_db():
+    # TODO(core-split): keep DB bootstrap/migration/seed logic here for now; split
+    # incrementally into core_db_bootstrap.py only after dedicated migration tests.
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL")
@@ -1172,6 +1157,8 @@ def record_user_activity(
 
 
 def mark_dormant_users(reference_time=None):
+    # TODO(core-split): this updates user status in bulk; move with caution together
+    # with scheduler/ops paths after adding explicit regression coverage.
     ref = reference_time or datetime.now()
     threshold = (ref - timedelta(days=365)).isoformat()
     conn = get_db_connection()
@@ -1191,78 +1178,27 @@ def mark_dormant_users(reference_time=None):
 
 
 def serialize_activity_row(row):
-    return {
-        "id": row["id"],
-        "title": row["title"],
-        "description": row["description"],
-        "startAt": row["start_at"],
-        "endAt": row["end_at"],
-        "place": row["place"],
-        "supplies": row["supplies"],
-        "gatherTime": row["gather_time"],
-        "manager": row["manager_name"],
-        "recruitmentLimit": row["recruitment_limit"],
-        "recurrenceGroupId": row["recurrence_group_id"],
-        "isCancelled": bool(row["is_cancelled"]),
-    }
+    from weave import core_response_helpers
+
+    return core_response_helpers.serialize_activity_row(row)
 
 
 def calculate_activity_hours(activity):
-    start_dt = parse_iso_datetime(activity["start_at"])
-    end_dt = parse_iso_datetime(activity["end_at"])
-    if start_dt and end_dt and end_dt > start_dt:
-        return max(round((end_dt - start_dt).total_seconds() / 3600, 2), 0.5)
-    return 2.0
+    from weave import core_time_helpers
+
+    return core_time_helpers.calculate_activity_hours(activity)
 
 
 def build_annual_report(conn, year):
-    start = f"{year}-01-01"
-    end = f"{year}-12-31"
-    total_activities = conn.execute(
-        "SELECT COUNT(*) AS c FROM activities WHERE date(start_at) BETWEEN ? AND ?",
-        (start, end),
-    ).fetchone()["c"]
-    total_hours = conn.execute(
-        """
-        SELECT COALESCE(SUM(ap.hours), 0) AS h
-        FROM activity_applications ap
-        JOIN activities a ON a.id = ap.activity_id
-        WHERE ap.attendance_status = 'present' AND date(a.start_at) BETWEEN ? AND ?
-        """,
-        (start, end),
-    ).fetchone()["h"]
-    total_participants = conn.execute(
-        """
-        SELECT COUNT(DISTINCT ap.user_id) AS c
-        FROM activity_applications ap
-        JOIN activities a ON a.id = ap.activity_id
-        WHERE ap.status IN ('confirmed', 'waiting', 'cancelled', 'noshow')
-          AND date(a.start_at) BETWEEN ? AND ?
-        """,
-        (start, end),
-    ).fetchone()["c"]
+    from weave import core_response_helpers
 
-    impact_metric = (
-        f"활동 {total_activities}건, 누적 {round(float(total_hours or 0), 1)}시간"
-    )
-    return {
-        "year": year,
-        "totalActivities": int(total_activities or 0),
-        "totalHours": round(float(total_hours or 0), 2),
-        "totalParticipants": int(total_participants or 0),
-        "impact": impact_metric,
-    }
+    return core_response_helpers.build_annual_report(conn, year)
 
 
 def csv_response(filename, headers, rows):
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(headers)
-    for row in rows:
-        writer.writerow(row)
-    response = Response(output.getvalue(), mimetype="text/csv; charset=utf-8")
-    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
-    return response
+    from weave import core_response_helpers
+
+    return core_response_helpers.csv_response(filename, headers, rows)
 
 
 def send_event_change_notifications(conn, event_id, title):
