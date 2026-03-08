@@ -38,6 +38,10 @@ function movePanel(panelId) {
     if (typeof loadActivitiesCalendar === 'function') {
       loadActivitiesCalendar();
     }
+    // 홈 진입 시 캘린더 프리뷰 렌더 보장
+    if (typeof renderHomeCalendarPreview === 'function') {
+      renderHomeCalendarPreview();
+    }
   } else {
     stopHomeNoticeAutoRotate();
   }
