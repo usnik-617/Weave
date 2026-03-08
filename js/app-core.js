@@ -18,9 +18,11 @@ let MODAL_LOCK_SCROLL_TOP = 0;
 let currentEventDetailId = null;
 const CLIENT_TELEMETRY_KEY = 'weave_client_telemetry';
 const CLIENT_TELEMETRY_DAY_KEY = 'weave_client_telemetry_day';
+const CLIENT_PERF_KEY = 'weave_client_perf';
 const ROUTE_STATE_KEYS = {
   panel: 'panel',
   newsTab: 'newsTab',
+  aboutTab: 'aboutTab',
   q: 'q',
   page: 'page',
   faqQ: 'faqQ',
@@ -33,6 +35,42 @@ const ROUTE_STATE_KEYS = {
 };
 window.ROUTE_STATE_KEYS = ROUTE_STATE_KEYS;
 
+function safeJsonParse(value, fallback = null) {
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function safeStorageGet(key, fallback = '') {
+  try {
+    const value = localStorage.getItem(key);
+    return value == null ? fallback : value;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function safeStorageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function getTodayKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -40,16 +78,20 @@ function getTodayKey() {
 
 function loadClientTelemetry() {
   try {
-    const savedDay = String(localStorage.getItem(CLIENT_TELEMETRY_DAY_KEY) || '');
+    const savedDay = String(safeStorageGet(CLIENT_TELEMETRY_DAY_KEY, '') || '');
     const today = getTodayKey();
     if (savedDay && savedDay !== today) {
-      localStorage.removeItem(CLIENT_TELEMETRY_KEY);
+      safeStorageRemove(CLIENT_TELEMETRY_KEY);
     }
-    const parsed = JSON.parse(localStorage.getItem(CLIENT_TELEMETRY_KEY) || '{}');
+    const parsed = safeJsonParse(safeStorageGet(CLIENT_TELEMETRY_KEY, '{}'), {}) || {};
+    const toSafeCounter = (value) => {
+      const num = Number(value || 0);
+      return Number.isFinite(num) && num >= 0 ? num : 0;
+    };
     return {
-      errors403: Number(parsed.errors403 || 0),
-      errors429: Number(parsed.errors429 || 0),
-      uploadFailures: Number(parsed.uploadFailures || 0)
+      errors403: toSafeCounter(parsed.errors403),
+      errors429: toSafeCounter(parsed.errors429),
+      uploadFailures: toSafeCounter(parsed.uploadFailures)
     };
   } catch (_) {
     return { errors403: 0, errors429: 0, uploadFailures: 0 };
@@ -58,18 +100,109 @@ function loadClientTelemetry() {
 
 const CLIENT_TELEMETRY = loadClientTelemetry();
 
+function initClientPerfMetrics() {
+  if (window.__WEAVE_PERF_INIT__) return;
+  window.__WEAVE_PERF_INIT__ = true;
+  const metrics = { fcp: 0, lcp: 0, cls: 0, ts: Date.now(), panel: 'home', analytics: {} };
+  const clamp = (value) => (Number.isFinite(value) ? Number(value.toFixed(4)) : 0);
+  try {
+    const paintObserver = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (entry.name === 'first-contentful-paint') {
+          metrics.fcp = clamp(entry.startTime);
+        }
+      });
+    });
+    paintObserver.observe({ type: 'paint', buffered: true });
+  } catch (_) {}
+
+  try {
+    const lcpObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      const last = entries[entries.length - 1];
+      if (last) metrics.lcp = clamp(last.startTime || last.renderTime || 0);
+    });
+    lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+  } catch (_) {}
+
+  try {
+    let clsValue = 0;
+    const clsObserver = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (!entry.hadRecentInput) clsValue += Number(entry.value || 0);
+      });
+      metrics.cls = clamp(clsValue);
+    });
+    clsObserver.observe({ type: 'layout-shift', buffered: true });
+  } catch (_) {}
+
+  window.addEventListener('pagehide', () => {
+    try {
+      safeStorageSet(CLIENT_PERF_KEY, JSON.stringify(metrics));
+    } catch (_) {}
+  });
+
+  const syncPanelTag = () => {
+    const activePanel = document.querySelector('.panel.panel-active')?.id
+      || String(window.location.hash || '').replace('#', '')
+      || 'home';
+    metrics.panel = resolveNavPanelId(activePanel || 'home');
+  };
+  syncPanelTag();
+  window.addEventListener('hashchange', syncPanelTag);
+  window.addEventListener('popstate', syncPanelTag);
+  document.addEventListener('weave:panel-changed', syncPanelTag);
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest('[data-analytics]') : null;
+    if (!(target instanceof HTMLElement)) return;
+    const key = String(target.dataset.analytics || '').trim();
+    if (!key) return;
+    metrics.analytics[key] = Number(metrics.analytics[key] || 0) + 1;
+  }, true);
+
+  window.__weavePerfMetrics = metrics;
+}
+initClientPerfMetrics();
+
+function syncOfflineBannerState() {
+  const isOnline = navigator.onLine !== false;
+  if (document.body) document.body.classList.toggle('offline-mode', !isOnline);
+  const banner = document.getElementById('offline-banner');
+  if (banner instanceof HTMLElement) {
+    banner.textContent = isOnline
+      ? '네트워크가 복구되었습니다.'
+      : '오프라인 상태입니다. 네트워크 연결을 확인해주세요.';
+  }
+}
+
+window.addEventListener('online', () => {
+  syncOfflineBannerState();
+  notifyInfo('네트워크 연결이 복구되었습니다.', 1800);
+});
+
+window.addEventListener('offline', () => {
+  syncOfflineBannerState();
+  notifyError('현재 오프라인 상태입니다.', 2200);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  syncOfflineBannerState();
+});
+
 function persistClientTelemetry() {
   try {
-    localStorage.setItem(CLIENT_TELEMETRY_KEY, JSON.stringify(CLIENT_TELEMETRY));
-    localStorage.setItem(CLIENT_TELEMETRY_DAY_KEY, getTodayKey());
+    safeStorageSet(CLIENT_TELEMETRY_KEY, JSON.stringify(CLIENT_TELEMETRY));
+    safeStorageSet(CLIENT_TELEMETRY_DAY_KEY, getTodayKey());
   } catch (_) {}
 }
 
 function showToast(message, type = 'info', durationMs = 2200) {
   const el = document.getElementById('app-toast');
   if (!el) return;
-  el.textContent = String(message || '?붿껌???꾨즺?섏뿀?듬땲??');
-  el.dataset.type = String(type || 'info');
+  el.textContent = String(message || '요청이 처리되었습니다.').trim().slice(0, 240);
+  const normalizedType = ['info', 'error'].includes(String(type || '').toLowerCase()) ? String(type).toLowerCase() : 'info';
+  el.dataset.type = normalizedType;
   el.classList.add('show');
   window.clearTimeout(showToast._timer);
   showToast._timer = window.setTimeout(() => {
@@ -141,16 +274,27 @@ function updateAppUrlState(partial = {}) {
   });
   const query = params.toString();
   const nextUrl = `${url.pathname}${query ? `?${query}` : ''}${url.hash || ''}`;
-  window.history.replaceState({}, '', nextUrl);
+  try {
+    window.history.replaceState({}, '', nextUrl);
+  } catch (_) {}
 }
 
 window.updateAppUrlState = updateAppUrlState;
 
 function readInitialAppUrlState() {
-  const url = new URL(window.location.href);
+  let url = null;
+  try {
+    url = new URL(window.location.href);
+  } catch (_) {
+    return {
+      panel: '', newsTab: '', aboutTab: '', q: '', page: '', faqQ: '', faqPage: '',
+      qnaQ: '', qnaPage: '', galleryQ: '', galleryPage: '', galleryFilter: ''
+    };
+  }
   return {
     panel: url.searchParams.get(ROUTE_STATE_KEYS.panel) || '',
     newsTab: url.searchParams.get(ROUTE_STATE_KEYS.newsTab) || '',
+    aboutTab: url.searchParams.get(ROUTE_STATE_KEYS.aboutTab) || '',
     q: url.searchParams.get(ROUTE_STATE_KEYS.q) || '',
     page: url.searchParams.get(ROUTE_STATE_KEYS.page) || '',
     faqQ: url.searchParams.get(ROUTE_STATE_KEYS.faqQ) || '',
@@ -167,15 +311,16 @@ window.readInitialAppUrlState = readInitialAppUrlState;
 
 // ============ AUTH FUNCTIONS ============
 function getCurrentUser() {
-  const user = localStorage.getItem(CURRENT_USER_KEY);
-  return user ? JSON.parse(user) : null;
+  const parsed = safeJsonParse(safeStorageGet(CURRENT_USER_KEY, ''), null);
+  if (!parsed || typeof parsed !== 'object') return null;
+  return parsed;
 }
 
 function setCurrentUser(user) {
   if (user) {
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    safeStorageSet(CURRENT_USER_KEY, JSON.stringify(user));
   } else {
-    localStorage.removeItem(CURRENT_USER_KEY);
+    safeStorageRemove(CURRENT_USER_KEY);
   }
   updateAuthUI();
 }
@@ -183,8 +328,14 @@ function setCurrentUser(user) {
 async function ensureCsrfToken() {
   if (CSRF_TOKEN) return CSRF_TOKEN;
   const response = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'same-origin' });
+  if (!response.ok) {
+    throw new Error('보안 토큰을 가져오지 못했습니다. 다시 시도해주세요.');
+  }
   const data = await response.json().catch(() => ({}));
   CSRF_TOKEN = data?.data?.csrfToken || data?.csrfToken || '';
+  if (!CSRF_TOKEN) {
+    throw new Error('보안 토큰이 유효하지 않습니다. 페이지를 새로고침 해주세요.');
+  }
   return CSRF_TOKEN;
 }
 
@@ -204,8 +355,26 @@ function resolveNavPanelId(panelId) {
 function setActiveNavStates(panelId) {
   const resolvedPanelId = resolveNavPanelId(panelId);
   document.querySelectorAll('[data-panel].active').forEach((el) => el.classList.remove('active'));
+  document.querySelectorAll('[data-panel][aria-current]').forEach((el) => {
+    el.setAttribute('aria-current', 'false');
+  });
   const desktopCandidates = Array.from(document.querySelectorAll(`.nav-link[data-panel="${resolvedPanelId}"]`));
-  if (desktopCandidates.length) desktopCandidates[0].classList.add('active');
+  if (desktopCandidates.length) {
+    desktopCandidates[0].classList.add('active');
+    desktopCandidates[0].setAttribute('aria-current', 'page');
+  }
+
+  const routeState = (typeof readInitialAppUrlState === 'function') ? readInitialAppUrlState() : {};
+  const currentAboutTab = String(routeState.aboutTab || 'history');
+  const currentNewsRouteTab = String(routeState.newsTab || currentNewsTab || 'notice');
+  document.querySelectorAll('.nav-submenu a').forEach((el) => {
+    const matchPanel = el.dataset.panel === resolvedPanelId;
+    const matchAbout = resolvedPanelId === 'about' && el.dataset.aboutTab === currentAboutTab;
+    const matchNews = resolvedPanelId === 'news' && el.dataset.newsTab === currentNewsRouteTab;
+    const match = matchPanel && (matchAbout || matchNews);
+    el.classList.toggle('active', !!match);
+    el.setAttribute('aria-current', match ? 'page' : 'false');
+  });
 
   const mobileTabs = document.querySelectorAll('#mobile-bottom-nav .mobile-tab');
   mobileTabs.forEach((tab) => {
@@ -213,6 +382,7 @@ function setActiveNavStates(panelId) {
     const tabNews = tab.dataset.newsTab || '';
     const active = tabPanel === resolvedPanelId && (resolvedPanelId !== 'news' || !tabNews || tabNews === currentNewsTab);
     tab.classList.toggle('active', active);
+    tab.setAttribute('aria-current', active ? 'page' : 'false');
   });
 }
 
@@ -228,7 +398,18 @@ function handleSessionExpired(path = '') {
   }
   SESSION_EXPIRED_SHOWN = true;
   const modalEl = document.getElementById('sessionExpiredModal');
-  if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+  if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+    SESSION_EXPIRED_SHOWN = false;
+    notifyError('세션이 만료되었습니다. 다시 로그인해주세요.');
+    return;
+  }
+  if (!modalEl.dataset.sessionExpiredBound) {
+    modalEl.dataset.sessionExpiredBound = '1';
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      SESSION_EXPIRED_SHOWN = false;
+    });
+  }
+  if (modalEl.classList.contains('show')) return;
   const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
   modal.show();
 }
@@ -275,6 +456,7 @@ function initModalScrollLock() {
       if (ACTIVE_MODAL_ID && ACTIVE_MODAL_ID !== modalEl.id) {
         const opened = document.getElementById(ACTIVE_MODAL_ID);
         if (opened) {
+          if (typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
           const openedInstance = bootstrap.Modal.getInstance(opened);
           if (openedInstance) openedInstance.hide();
         }
@@ -303,8 +485,13 @@ async function apiRequest(path, options = {}) {
   const headers = {
     ...(options.headers || {})
   };
-  if (!headers['Content-Type'] && options.body !== undefined) {
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (!headers['Content-Type'] && options.body !== undefined && !isFormDataBody && typeof options.body !== 'string') {
     headers['Content-Type'] = 'application/json';
+  }
+  let requestBody = options.body;
+  if (requestBody !== undefined && !isFormDataBody && headers['Content-Type'] === 'application/json' && typeof requestBody !== 'string') {
+    requestBody = JSON.stringify(requestBody);
   }
   if (isMutating && csrfToken) {
     headers['X-CSRF-Token'] = csrfToken;
@@ -318,6 +505,7 @@ async function apiRequest(path, options = {}) {
       credentials: 'same-origin',
       headers,
       ...options,
+      body: requestBody,
       signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
@@ -452,12 +640,18 @@ function getStats() {
     activities: '115회',
     impact: '지역사회 기여'
   };
-  const data = localStorage.getItem(STATS_KEY);
-  return data ? JSON.parse(data) : defaults;
+  const parsed = safeJsonParse(safeStorageGet(STATS_KEY, ''), null);
+  if (!parsed || typeof parsed !== 'object') return defaults;
+  return {
+    generation: String(parsed.generation || defaults.generation),
+    members: String(parsed.members || defaults.members),
+    activities: String(parsed.activities || defaults.activities),
+    impact: String(parsed.impact || defaults.impact)
+  };
 }
 
 function saveStats(stats) {
-  localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  safeStorageSet(STATS_KEY, JSON.stringify(stats || {}));
 }
 
 function renderStats() {
@@ -485,31 +679,39 @@ function updateAuthUI() {
   const qnaWriteBtn = document.getElementById('qna-write-btn');
   const galleryWriteBtn = document.getElementById('gallery-write-btn');
   const opsDashboardBtn = document.getElementById('ops-dashboard-btn');
+  const profileNameEl = document.getElementById('profile-name');
+  const profileEmailEl = document.getElementById('profile-email');
+  const profileDetailsEl = document.getElementById('profile-details');
+  const profileJoinDateEl = document.getElementById('profile-joindate');
 
   if (user) {
-    authButtons.style.display = 'none';
-    authButtons.classList.add('d-none');
-    userProfile.classList.add('show');
-    document.getElementById('profile-name').innerText = `${user.name} (${user.nickname || user.username})`;
-    document.getElementById('profile-email').innerText = user.email;
+    if (authButtons) {
+      authButtons.style.display = 'none';
+      authButtons.classList.add('d-none');
+    }
+    if (userProfile) userProfile.classList.add('show');
+    if (profileNameEl) profileNameEl.innerText = `${user.name || '-'} (${user.nickname || user.username || '-'})`;
+    if (profileEmailEl) profileEmailEl.innerText = user.email || '-';
     const statusLabelMap = { pending: '승인대기', active: '정식단원', locked: '잠금', withdrawn: '탈퇴' };
     const role = roleMeta(user.role);
-    document.getElementById('profile-details').innerHTML = `
-      <div>이름: ${user.name || '-'}</div>
-      <div>닉네임: ${user.nickname || '-'}</div>
-      <div>아이디: ${user.username || '-'}</div>
-      <div>이메일: ${user.email || '-'}</div>
-      <div>권한: ${role.icon ? `${role.icon} ` : ''}${role.label}</div>
-      <div>상태: ${statusLabelMap[user.status] || user.status || '-'}</div>
-      <div>생년월일: ${user.birthDate || '-'}</div>
-      <div>연락처: ${user.phone || '-'}</div>
-      <div>활동 기수: ${user.generation || '-'}</div>
-      <div>관심 분야: ${user.interests || '-'}</div>
-      <div>보유 자격: ${user.certificates || '-'}</div>
-      <div>가능 시간대: ${user.availability || '-'}</div>
-    `;
+    if (profileDetailsEl) {
+      profileDetailsEl.innerHTML = `
+        <div>이름: ${escapeHtml(user.name || '-')}</div>
+        <div>닉네임: ${escapeHtml(user.nickname || '-')}</div>
+        <div>아이디: ${escapeHtml(user.username || '-')}</div>
+        <div>이메일: ${escapeHtml(user.email || '-')}</div>
+        <div>권한: ${role.icon ? `${escapeHtml(role.icon)} ` : ''}${escapeHtml(role.label)}</div>
+        <div>상태: ${escapeHtml(statusLabelMap[user.status] || user.status || '-')}</div>
+        <div>생년월일: ${escapeHtml(user.birthDate || '-')}</div>
+        <div>연락처: ${escapeHtml(user.phone || '-')}</div>
+        <div>활동 기수: ${escapeHtml(user.generation || '-')}</div>
+        <div>관심 분야: ${escapeHtml(user.interests || '-')}</div>
+        <div>보유 자격: ${escapeHtml(user.certificates || '-')}</div>
+        <div>가능 시간대: ${escapeHtml(user.availability || '-')}</div>
+      `;
+    }
     const joinDate = new Date(user.joinDate || new Date()).toLocaleDateString('ko-KR');
-    document.getElementById('profile-joindate').innerText = `가입일: ${joinDate} | 생년월일: ${user.birthDate || '-'}`;
+    if (profileJoinDateEl) profileJoinDateEl.innerText = `가입일: ${joinDate} | 생년월일: ${user.birthDate || '-'}`;
     const activeMember = user.status === 'active';
     if (opsDashboardBtn) opsDashboardBtn.classList.toggle('d-none', !isStaffUser(user));
     if (newsWriteBtn) newsWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
@@ -517,9 +719,11 @@ function updateAuthUI() {
     if (qnaWriteBtn) qnaWriteBtn.classList.toggle('d-none', !activeMember);
     if (galleryWriteBtn) galleryWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
   } else {
-    authButtons.style.display = 'flex';
-    authButtons.classList.remove('d-none');
-    userProfile.classList.remove('show');
+    if (authButtons) {
+      authButtons.style.display = 'flex';
+      authButtons.classList.remove('d-none');
+    }
+    if (userProfile) userProfile.classList.remove('show');
     if (newsWriteBtn) newsWriteBtn.classList.add('d-none');
     if (faqWriteBtn) faqWriteBtn.classList.add('d-none');
     if (qnaWriteBtn) qnaWriteBtn.classList.add('d-none');
@@ -530,6 +734,7 @@ function updateAuthUI() {
   if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
   if (typeof updateWriteTemplateVisibility === 'function') updateWriteTemplateVisibility();
   if (typeof updateAboutPhotoAdminControls === 'function') updateAboutPhotoAdminControls();
+  if (typeof updateExecutivesAdminControls === 'function') updateExecutivesAdminControls();
   if (typeof updateHomeHeroAdminControls === 'function') updateHomeHeroAdminControls();
   if (typeof updateSiteEditorControls === 'function') updateSiteEditorControls();
 }

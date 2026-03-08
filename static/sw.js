@@ -1,5 +1,24 @@
-const CACHE_NAME = 'weave-static-v2';
-const STATIC_ASSETS = ['/', '/styles.css', '/logo.png', '/manifest.json'];
+const STATIC_ASSETS = [
+  '/',
+  '/styles.css',
+  '/logo.png',
+  '/manifest.json',
+  '/js/app-main.js',
+  '/js/app-auth-init.js',
+  '/js/app-activities-ops.js',
+  '/js/app-editor-upload.js',
+  '/js/app-site-editor-core.js',
+];
+const CACHE_REVISION = `${STATIC_ASSETS.length}-${STATIC_ASSETS.join('|').length}`;
+const CACHE_NAME = `weave-static-v4-${CACHE_REVISION}`;
+let REDUCED_DATA_MODE = false;
+
+self.addEventListener('message', (event) => {
+  const payload = event && event.data ? event.data : {};
+  if (payload.type === 'WEAVE_REDUCED_DATA_MODE') {
+    REDUCED_DATA_MODE = !!payload.enabled;
+  }
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -42,10 +61,25 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
           const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          if (!REDUCED_DATA_MODE) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
           return res;
         });
       })
+    );
+    return;
+  }
+
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req).then((cached) => cached || caches.match('/')))
     );
   }
 });

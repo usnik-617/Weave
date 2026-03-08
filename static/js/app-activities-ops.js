@@ -2,41 +2,78 @@
   return `${baseDate.getFullYear()}년 ${baseDate.getMonth() + 1}월`;
 }
 
+function toSafeActivityId(value) {
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
+function toSafeDateKey(value) {
+  const raw = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+}
+
 function movePanel(panelId) {
+  const nextPanelId = String(panelId || '').trim() || 'home';
+  const previousActive = document.querySelector('.panel-active');
+  if (previousActive && previousActive.id) {
+    try {
+      sessionStorage.setItem(`weave:panel-scroll:${previousActive.id}`, String(window.scrollY || window.pageYOffset || 0));
+    } catch (_) {}
+  }
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  const target = document.getElementById(panelId);
+  const target = document.getElementById(nextPanelId);
   if (target) target.classList.add('panel-active');
   const statsSection = document.getElementById('home-stats');
   const homeCalendarPreview = document.getElementById('home-calendar-preview');
   const homeNoticeCarousel = document.getElementById('home-notice-carousel');
-  if (statsSection) statsSection.style.display = panelId === 'home' ? 'block' : 'none';
-  if (homeCalendarPreview) homeCalendarPreview.style.display = panelId === 'home' ? 'block' : 'none';
-  if (homeNoticeCarousel) homeNoticeCarousel.style.display = panelId === 'home' && getHomeNoticeItems().length ? 'block' : 'none';
-  if (panelId === 'home' && !homeNoticePaused) {
+  if (statsSection) statsSection.style.display = nextPanelId === 'home' ? 'block' : 'none';
+  if (homeCalendarPreview) homeCalendarPreview.style.display = nextPanelId === 'home' ? 'block' : 'none';
+  if (homeNoticeCarousel) homeNoticeCarousel.style.display = nextPanelId === 'home' && getHomeNoticeItems().length ? 'block' : 'none';
+  if (document.body) document.body.classList.toggle('panel-home-active', nextPanelId === 'home');
+  if (nextPanelId === 'home' && !homeNoticePaused) {
     startHomeNoticeAutoRotate();
   } else {
     stopHomeNoticeAutoRotate();
   }
-  setActiveNavStates(panelId);
+  setActiveNavStates(nextPanelId);
   if (typeof updateAppUrlState === 'function') {
-    updateAppUrlState({ panel: panelId || 'home' });
+    updateAppUrlState({ panel: nextPanelId });
   }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.dispatchEvent(new CustomEvent('weave:panel-changed', {
+    detail: {
+      panel: nextPanelId,
+      newsTab: String(currentNewsTab || 'notice')
+    }
+  }));
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  if (isMobile) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  let restoreTop = 0;
+  try {
+    const raw = sessionStorage.getItem(`weave:panel-scroll:${nextPanelId}`);
+    const parsed = Number(raw || 0);
+    restoreTop = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  } catch (_) {
+    restoreTop = 0;
+  }
+  window.scrollTo({ top: restoreTop, behavior: 'auto' });
 }
 
 function activateNewsTab(tabName) {
   const noticeTabBtn = document.getElementById('notice-tab-btn');
   const faqTabBtn = document.getElementById('faq-tab-btn');
   const qnaTabBtn = document.getElementById('qna-tab-btn');
-  if (tabName === 'faq' && faqTabBtn) {
+  if (tabName === 'faq' && faqTabBtn instanceof HTMLElement) {
     faqTabBtn.click();
     return;
   }
-  if (tabName === 'qna' && qnaTabBtn) {
+  if (tabName === 'qna' && qnaTabBtn instanceof HTMLElement) {
     qnaTabBtn.click();
     return;
   }
-  if (noticeTabBtn) noticeTabBtn.click();
+  if (noticeTabBtn instanceof HTMLElement) noticeTabBtn.click();
 }
 
 function openQnaAnswerEditor(id) {
@@ -46,16 +83,17 @@ function openQnaAnswerEditor(id) {
     return;
   }
   const data = getContent();
-  const item = (data.qna || []).find(q => q.id === id);
+  const qnaId = toSafeActivityId(id);
+  const item = (data.qna || []).find((q) => toSafeActivityId(q.id) === qnaId);
   if (!item) return;
 
-  currentQnaAnswerId = id;
+  currentQnaAnswerId = qnaId;
   const editIdEl = document.getElementById('qna-answer-edit-id');
   const metaEl = document.getElementById('qna-answer-meta');
   const questionEl = document.getElementById('qna-answer-question');
-  if (editIdEl) editIdEl.value = String(id);
+  if (editIdEl) editIdEl.value = String(qnaId);
   if (metaEl) metaEl.textContent = `${item.author || '-'} | ${item.date || ''}`;
-  if (questionEl) questionEl.innerHTML = item.content || '';
+  if (questionEl) questionEl.innerHTML = sanitizeRichHtml(item.content || '');
   setEditorHtml('qna-answer-editor', item.answer || '');
   movePanel('qna-answer');
 }
@@ -137,8 +175,11 @@ async function loadActivitiesCalendar() {
     data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
     const baseItems = Array.isArray(data.items) ? data.items : [];
     calendarActivities = [...baseItems]
-      .filter(item => formatDateOnly(item.startAt).slice(0, 7) === dateParam.slice(0, 7))
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+      .filter((item) => {
+        const key = toSafeDateKey(formatDateOnly(item?.startAt));
+        return key && key.slice(0, 7) === dateParam.slice(0, 7);
+      })
+      .sort((a, b) => new Date(a?.startAt).getTime() - new Date(b?.startAt).getTime());
   } catch (_) {
     calendarActivities = [];
     data = { range: null };
@@ -160,8 +201,9 @@ function renderActivitiesCalendarGrid(range) {
   label.innerText = monthLabel;
 
   const mapByDate = {};
-  calendarActivities.forEach(item => {
-    const key = formatDateOnly(item.startAt);
+  calendarActivities.forEach((item) => {
+    const key = toSafeDateKey(formatDateOnly(item?.startAt));
+    if (!key) return;
     if (!mapByDate[key]) mapByDate[key] = [];
     mapByDate[key].push(item);
   });
@@ -196,7 +238,8 @@ function renderActivitiesCalendarGrid(range) {
   grid.innerHTML = `<div class="weave-calendar-table">${headers}${cells}</div>`;
   grid.querySelectorAll('[data-date]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const dateKey = btn.dataset.date;
+      const dateKey = toSafeDateKey(btn.dataset.date);
+      if (!dateKey) return;
       calendarSelectedDate = dateKey;
       const dateItems = mapByDate[dateKey] || [];
       renderActivitiesCalendarGrid(range);
@@ -274,7 +317,7 @@ function openCalendarActivityDetailModal(item, user, status = '') {
   const editBtn = document.getElementById('calendar-activity-edit-btn');
   const deleteBtn = document.getElementById('calendar-activity-delete-btn');
   if (!body || !item) return;
-  const activityId = Number(item.id || 0);
+  const activityId = toSafeActivityId(item.id);
   const hasActionableId = Number.isFinite(activityId) && activityId > 0;
   body.innerHTML = buildActivityDetailMarkup(item, user, status);
   if (leftActionWrap) {
@@ -338,12 +381,14 @@ function openCalendarActivityDetailModal(item, user, status = '') {
     noticeBtn.onclick = () => {
       const detailModal = getModalInstanceById('calendarActivityDetailModal');
       if (detailModal) detailModal.hide();
-      openNotice(Number(item.sourceNoticeId || 0));
+      const noticeId = toSafeActivityId(item.sourceNoticeId);
+      if (noticeId && typeof openNotice === 'function') openNotice(noticeId);
     };
   }
   if (galleryBtn) {
-    const linkedGallery = (getContent().gallery || [])
-      .filter(entry => Number(entry.activityId || entry.activity_id || 0) === activityId)
+    const galleryItems = (getContent().gallery || []);
+    const linkedGallery = galleryItems
+      .filter((entry) => toSafeActivityId(entry.activityId || entry.activity_id) === activityId)
       .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null;
     galleryBtn.classList.toggle('d-none', !linkedGallery);
     galleryBtn.onclick = linkedGallery
@@ -351,7 +396,8 @@ function openCalendarActivityDetailModal(item, user, status = '') {
           const detailModal = getModalInstanceById('calendarActivityDetailModal');
           if (detailModal) detailModal.hide();
           setTimeout(() => {
-            openGalleryDetail(Number(linkedGallery.id || 0));
+            const galleryId = toSafeActivityId(linkedGallery.id);
+            if (galleryId && typeof openGalleryDetail === 'function') openGalleryDetail(galleryId);
           }, 160);
         })
       : null;
@@ -367,7 +413,7 @@ function openCalendarActivityListModal(dateKey, items, user, historyMap) {
 
   titleEl.innerText = `${dateKey} 일정 목록 (${items.length}건)`;
   listEl.innerHTML = items.map(item => `
-    <button class="btn btn-outline-primary text-start" data-calendar-activity-id="${item.id}">
+    <button class="btn btn-outline-primary text-start" data-calendar-activity-id="${toSafeActivityId(item.id)}">
       <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
       <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
     </button>
@@ -378,12 +424,12 @@ function openCalendarActivityListModal(dateKey, items, user, historyMap) {
 
   const itemMap = {};
   items.forEach(item => {
-    itemMap[String(item.id)] = item;
+    itemMap[String(toSafeActivityId(item.id))] = item;
   });
 
   listEl.querySelectorAll('[data-calendar-activity-id]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const selected = itemMap[String(btn.dataset.calendarActivityId)];
+      const selected = itemMap[String(toSafeActivityId(btn.dataset.calendarActivityId))];
       if (!selected) return;
       const status = historyMap[String(selected.id)] || '';
       if (listModal) listModal.hide();
@@ -411,9 +457,10 @@ async function renderActivitiesDayList(dateKey) {
   const dayList = document.getElementById('calendar-day-list');
   if (!dayDetail || !dayList) return;
 
-  dayDetail.innerText = `${dateKey} 일정`;
+  const safeDateKey = toSafeDateKey(dateKey) || formatDateOnly(calendarSelectedDate || new Date());
+  dayDetail.innerText = `${safeDateKey} 일정`;
   const user = getCurrentUser();
-  const items = calendarActivities.filter(item => formatDateOnly(item.startAt) === dateKey);
+  const items = calendarActivities.filter((item) => toSafeDateKey(formatDateOnly(item.startAt)) === safeDateKey);
   if (!items.length) {
     dayList.innerHTML = '<div class="text-muted small">등록된 활동이 없습니다.</div>';
     return;
@@ -422,7 +469,7 @@ async function renderActivitiesDayList(dateKey) {
   const myHistoryMap = await getMyActivityHistoryMap(user);
 
   dayList.innerHTML = items.map(item => {
-    const status = myHistoryMap[String(item.id)] || '';
+    const status = myHistoryMap[String(toSafeActivityId(item.id))] || '';
     const highlightClass = focusedActivityDateKey && formatDateOnly(item.startAt) === focusedActivityDateKey
       ? ' activity-focus-highlight'
       : '';
@@ -440,8 +487,10 @@ async function renderActivitiesDayList(dateKey) {
 }
 
 async function applyActivity(activityId) {
+  const id = toSafeActivityId(activityId);
+  if (!id) return;
   try {
-    const data = await apiRequest(`/activities/${activityId}/apply`, { method: 'POST' });
+    const data = await apiRequest(`/activities/${id}/apply`, { method: 'POST' });
     notifyMessage(`신청 완료 (${data.status})`);
     await loadActivitiesCalendar();
   } catch (error) {
@@ -450,8 +499,10 @@ async function applyActivity(activityId) {
 }
 
 async function cancelActivity(activityId) {
+  const id = toSafeActivityId(activityId);
+  if (!id) return;
   try {
-    await apiRequest(`/activities/${activityId}/cancel`, { method: 'POST' });
+    await apiRequest(`/activities/${id}/cancel`, { method: 'POST' });
     notifyMessage('신청을 취소했습니다.');
     await loadActivitiesCalendar();
   } catch (error) {
@@ -473,7 +524,8 @@ function renderHomeCalendarPreview() {
   if (miniGrid) {
     const mapByDate = {};
     calendarActivities.forEach(item => {
-      const key = formatDateOnly(item.startAt);
+      const key = toSafeDateKey(formatDateOnly(item.startAt));
+      if (!key) return;
       if (!mapByDate[key]) mapByDate[key] = [];
       mapByDate[key].push(item);
     });
@@ -501,7 +553,8 @@ function renderHomeCalendarPreview() {
     miniGrid.innerHTML = `<div class="weave-calendar-table">${['일','월','화','수','목','금','토'].map(name => `<div class="weave-calendar-cell header">${name}</div>`).join('')}${cells}</div>`;
     miniGrid.querySelectorAll('[data-home-calendar-date]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const dateKey = btn.dataset.homeCalendarDate;
+        const dateKey = toSafeDateKey(btn.dataset.homeCalendarDate);
+        if (!dateKey) return;
         const items = mapByDate[dateKey] || [];
         calendarSelectedDate = dateKey;
         await openCalendarDatePopup(dateKey, items);
@@ -520,17 +573,19 @@ function renderHomeCalendarPreview() {
   }
 
   listEl.innerHTML = upcoming.map(item => `
-    <button class="btn btn-light text-start border" data-home-activity-date="${formatDateOnly(item.startAt)}">
-      <div class="fw-semibold">${item.title}</div>
-      <div class="small text-muted">${formatKoreanDate(item.startAt)} · ${item.place || '-'}</div>
+    <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
+      <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+      <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
     </button>
   `).join('');
 
   listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
     btn.addEventListener('click', async () => {
+      const selectedDate = toSafeDateKey(btn.dataset.homeActivityDate);
+      if (!selectedDate) return;
       movePanel('activities');
       openActivitiesCalendarTab();
-      calendarSelectedDate = btn.dataset.homeActivityDate;
+      calendarSelectedDate = selectedDate;
       await loadActivitiesCalendar();
     });
   });
@@ -618,11 +673,11 @@ function stripHtml(value) {
 }
 
 function goToNoticeFromHome(id) {
-  const noticeId = Number(id || 0);
+  const noticeId = toSafeActivityId(id);
   if (!noticeId) return;
   movePanel('news');
   activateNewsTab('notice');
-  openNotice(noticeId);
+  if (typeof openNotice === 'function') openNotice(noticeId);
 }
 
 async function focusCalendarDate(dateValue) {
@@ -742,16 +797,16 @@ async function loadOpsDashboard(page = opsPendingPage) {
     if (tbody) {
       tbody.innerHTML = rows.length ? rows.map(user => `
         <tr>
-          <td>${user.name || '-'}</td>
-          <td>${user.username || '-'}</td>
-          <td>${user.generation || '-'}</td>
-          <td>${user.interests || '-'}</td>
-          <td>${user.status || '-'}</td>
+          <td>${escapeHtml(user.name || '-')}</td>
+          <td>${escapeHtml(user.username || '-')}</td>
+          <td>${escapeHtml(user.generation || '-')}</td>
+          <td>${escapeHtml(user.interests || '-')}</td>
+          <td>${escapeHtml(user.status || '-')}</td>
           <td>
             <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-success" onclick="approvePendingUser(${user.id}, 'member')">단원 승인</button>
-              <button class="btn btn-sm btn-outline-primary" onclick="approvePendingUser(${user.id}, 'staff')">운영진 승인</button>
-              <button class="btn btn-sm btn-outline-danger" onclick="rejectPendingUser(${user.id})">반려</button>
+              <button class="btn btn-sm btn-outline-success" onclick="approvePendingUser(${toSafeActivityId(user.id)}, 'member')">단원 승인</button>
+              <button class="btn btn-sm btn-outline-primary" onclick="approvePendingUser(${toSafeActivityId(user.id)}, 'staff')">운영진 승인</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="rejectPendingUser(${toSafeActivityId(user.id)})">반려</button>
             </div>
           </td>
         </tr>
@@ -766,11 +821,14 @@ async function loadOpsDashboard(page = opsPendingPage) {
 }
 
 async function approvePendingUser(userId, role = 'member') {
+  const id = toSafeActivityId(userId);
+  if (!id) return;
+  const nextRole = role === 'staff' ? 'staff' : 'member';
   if (!confirm('해당 사용자를 승인하시겠습니까?')) return;
   try {
-    await apiRequest(`/admin/users/${userId}/approve`, {
+    await apiRequest(`/admin/users/${id}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ role })
+      body: JSON.stringify({ role: nextRole })
     });
     await loadOpsDashboard(opsPendingPage);
   } catch (error) {
@@ -779,9 +837,11 @@ async function approvePendingUser(userId, role = 'member') {
 }
 
 async function rejectPendingUser(userId) {
+  const id = toSafeActivityId(userId);
+  if (!id) return;
   if (!confirm('해당 가입 신청을 반려하시겠습니까?')) return;
   try {
-    await apiRequest(`/admin/users/${userId}/reject`, { method: 'POST' });
+    await apiRequest(`/admin/users/${id}/reject`, { method: 'POST' });
     await loadOpsDashboard(opsPendingPage);
   } catch (error) {
     notifyMessage(error.message || '반려에 실패했습니다.');

@@ -1,6 +1,25 @@
 import re
 
 
+def coerce_int_in_range(value, field_name, min_value, max_value, default=None):
+    raw = value
+    if raw is None or str(raw).strip() == "":
+        if default is None:
+            return False, None, f"{field_name} 값이 필요합니다."
+        return True, int(default), ""
+    try:
+        number = int(str(raw).strip())
+    except Exception:
+        return False, None, f"{field_name} 값은 정수여야 합니다."
+    if number < int(min_value) or number > int(max_value):
+        return (
+            False,
+            None,
+            f"{field_name} 값은 {int(min_value)}~{int(max_value)} 범위여야 합니다.",
+        )
+    return True, number, ""
+
+
 def validate_nickname(nickname):
     text = str(nickname or "").strip()
     if not re.fullmatch(r"^[가-힣A-Za-z0-9]{2,12}$", text):

@@ -16,6 +16,8 @@ repos:
         entry: python scripts/check_static_sync_drift.py
         language: system
         pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
       - id: css-duplicate-check
         name: css duplicate check
         entry: python scripts/check_css_duplicates.py

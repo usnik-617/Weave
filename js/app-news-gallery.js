@@ -37,24 +37,56 @@ function syncGalleryRouteState() {
   updateAppUrlState(buildRouteStatePayload('gallery'));
 }
 
+function safeText(value) {
+  const raw = String(value ?? '');
+  if (typeof escapeHtml === 'function') return escapeHtml(raw);
+  return raw
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function normalizeId(value) {
+  const id = Number(value);
+  return Number.isFinite(id) ? id : -1;
+}
+
+function safeLowerText(value) {
+  return String(value ?? '').toLowerCase();
+}
+
+function safeCategoryClass(value) {
+  return String(value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+function safeUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:image/')) return raw;
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+  return '';
+}
+
 function getFilteredNewsItems() {
   const content = getContent();
   return content.news
-    .filter(item => item.title.toLowerCase().includes(newsSearchKeyword.toLowerCase()))
+    .filter((item) => safeLowerText(item?.title).includes(safeLowerText(newsSearchKeyword)))
     .sort((a, b) => b.id - a.id);
 }
 
 function getFilteredFaqItems() {
   const content = getContent();
   return (content.faq || [])
-    .filter(item => item.title.toLowerCase().includes(faqSearchKeyword.toLowerCase()))
+    .filter((item) => safeLowerText(item?.title).includes(safeLowerText(faqSearchKeyword)))
     .sort((a, b) => b.id - a.id);
 }
 
 function getFilteredQnaItems() {
   const content = getContent();
   return (content.qna || [])
-    .filter(item => item.title.toLowerCase().includes(qnaSearchKeyword.toLowerCase()))
+    .filter((item) => safeLowerText(item?.title).includes(safeLowerText(qnaSearchKeyword)))
     .sort((a, b) => b.id - a.id);
 }
 
@@ -100,20 +132,23 @@ function renderNews() {
     const pageItems = filtered.slice(start, start + NEWS_PAGE_SIZE);
     tbody.innerHTML = '';
 
-  pageItems.forEach(item => {
+  pageItems.forEach((item) => {
     const user = getCurrentUser();
-    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-    const recommendCount = getRecommendCount(getPostKey('news', item.id));
+    const newsId = normalizeId(item?.id);
+    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
+    const recommendCount = getRecommendCount(getPostKey('news', newsId));
     const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
+    const safeTitle = safeText(item?.title || '제목 없음');
+    const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.id}</td>
-      <td><a href="#" onclick="openNotice(${item.id}); return false;">${item.title}</a>${scheduledBadge}</td>
-      <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
-      <td>${item.date}</td>
+      <td>${newsId > -1 ? newsId : ''}</td>
+      <td><a href="#" onclick="openNotice(${newsId}); return false;">${safeTitle}</a>${scheduledBadge}</td>
+      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
+      <td>${safeDate}</td>
       <td>${item.views || 0}</td>
       <td>${recommendCount}</td>
-      <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id})">수정</button>` : ''}</td>
+      <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${newsId})">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -179,15 +214,18 @@ function renderFaq() {
   const admin = isAdminUser(user);
 
   tbody.innerHTML = '';
-  pageItems.forEach(item => {
+  pageItems.forEach((item) => {
+    const faqId = normalizeId(item?.id);
+    const safeTitle = safeText(item?.title || '질문 없음');
+    const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.id}</td>
-      <td><a href="#" onclick="openFaqDetail(${item.id}); return false;">${item.title}</a></td>
-      <td>${formatAuthorDisplay(item.author || '관리자', getCurrentUser())}</td>
-      <td>${item.date || ''}</td>
+      <td>${faqId > -1 ? faqId : ''}</td>
+      <td><a href="#" onclick="openFaqDetail(${faqId}); return false;">${safeTitle}</a></td>
+      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
+      <td>${safeDate}</td>
       <td>${item.views || 0}</td>
-      <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'faq')">수정</button>` : ''}</td>
+      <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${faqId}, 'faq')">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -249,16 +287,19 @@ function renderQna() {
   const admin = isAdminUser(user);
 
   tbody.innerHTML = '';
-  pageItems.forEach(item => {
-    const canRead = !item.isSecret || admin;
+  pageItems.forEach((item) => {
+    const qnaId = normalizeId(item?.id);
+    const canRead = !item?.isSecret || admin;
+    const safeTitle = safeText(item?.title || '질문 없음');
+    const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.id}</td>
-      <td>${canRead ? `<a href="#" onclick="openQnaDetail(${item.id}); return false;">${item.title}${item.isSecret ? ' 🔒' : ''}</a>` : `비밀글 🔒`}</td>
-      <td>${formatAuthorDisplay(item.author || '', getCurrentUser())}</td>
-      <td>${item.date || ''}</td>
+      <td>${qnaId > -1 ? qnaId : ''}</td>
+      <td>${canRead ? `<a href="#" onclick="openQnaDetail(${qnaId}); return false;">${safeTitle}${item?.isSecret ? ' 🔒' : ''}</a>` : '비밀글 🔒'}</td>
+      <td>${formatAuthorDisplay(item?.author || '', getCurrentUser())}</td>
+      <td>${safeDate}</td>
       <td>${item.answer ? '답변완료' : '대기'}</td>
-      <td>${user && item.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${item.id}, 'qna')">수정</button>` : ''}</td>
+      <td>${user && item?.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${qnaId}, 'qna')">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -319,7 +360,8 @@ function setNewsWriteButtons() {
 
 function openFaqDetail(id) {
   const data = getContent();
-  const item = (data.faq || []).find(f => f.id === id);
+  const normalizedId = normalizeId(id);
+  const item = (data.faq || []).find((f) => normalizeId(f.id) === normalizedId);
   if (!item) return;
   item.views = (item.views || 0) + 1;
   saveContent(data);
@@ -334,9 +376,12 @@ function openFaqDetail(id) {
     recommends: 0,
     comments: 0
   });
-  document.getElementById('news-detail-content').innerHTML = item.content || '';
-  document.getElementById('news-detail-image').classList.add('d-none');
-  document.getElementById('news-recommend-btn').parentElement.classList.add('d-none');
+  const contentEl = document.getElementById('news-detail-content');
+  const imageEl = document.getElementById('news-detail-image');
+  const recommendBtn = document.getElementById('news-recommend-btn');
+  if (contentEl) contentEl.innerHTML = item.content || '';
+  if (imageEl) imageEl.classList.add('d-none');
+  if (recommendBtn?.parentElement) recommendBtn.parentElement.classList.add('d-none');
   const editBtn = document.getElementById('news-detail-edit-btn');
   const deleteBtn = document.getElementById('news-detail-delete-btn');
   const user = getCurrentUser();
@@ -350,24 +395,26 @@ function openFaqDetail(id) {
     deleteBtn.onclick = canManage ? (() => {
       if (!confirm('이 FAQ를 삭제하시겠습니까?')) return;
       const next = getContent();
-      next.faq = (next.faq || []).filter(entry => entry.id !== id);
+      next.faq = (next.faq || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
       renderFaq();
       movePanel('news');
       activateNewsTab('faq');
     }) : null;
   }
-  document.getElementById('news-comments-section').innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
+  const commentsEl = document.getElementById('news-comments-section');
+  if (commentsEl) commentsEl.innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  document.getElementById('news-detail').classList.add('panel-active');
+  document.getElementById('news-detail')?.classList.add('panel-active');
 }
 
 function openQnaDetail(id) {
   const user = getCurrentUser();
   const operator = isStaffUser(user);
   const data = getContent();
-  const item = (data.qna || []).find(q => q.id === id);
+  const normalizedId = normalizeId(id);
+  const item = (data.qna || []).find((q) => normalizeId(q.id) === normalizedId);
   if (!item) return;
   if (item.isSecret && !operator) {
     notifyMessage('비밀글은 운영자만 열람할 수 있습니다.');
@@ -376,26 +423,30 @@ function openQnaDetail(id) {
 
   document.getElementById('qna-detail-title').textContent = item.title;
   document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
-  document.getElementById('qna-detail-question').innerHTML = item.content || '';
-  document.getElementById('qna-detail-answer').innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
+  const questionEl = document.getElementById('qna-detail-question');
+  const answerEl = document.getElementById('qna-detail-answer');
+  if (questionEl) questionEl.innerHTML = item.content || '';
+  if (answerEl) answerEl.innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
   const answerBtn = document.getElementById('qna-answer-btn');
-  answerBtn.classList.toggle('d-none', !operator);
-  answerBtn.onclick = () => {
-    openQnaAnswerEditor(id);
-  };
+  if (answerBtn) {
+    answerBtn.classList.toggle('d-none', !operator);
+    answerBtn.onclick = () => {
+      openQnaAnswerEditor(normalizedId);
+    };
+  }
   const qnaEditBtn = document.getElementById('qna-detail-edit-btn');
   const qnaDeleteBtn = document.getElementById('qna-detail-delete-btn');
   const canQnaEdit = !!(user && (operator || item.author === user.username || item.author === user.name));
   if (qnaEditBtn) {
     qnaEditBtn.classList.toggle('d-none', !canQnaEdit);
-    qnaEditBtn.onclick = canQnaEdit ? (() => startEditNews(id, 'qna')) : null;
+    qnaEditBtn.onclick = canQnaEdit ? (() => startEditNews(normalizedId, 'qna')) : null;
   }
   if (qnaDeleteBtn) {
     qnaDeleteBtn.classList.toggle('d-none', !canQnaEdit);
     qnaDeleteBtn.onclick = canQnaEdit ? (() => {
       if (!confirm('이 Q&A를 삭제하시겠습니까?')) return;
       const next = getContent();
-      next.qna = (next.qna || []).filter(entry => entry.id !== id);
+      next.qna = (next.qna || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
       renderQna();
       movePanel('news');
@@ -404,12 +455,14 @@ function openQnaDetail(id) {
   }
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  document.getElementById('qna-detail').classList.add('panel-active');
+  document.getElementById('qna-detail')?.classList.add('panel-active');
 }
 
 function openNotice(id) {
   const data = getContent();
-  const notice = data.news.find(n => n.id === id);
+  const newsItems = Array.isArray(data.news) ? data.news : [];
+  const normalizedId = normalizeId(id);
+  const notice = newsItems.find((n) => normalizeId(n.id) === normalizedId);
   if (!notice) return;
   notice.views = (notice.views || 0) + 1;
   saveContent(data);
@@ -424,8 +477,10 @@ function openNotice(id) {
   const deleteBtn = document.getElementById('news-detail-delete-btn');
   const recommendBtn = document.getElementById('news-recommend-btn');
   const recommendCountEl = document.getElementById('news-recommend-count');
-  const itemKey = getPostKey('news', id);
-  currentNewsDetailId = id;
+  const itemKey = getPostKey('news', normalizedId);
+  currentNewsDetailId = normalizedId;
+
+  if (!titleEl || !contentEl || !imageEl || !editBtn || !deleteBtn) return;
 
   titleEl.textContent = notice.title;
   const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
@@ -453,9 +508,9 @@ function openNotice(id) {
       return `${raw}${raw.includes('?') ? '&' : '?'}inline=1`;
     };
     const attachmentHtml = attachments.map((file) => {
-      const fileUrl = file.file_url || file.url || '#';
-      const downloadUrl = file.download_url || file.downloadUrl || fileUrl;
-      const previewUrl = file.preview_url || file.inline_url || appendInlineQuery(fileUrl);
+      const fileUrl = safeUrl(file.file_url || file.url) || '#';
+      const downloadUrl = safeUrl(file.download_url || file.downloadUrl || fileUrl) || '#';
+      const previewUrl = safeUrl(file.preview_url || file.inline_url || appendInlineQuery(fileUrl)) || '#';
       const mimeType = String(file.mime_type || '').toLowerCase();
       const fileName = String(file.original_name || file.name || '첨부파일');
       const fileSize = Number(file.size || 0);
@@ -476,7 +531,7 @@ function openNotice(id) {
           <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
         `;
       }
-      const imageThumb = file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl;
+      const imageThumb = safeUrl(file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl) || fileUrl;
       return `
         <a class="d-inline-block mt-2 me-2" href="${fileUrl}" target="_blank" rel="noopener">
           <img src="${imageThumb}" alt="첨부 이미지 미리보기: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
@@ -496,8 +551,8 @@ function openNotice(id) {
       };
     }
   }
-  document.getElementById('news-recommend-btn').parentElement.classList.remove('d-none');
-  const noticeImage = (Array.isArray(notice.images) && notice.images[0]) || notice.image_url || notice.image;
+  if (recommendBtn?.parentElement) recommendBtn.parentElement.classList.remove('d-none');
+  const noticeImage = safeUrl((Array.isArray(notice.images) && notice.images[0]) || notice.image_url || notice.image);
   if (noticeImage) {
     imageEl.src = noticeImage;
     imageEl.classList.remove('d-none');
@@ -508,18 +563,18 @@ function openNotice(id) {
   const canManage = !!(user && (isAdminUser(user) || notice.author === user.username || notice.author === user.name));
   if (editBtn) {
     editBtn.classList.toggle('d-none', !canManage);
-    editBtn.onclick = canManage ? (() => startEditNews(id, 'notice')) : null;
+    editBtn.onclick = canManage ? (() => startEditNews(normalizedId, 'notice')) : null;
   }
   if (canManage) {
     deleteBtn.classList.remove('d-none');
     deleteBtn.onclick = () => {
       if (!confirm('이 공지글을 삭제하시겠습니까?')) return;
       const next = getContent();
-      next.news = next.news.filter(n => n.id !== id);
+      next.news = (next.news || []).filter((n) => normalizeId(n.id) !== normalizedId);
       saveContent(next);
       deleteBtn.classList.add('d-none');
       document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-      document.getElementById('news').classList.add('panel-active');
+      document.getElementById('news')?.classList.add('panel-active');
       renderNews();
     };
   } else {
@@ -549,7 +604,7 @@ function openNotice(id) {
   renderPostComments('news-comments-section', itemKey);
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  document.getElementById('news-detail').classList.add('panel-active');
+  document.getElementById('news-detail')?.classList.add('panel-active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -566,9 +621,10 @@ function renderGallery() {
   grid.innerHTML = makeSkeletonCards(6);
 
   try {
-    const filtered = content.gallery.filter(item => {
-      const byYear = galleryCurrentFilter === '*' || item.category === galleryCurrentFilter.replace('.', '');
-      const byKeyword = !gallerySearchKeyword || item.title.toLowerCase().includes(gallerySearchKeyword.toLowerCase());
+    const galleryItems = Array.isArray(content.gallery) ? content.gallery : [];
+    const filtered = galleryItems.filter((item) => {
+      const byYear = galleryCurrentFilter === '*' || String(item?.category || '') === String(galleryCurrentFilter || '').replace('.', '');
+      const byKeyword = !gallerySearchKeyword || safeLowerText(item?.title).includes(safeLowerText(gallerySearchKeyword));
       return byYear && byKeyword;
     });
     totalCount.textContent = String(filtered.length);
@@ -580,10 +636,11 @@ function renderGallery() {
 
     grid.innerHTML = '';
 
-  pageItems.forEach(item => {
+  pageItems.forEach((item) => {
     const user = getCurrentUser();
-    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-    const recommendCount = getRecommendCount(getPostKey('gallery', item.id));
+    const galleryId = normalizeId(item?.id);
+    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
+    const recommendCount = getRecommendCount(getPostKey('gallery', galleryId));
     const firstBodyImage = getFirstImageFromHtml(item.content || '');
     const thumbImage = item.thumb_url
       || item.thumbnail_url
@@ -593,16 +650,21 @@ function renderGallery() {
       || (Array.isArray(item.images) ? item.images[0] : '')
       || item.image
       || 'logo.png';
+    const safeThumb = safeUrl(thumbImage) || 'logo.png';
+    const safeTitle = safeText(item?.title || '제목 없음');
+    const safeDate = safeText(item?.date || '');
+    const safeYear = safeText(item?.year || '');
+    const categoryClass = safeCategoryClass(item?.category);
     const div = document.createElement('div');
-    div.className = `col-md-6 col-lg-4 gallery-item ${item.category}`;
+    div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
     div.innerHTML = `
-      <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${item.id})">
-        <img src="${thumbImage}" alt="${item.title}" loading="lazy" decoding="async" width="640" height="480">
+      <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
+        <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
         <div class="gallery-caption p-3 bg-white border-top">
-          <h6 class="mb-1">${item.title}</h6>
-          <small class="text-muted">${item.date || ''} · ${item.year}</small>
+          <h6 class="mb-1">${safeTitle}</h6>
+          <small class="text-muted">${safeDate} · ${safeYear}</small>
           <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
-          ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${item.id});">수정</button></div>` : ''}
+          ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${galleryId});">수정</button></div>` : ''}
         </div>
         <div class="gallery-overlay">
           <i class="fas fa-search-plus"></i>
@@ -663,7 +725,9 @@ function renderGallery() {
 
 function openGalleryDetail(id) {
   const content = getContent();
-  const item = content.gallery.find(x => x.id === id);
+  const galleryItems = Array.isArray(content.gallery) ? content.gallery : [];
+  const normalizedId = normalizeId(id);
+  const item = galleryItems.find((x) => normalizeId(x.id) === normalizedId);
   if (!item) return;
 
   item.views = (item.views || 0) + 1;
@@ -672,24 +736,28 @@ function openGalleryDetail(id) {
 
   const user = getCurrentUser();
   const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
-  const itemKey = getPostKey('gallery', id);
-  currentGalleryDetailId = id;
+  const itemKey = getPostKey('gallery', normalizedId);
+  currentGalleryDetailId = normalizedId;
   const detailImage = document.getElementById('gallery-detail-image');
   const detailContentHtml = String(item.content || '');
   const originalImage = item.image_url
     || item.image
     || (Array.isArray(item.images) ? item.images[0] : '')
     || '';
+  const safeOriginalImage = safeUrl(originalImage);
   if (detailImage) {
-    if (originalImage) {
-      detailImage.src = originalImage;
+    if (safeOriginalImage) {
+      detailImage.src = safeOriginalImage;
       detailImage.classList.remove('d-none');
     } else {
       detailImage.removeAttribute('src');
       detailImage.classList.add('d-none');
     }
   }
-  document.getElementById('gallery-detail-title').innerText = item.title;
+  const titleEl = document.getElementById('gallery-detail-title');
+  const contentEl = document.getElementById('gallery-detail-content');
+  if (!titleEl || !contentEl) return;
+  titleEl.innerText = item.title;
   updateDetailMeta('gallery', {
     author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
     date: formatDetailDateTime(item.date),
@@ -698,7 +766,7 @@ function openGalleryDetail(id) {
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  document.getElementById('gallery-detail-content').innerHTML = detailContentHtml || '내용이 없습니다.';
+  contentEl.innerHTML = detailContentHtml || '내용이 없습니다.';
   enableContentImagePreview('gallery-detail-content');
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
@@ -722,23 +790,23 @@ function openGalleryDetail(id) {
   const editBtn = document.getElementById('gallery-detail-edit-btn');
   const deleteBtn = document.getElementById('gallery-detail-delete-btn');
   if (canEdit) {
-    editBtn.classList.remove('d-none');
-    deleteBtn.classList.remove('d-none');
-    editBtn.onclick = () => startEditGallery(id);
-    deleteBtn.onclick = () => {
+    if (editBtn) editBtn.classList.remove('d-none');
+    if (deleteBtn) deleteBtn.classList.remove('d-none');
+    if (editBtn) editBtn.onclick = () => startEditGallery(normalizedId);
+    if (deleteBtn) deleteBtn.onclick = () => {
       if (!confirm('이 글을 삭제하시겠습니까?')) return;
       const data = getContent();
-      data.gallery = data.gallery.filter(g => g.id !== id);
+      data.gallery = (data.gallery || []).filter((g) => normalizeId(g.id) !== normalizedId);
       saveContent(data);
       document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-      document.getElementById('gallery').classList.add('panel-active');
+      document.getElementById('gallery')?.classList.add('panel-active');
       renderGallery();
     };
   } else {
-    editBtn.classList.add('d-none');
-    deleteBtn.classList.add('d-none');
-    editBtn.onclick = null;
-    deleteBtn.onclick = null;
+    if (editBtn) editBtn.classList.add('d-none');
+    if (deleteBtn) deleteBtn.classList.add('d-none');
+    if (editBtn) editBtn.onclick = null;
+    if (deleteBtn) deleteBtn.onclick = null;
   }
 
   const recommendBtn = document.getElementById('gallery-recommend-btn');
@@ -765,7 +833,7 @@ function openGalleryDetail(id) {
   renderPostComments('gallery-comments-section', itemKey);
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  document.getElementById('gallery-detail').classList.add('panel-active');
+  document.getElementById('gallery-detail')?.classList.add('panel-active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 

@@ -45,6 +45,13 @@ def upload_policy_error_message(category, extension, mime_type):
     return ""
 
 
+def validate_upload_policy(category, filename, raw_mime):
+    extension = extension_of(filename)
+    mime_type = mime_of(raw_mime)
+    error_message = upload_policy_error_message(category, extension, mime_type)
+    return error_message, extension, mime_type
+
+
 def should_generate_gallery_thumbnail(category):
     return str(category or "").lower() == "gallery"
 

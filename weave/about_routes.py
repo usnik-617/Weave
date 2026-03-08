@@ -3,6 +3,7 @@ import re
 import json
 
 from weave import core, error_messages
+from weave import validators
 from weave.authz import is_admin_like, role_at_least
 from weave.core_audit import log_audit
 from weave.core import get_current_user_row, get_db_connection, request
@@ -61,6 +62,12 @@ def _ensure_site_editor_history_table(conn):
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_site_editor_history_created_by ON site_editor_history(created_by)"
     )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_action_created ON site_editor_history(action, created_at DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_created_by_created ON site_editor_history(created_by, created_at DESC)"
+    )
 
 
 def _site_editor_payload_or_default(raw_payload):
@@ -114,10 +121,23 @@ def _validate_hero_background_block(content_html):
     if not isinstance(payload, dict):
         return False, "hero_background는 객체 형식이어야 합니다.", ""
 
-    payload["imageOffsetX"] = max(-120, min(120, _coerce_int(payload.get("imageOffsetX", 0), 0)))
-    payload["imageOffsetY"] = max(-120, min(120, _coerce_int(payload.get("imageOffsetY", 0), 0)))
-    payload["backgroundPosX"] = max(0, min(100, _coerce_int(payload.get("backgroundPosX", 50), 50)))
-    payload["backgroundPosY"] = max(0, min(100, _coerce_int(payload.get("backgroundPosY", 45), 45)))
+    rules = [
+        ("imageOffsetX", -120, 120, 0),
+        ("imageOffsetY", -120, 120, 0),
+        ("backgroundPosX", 0, 100, 50),
+        ("backgroundPosY", 0, 100, 45),
+    ]
+    for field_name, minimum, maximum, default_value in rules:
+        ok, value, message = validators.coerce_int_in_range(
+            payload.get(field_name, default_value),
+            field_name,
+            minimum,
+            maximum,
+            default=default_value,
+        )
+        if not ok:
+            return False, message, ""
+        payload[field_name] = value
 
     return True, "", json.dumps(payload, ensure_ascii=False)
 
@@ -149,6 +169,18 @@ def _read_site_editor_state(conn):
 
 
 def _upsert_site_editor_state(conn, payload, user_id):
+    current = _read_site_editor_state(conn)
+    current_updated_at = str(current.get("updatedAt") or "")
+    next_updated_at = now_iso()
+    if next_updated_at == current_updated_at:
+        if "." in current_updated_at:
+            base, suffix = current_updated_at.rsplit(".", 1)
+            if suffix.isdigit():
+                next_updated_at = f"{base}.{int(suffix) + 1}"
+            else:
+                next_updated_at = f"{current_updated_at}.1"
+        else:
+            next_updated_at = f"{current_updated_at}.1"
     conn.execute(
         """
         INSERT INTO about_sections (section_key, content_html, image_url, updated_at, updated_by)
@@ -161,7 +193,7 @@ def _upsert_site_editor_state(conn, payload, user_id):
         (
             SITE_EDITOR_SECTION_KEY,
             json.dumps(_site_editor_payload_or_default(payload), ensure_ascii=False),
-            now_iso(),
+            next_updated_at,
             user_id,
         ),
     )
@@ -440,6 +472,9 @@ def update_site_editor_state():
         return error_response(error_messages.UNAUTHORIZED, 401)
 
     current = _read_site_editor_state(conn)
+    if if_match_updated_at and len(str(if_match_updated_at)) > 96:
+        conn.close()
+        return error_response("ifMatchUpdatedAt 값이 너무 깁니다.", 400)
     if if_match_updated_at and str(if_match_updated_at) != str(current.get("updatedAt") or ""):
         conn.close()
         return error_response(error_messages.POST_SITE_EDITOR_CONFLICT, 409)
@@ -489,8 +524,11 @@ def reset_site_editor_state():
 
 
 def list_site_editor_history():
-    limit = int(request.args.get("limit", "20") or 20)
-    limit = max(1, min(limit, 100))
+    ok, limit, message = validators.coerce_int_in_range(
+        request.args.get("limit", "20"), "limit", 1, 100, default=20
+    )
+    if not ok:
+        return error_response(message, 400)
 
     conn = get_db_connection()
     _ensure_site_editor_history_table(conn)
@@ -580,10 +618,11 @@ def undo_site_editor_state():
 
 def restore_site_editor_state():
     payload = request.get_json(silent=True) or {}
-    history_id = int(payload.get("historyId") or 0)
-    if history_id <= 0:
-        return error_response(error_messages.POST_SITE_EDITOR_HISTORY_NOT_FOUND, 404)
-
+    ok, history_id, message = validators.coerce_int_in_range(
+        payload.get("historyId"), "historyId", 1, 100000000, default=None
+    )
+    if not ok:
+        return error_response(message, 400)
     conn = get_db_connection()
     _ensure_site_editor_history_table(conn)
     me, err = _require_active_admin(conn)

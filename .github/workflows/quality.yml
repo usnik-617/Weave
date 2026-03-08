@@ -32,11 +32,24 @@ jobs:
       - name: Install Node deps
         run: npm ci
 
+      - name: Static/root sync drift check
+        run: |
+          npm run check:sync-static-root || (echo 'Static/root drift detected. Changed files:'; git --no-pager diff --name-only -- index.html static/index.html styles.css static/styles.css js/app-core.js static/js/app-core.js js/app-main.js static/js/app-main.js js/app-auth-init.js static/js/app-auth-init.js js/app-navigation-init.js static/js/app-navigation-init.js js/app-admin-init.js static/js/app-admin-init.js js/app-site-editor-config.js static/js/app-site-editor-config.js js/app-site-editor-core.js static/js/app-site-editor-core.js js/app-site-editor-sanitize.js static/js/app-site-editor-sanitize.js; echo 'Mirror hash diagnostics:'; sha256sum index.html static/index.html styles.css static/styles.css js/app-core.js static/js/app-core.js js/app-main.js static/js/app-main.js js/app-auth-init.js static/js/app-auth-init.js js/app-navigation-init.js static/js/app-navigation-init.js || true; exit 1)
+
+      - name: Brand contrast check
+        run: npm run check:brand-contrast
+
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Black check
         run: python -m black --check weave app.py wsgi.py models.py db_repository.py
 
-      - name: Playwright smoke
+      - name: Playwright smoke (core)
         run: npx playwright test tests/routing-smoke.spec.js tests/auth-and-write.spec.js tests/notice-calendar-link.spec.js --reporter=line
+
+      - name: Playwright smoke (responsive)
+        run: npx playwright test tests/responsive-layout.spec.js --project=chromium --project=webkit-mobile --reporter=line
+
+      - name: Playwright smoke (api errors)
+        run: npx playwright test tests/api-error-cases.spec.js --project=chromium --reporter=line

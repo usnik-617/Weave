@@ -4,8 +4,292 @@
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
     initModalScrollLock();
+    const applyViewportUnitVars = () => {
+      const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const onePercent = Math.max(viewportHeight * 0.01, 1);
+      document.documentElement.style.setProperty('--vh', `${onePercent}px`);
+      document.documentElement.style.setProperty('--modal-vh', `${onePercent}px`);
+      document.documentElement.style.setProperty('--panel-vh', `${onePercent}px`);
+    };
+    applyViewportUnitVars();
+    window.addEventListener('resize', applyViewportUnitVars);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', applyViewportUnitVars);
+      window.visualViewport.addEventListener('scroll', applyViewportUnitVars);
+    }
+
+    const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+    const mobileModals = ['loginModal', 'signupModal'].map((id) => document.getElementById(id)).filter(Boolean);
+    const modalReturnFocusMap = new Map();
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const trigger = target.closest('[data-bs-target="#loginModal"], [data-bs-target="#signupModal"]');
+      if (!(trigger instanceof HTMLElement)) return;
+      const modalSelector = String(trigger.getAttribute('data-bs-target') || '');
+      if (!modalSelector) return;
+      modalReturnFocusMap.set(modalSelector, trigger);
+    });
+    const baselineViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const baselineInnerHeight = window.innerHeight;
+    const keyboardThreshold = Math.max(130, baselineViewportHeight * 0.15);
+    let modalInputFocused = false;
+
+    const syncKeyboardAwareNav = () => {
+      const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
+      const currentViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const viewportScale = window.visualViewport ? Number(window.visualViewport.scale || 1) : 1;
+      const activeInput = document.activeElement instanceof HTMLElement
+        ? document.activeElement.closest('input, textarea, select, [contenteditable="true"]')
+        : null;
+      const activeRect = activeInput instanceof HTMLElement ? activeInput.getBoundingClientRect() : null;
+      const nearBottomInput = !!(activeRect && activeRect.bottom > currentViewportHeight * 0.62);
+      const fallbackHeightDrop = Math.max(0, baselineInnerHeight - window.innerHeight);
+      const keyboardLikelyWithoutVisualViewport = !window.visualViewport
+        && fallbackHeightDrop > Math.max(120, baselineInnerHeight * 0.18)
+        && nearBottomInput;
+      const keyboardLikelyOpen = (baselineViewportHeight - currentViewportHeight) > keyboardThreshold
+        && nearBottomInput
+        && viewportScale <= 1.05;
+      const shouldHideNav = isMobileViewport && (keyboardLikelyOpen || keyboardLikelyWithoutVisualViewport || modalInputFocused);
+      document.body.classList.toggle('keyboard-open', shouldHideNav);
+      if (mobileBottomNav) {
+        mobileBottomNav.setAttribute('aria-hidden', shouldHideNav ? 'true' : 'false');
+      }
+    };
+
+    document.addEventListener('focusin', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (window.matchMedia('(max-width: 768px)').matches
+        && target.matches('input, textarea, select, [contenteditable="true"]')) {
+        modalInputFocused = true;
+        const inModalBody = target.closest('.modal .modal-body');
+        if (inModalBody instanceof HTMLElement) {
+          window.setTimeout(() => {
+            target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+          }, 40);
+        }
+        syncKeyboardAwareNav();
+      }
+    });
+
+    document.addEventListener('focusout', () => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        const stillInAuthModal = active instanceof HTMLElement
+          && !!active.closest('#loginModal, #signupModal');
+        modalInputFocused = stillInAuthModal;
+        syncKeyboardAwareNav();
+      }, 0);
+    });
+
+    mobileModals.forEach((modalEl) => {
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        modalInputFocused = false;
+        const selector = `#${modalEl.id}`;
+        const returnFocusTarget = modalReturnFocusMap.get(selector);
+        if (returnFocusTarget instanceof HTMLElement) {
+          window.setTimeout(() => {
+            returnFocusTarget.focus();
+          }, 0);
+        }
+        syncKeyboardAwareNav();
+      });
+    });
+
+    window.addEventListener('resize', syncKeyboardAwareNav);
+    window.addEventListener('orientationchange', () => {
+      window.setTimeout(() => {
+        applyViewportUnitVars();
+        syncKeyboardAwareNav();
+      }, 100);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncKeyboardAwareNav);
+      window.visualViewport.addEventListener('scroll', syncKeyboardAwareNav);
+    }
+    syncKeyboardAwareNav();
+
     renderAboutVolunteerPhoto();
     bindAboutPhotoUploader();
+
+    const reducedDataMedia = window.matchMedia ? window.matchMedia('(prefers-reduced-data: reduce)') : null;
+    const computeReducedData = () => {
+      const saveData = !!(navigator.connection && navigator.connection.saveData);
+      return saveData || !!(reducedDataMedia && reducedDataMedia.matches);
+    };
+    let prefersReducedData = computeReducedData();
+    document.body.classList.toggle('reduced-data-mode', prefersReducedData);
+    const criticalImageIds = new Set(['home-hero-image', 'logo-img']);
+
+    const downshiftImageUrlForReducedData = (rawUrl) => {
+      const value = String(rawUrl || '').trim();
+      if (!value || value.startsWith('data:')) return value;
+      try {
+        const parsed = new URL(value, window.location.origin);
+        const isLocalUpload = parsed.origin === window.location.origin && /\/uploads\//i.test(parsed.pathname);
+        if (isLocalUpload) {
+          const width = Number(parsed.searchParams.get('w') || parsed.searchParams.get('width') || 960);
+          parsed.searchParams.set('w', String(Math.max(360, Math.floor(width * 0.7))));
+          parsed.searchParams.set('q', '60');
+          return parsed.toString();
+        }
+        if (!/unsplash\.com$/i.test(parsed.hostname) && !/images\.unsplash\.com$/i.test(parsed.hostname)) {
+          return value;
+        }
+        const width = Number(parsed.searchParams.get('w') || parsed.searchParams.get('width') || 0);
+        if (width > 0) {
+          parsed.searchParams.set('w', String(Math.max(280, Math.floor(width * 0.72))));
+        }
+        parsed.searchParams.set('q', '58');
+        return parsed.toString();
+      } catch (_error) {
+        return value;
+      }
+    };
+
+    let reducedDataObserver = null;
+    const getImagePriorityTier = (img) => {
+      if (!(img instanceof HTMLImageElement)) return 'low';
+      const sectionId = String(img.closest('section')?.id || '');
+      if (criticalImageIds.has(String(img.id || ''))) return 'high';
+      if (sectionId === 'home' || sectionId === 'home-notice-carousel') return 'high';
+      if (sectionId === 'about' || sectionId === 'home-calendar-preview') return 'auto';
+      return 'low';
+    };
+
+    const applyReducedDataToImage = (img, forceReducedData = prefersReducedData) => {
+      if (!(img instanceof HTMLImageElement)) return;
+      const isCritical = criticalImageIds.has(String(img.id || ''));
+      const priorityTier = getImagePriorityTier(img);
+      if (forceReducedData) {
+        if (!isCritical) {
+          img.setAttribute('loading', 'lazy');
+          img.setAttribute('fetchpriority', 'low');
+          ['src', 'srcset', 'data-src', 'data-srcset'].forEach((attr) => {
+            const current = img.getAttribute(attr);
+            if (!current) return;
+            if (attr.includes('srcset')) {
+              const compact = current.split(',').map((part) => {
+                const pieces = part.trim().split(/\s+/);
+                const nextUrl = downshiftImageUrlForReducedData(pieces[0]);
+                return [nextUrl, ...pieces.slice(1)].join(' ').trim();
+              }).join(', ');
+              img.setAttribute(attr, compact);
+            } else {
+              img.setAttribute(attr, downshiftImageUrlForReducedData(current));
+            }
+          });
+        } else {
+          img.setAttribute('fetchpriority', 'high');
+          img.setAttribute('loading', 'eager');
+        }
+      } else {
+        if (priorityTier === 'high') {
+          img.setAttribute('fetchpriority', 'high');
+          img.setAttribute('loading', 'eager');
+        } else if (priorityTier === 'auto') {
+          img.setAttribute('fetchpriority', 'auto');
+        } else {
+          img.setAttribute('fetchpriority', 'low');
+          if (!isCritical) img.setAttribute('loading', 'lazy');
+        }
+      }
+      if (!img.hasAttribute('loading') && !isCritical) {
+        img.setAttribute('loading', 'lazy');
+      }
+      if (!img.hasAttribute('decoding')) {
+        img.setAttribute('decoding', 'async');
+      }
+    };
+
+    const applyReducedDataImagePolicy = (forceReducedData = prefersReducedData) => {
+      if (reducedDataObserver) {
+        reducedDataObserver.disconnect();
+        reducedDataObserver = null;
+      }
+      const allImages = Array.from(document.querySelectorAll('img'));
+      if (forceReducedData && window.__WEAVE_E2E__ === true) {
+        allImages.forEach((img) => applyReducedDataToImage(img, true));
+        return;
+      }
+      if (forceReducedData && 'IntersectionObserver' in window) {
+        reducedDataObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            applyReducedDataToImage(entry.target, true);
+            reducedDataObserver.unobserve(entry.target);
+          });
+        }, { rootMargin: '280px 0px 280px 0px', threshold: 0.01 });
+        allImages.forEach((img) => {
+          const isCritical = criticalImageIds.has(String(img.id || ''));
+          if (isCritical) {
+            applyReducedDataToImage(img, true);
+            return;
+          }
+          reducedDataObserver.observe(img);
+        });
+        return;
+      }
+      allImages.forEach((img) => {
+        applyReducedDataToImage(img, forceReducedData);
+      });
+    };
+    window.__applyReducedDataImagePolicy = applyReducedDataImagePolicy;
+    applyReducedDataImagePolicy(prefersReducedData);
+
+    const shouldWarnResponsiveImage = /localhost|127\.0\.0\.1/i.test(window.location.hostname)
+      || window.location.port === '5111';
+    if (shouldWarnResponsiveImage) {
+      document.querySelectorAll('img').forEach((img) => {
+        const hasSrcSet = img.hasAttribute('srcset');
+        const hasSizes = img.hasAttribute('sizes');
+        if (!hasSrcSet || !hasSizes) {
+          const key = img.id || img.alt || img.getAttribute('src') || 'unknown-image';
+          console.warn('[weave-responsive] 이미지 반응형 속성 점검 필요:', key, {
+            hasSrcSet,
+            hasSizes
+          });
+        }
+      });
+    }
+
+    const notifyServiceWorkerReducedData = (enabled) => {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.ready.then((registration) => {
+        if (!registration.active) return;
+        registration.active.postMessage({
+          type: 'WEAVE_REDUCED_DATA_MODE',
+          enabled: !!enabled
+        });
+      }).catch(() => {});
+    };
+
+    const applyReducedDataMode = () => {
+      prefersReducedData = computeReducedData();
+      document.body.classList.toggle('reduced-data-mode', prefersReducedData);
+      applyReducedDataImagePolicy(prefersReducedData);
+      notifyServiceWorkerReducedData(prefersReducedData);
+    };
+
+    if (reducedDataMedia && typeof reducedDataMedia.addEventListener === 'function') {
+      reducedDataMedia.addEventListener('change', applyReducedDataMode);
+    }
+    if (navigator.connection && typeof navigator.connection.addEventListener === 'function') {
+      navigator.connection.addEventListener('change', applyReducedDataMode);
+    }
+    document.addEventListener('weave:panel-changed', () => {
+      if (prefersReducedData) applyReducedDataImagePolicy(true);
+    });
+    applyReducedDataMode();
+
+    const sessionSummary = document.getElementById('session-expired-summary');
+    if (sessionSummary instanceof HTMLElement) {
+      sessionSummary.textContent = document.querySelector('.rich-editor, [contenteditable="true"]')
+        ? '작성 중인 내용은 자동 저장되지 않았을 수 있습니다. 저장 후 다시 로그인하는 것을 권장합니다.'
+        : '진행 중 작업이 있다면 다시 로그인 후 상태를 확인해주세요.';
+    }
 
     const sanitizeNicknameInput = (inputEl) => {
       if (!inputEl) return;
@@ -61,7 +345,9 @@
         el.setAttribute('autocomplete', el.getAttribute('name') === 'emailConfirm' ? 'email' : 'email');
       }
       if (el.type === 'password') {
-        el.setAttribute('autocomplete', 'current-password');
+        if (!el.getAttribute('autocomplete')) {
+          el.setAttribute('autocomplete', 'current-password');
+        }
       }
       if (el.name === 'birthdate') el.setAttribute('inputmode', 'numeric');
       if (el.name === 'phone') {
@@ -71,11 +357,23 @@
       if (el.name === 'username') {
         el.setAttribute('autocorrect', 'off');
         el.setAttribute('spellcheck', 'false');
+        if (!el.getAttribute('enterkeyhint')) el.setAttribute('enterkeyhint', 'next');
+      }
+      if (el.name === 'password' && !el.getAttribute('enterkeyhint')) {
+        const inLoginForm = !!el.closest('#login-form');
+        el.setAttribute('enterkeyhint', inLoginForm ? 'go' : 'next');
       }
       if (el.name === 'author') {
         el.setAttribute('autocomplete', 'nickname');
         el.setAttribute('autocapitalize', 'off');
         el.setAttribute('spellcheck', 'false');
+      }
+      if (el.name === 'phone' && !el.getAttribute('enterkeyhint')) {
+        el.setAttribute('enterkeyhint', 'next');
+      }
+      if (el.type === 'search' || el.classList.contains('responsive-search-input')) {
+        el.setAttribute('inputmode', 'search');
+        if (!el.getAttribute('enterkeyhint')) el.setAttribute('enterkeyhint', 'search');
       }
     });
 
@@ -91,6 +389,7 @@
             body: JSON.stringify({ username: identifier, password })
           });
           setCurrentUser(data.user);
+          document.dispatchEvent(new CustomEvent('weave:user-state-changed', { detail: { loggedIn: true } }));
           const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
           if (loginModal) loginModal.hide();
           if (PENDING_RETURN_PANEL) {
@@ -112,6 +411,40 @@
 
     const signupForm = document.getElementById('signup-form');
     if (signupForm) {
+      const optionalFieldNodes = Array.from(signupForm.querySelectorAll('.signup-optional-field'));
+      const optionalToggleBtn = document.getElementById('signup-optional-toggle');
+      const optionalStateKey = 'weave.signupOptional.expanded';
+      const persistedOptional = window.sessionStorage.getItem(optionalStateKey);
+      let optionalExpanded = persistedOptional == null
+        ? !window.matchMedia('(max-width: 576px)').matches
+        : persistedOptional === '1';
+
+      const syncOptionalFields = () => {
+        optionalFieldNodes.forEach((node) => {
+          node.classList.toggle('is-collapsed', !optionalExpanded);
+        });
+        if (optionalToggleBtn) {
+          optionalToggleBtn.textContent = optionalExpanded ? '접기' : '펼치기';
+          optionalToggleBtn.setAttribute('aria-expanded', optionalExpanded ? 'true' : 'false');
+        }
+        window.sessionStorage.setItem(optionalStateKey, optionalExpanded ? '1' : '0');
+      };
+
+      if (optionalToggleBtn) {
+        optionalToggleBtn.addEventListener('click', () => {
+          optionalExpanded = !optionalExpanded;
+          syncOptionalFields();
+        });
+      }
+
+      const optionalMedia = window.matchMedia('(max-width: 576px)');
+      optionalMedia.addEventListener('change', () => {
+        const persisted = window.sessionStorage.getItem(optionalStateKey);
+        optionalExpanded = persisted == null ? !optionalMedia.matches : persisted === '1';
+        syncOptionalFields();
+      });
+      syncOptionalFields();
+
       const signupSubmitBtn = document.getElementById('signup-submit-btn');
       const signupInputs = signupForm.querySelectorAll('input');
 

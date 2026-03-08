@@ -41,10 +41,10 @@ def upload_post_file(post_id):
     file_storage = request.files.get("file")
     post_category = str(post["category"] or "").lower()
     filename = secure_filename(str(file_storage.filename or "")) if file_storage else ""
-    extension = post_file_policy.extension_of(filename)
-    mime_type = post_file_policy.mime_of(file_storage.mimetype) if file_storage else ""
-    policy_error = post_file_policy.upload_policy_error_message(
-        post_category, extension, mime_type
+    policy_error, _, _ = post_file_policy.validate_upload_policy(
+        post_category,
+        filename,
+        file_storage.mimetype if file_storage else "",
     )
     if policy_error:
         conn.close()

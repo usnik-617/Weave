@@ -56,5 +56,14 @@ window.WEAVE_SITE_EDITOR_CONFIG = {
     '#home-hero-image',
     '#about-volunteer-image',
     '#logo-panel img'
-  ]
+  ],
+  controls: {
+    toggleButton: '#site-edit-toggle-btn',
+    saveButton: '#site-edit-save-btn',
+    undoButton: '#site-edit-undo-btn',
+    historySelect: '#site-edit-history-select',
+    historyRestoreButton: '#site-edit-history-restore-btn',
+    historyRefreshButton: '#site-edit-history-refresh-btn',
+    resetButton: '#site-edit-reset-btn'
+  }
 };

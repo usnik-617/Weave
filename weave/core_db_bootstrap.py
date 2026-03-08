@@ -534,6 +534,14 @@ def init_db(default_admin_password):
         )
     if "created_at" not in audit_cols:
         cur.execute("ALTER TABLE audit_logs ADD COLUMN created_at TEXT")
+    if "request_id" not in audit_cols:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN request_id TEXT DEFAULT ''")
+    if "request_path" not in audit_cols:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN request_path TEXT DEFAULT ''")
+    if "request_method" not in audit_cols:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN request_method TEXT DEFAULT ''")
+    if "actor_role" not in audit_cols:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN actor_role TEXT DEFAULT ''")
 
     cur.execute(
         """
@@ -606,6 +614,15 @@ def init_db(default_admin_password):
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_action_created ON audit_logs(action, created_at DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_action_created ON site_editor_history(action, created_at DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_site_editor_history_created_by_created ON site_editor_history(created_by, created_at DESC)"
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_user_activity_user_created ON user_activity(user_id, created_at DESC)"

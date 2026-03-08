@@ -4,11 +4,21 @@ from weave import core
 
 
 def write_app_log(level, action, user_id=None, extra=None):
+    request_id = ""
+    request_path = ""
+    request_method = ""
+    if core.request:
+        request_id = str(core.request.headers.get("X-Request-Id", "")).strip()
+        request_path = str(core.request.path or "")
+        request_method = str(core.request.method or "")
     payload = {
         "action": action,
         "ip": core.get_client_ip() if core.request else "unknown",
         "user_id": user_id,
         "user_agent": core.get_user_agent() if core.request else "",
+        "request_id": request_id,
+        "request_path": request_path,
+        "request_method": request_method,
     }
     if extra:
         payload.update(extra)
@@ -36,9 +46,16 @@ def log_audit(*args, **kwargs):
         metadata = args[4] if len(args) > 4 else kwargs.get("metadata")
 
     actor = actor_user_id if actor_user_id is not None else core.current_user_id()
+    request_id = ""
+    request_path = ""
+    request_method = ""
+    if core.request:
+        request_id = str(core.request.headers.get("X-Request-Id", "")).strip()
+        request_path = str(core.request.path or "")
+        request_method = str(core.request.method or "")
     sql = (
-        "INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata_json, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata_json, created_at, request_id, request_path, request_method, actor_role) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     values = (
         actor,
@@ -47,13 +64,23 @@ def log_audit(*args, **kwargs):
         int(target_id) if target_id is not None else None,
         core.json.dumps(metadata or {}, ensure_ascii=False),
         core.now_iso(),
+        request_id,
+        request_path,
+        request_method,
+        str((metadata or {}).get("actor_role", "")).strip(),
     )
 
     try:
         if conn is None:
             conn = core.get_db_connection()
             owns_connection = True
-        conn.execute(sql, values)
+        try:
+            conn.execute(sql, values)
+        except core.sqlite3.OperationalError:
+            conn.execute(
+                "INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                values[:6],
+            )
         if owns_connection:
             conn.commit()
     except Exception as exc:
