@@ -60,6 +60,7 @@ html {
   scroll-padding-top: 80px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -67,7 +68,7 @@ body {
   color: var(--text-dark);
   background: #ffffff;
   line-height: 1.6;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 img,
@@ -198,7 +199,7 @@ button {
 .responsive-toolbar.faq-toolbar,
 .responsive-toolbar.qna-toolbar,
 .responsive-toolbar.gallery-toolbar {
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .responsive-toolbar.ops-toolbar {
@@ -513,8 +514,7 @@ body.site-edit-mode .site-editable-image {
   position: relative;
 }
 
-#home::before,
-#home-notice-carousel::before {
+#home::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -528,8 +528,7 @@ body.site-edit-mode .site-editable-image {
   pointer-events: none;
 }
 
-#home::after,
-#home-notice-carousel::after {
+#home::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -542,7 +541,7 @@ body.site-edit-mode .site-editable-image {
 }
 
 #home-notice-carousel::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0.66) 100%);
+  content: none;
 }
 
 #home .container,
@@ -553,7 +552,7 @@ body.site-edit-mode .site-editable-image {
 }
 
 #home-notice-carousel {
-  background: transparent !important;
+  background: #f8f9fa !important;
 }
 
 #home p.lead,
@@ -594,6 +593,16 @@ body.site-edit-mode .site-editable-image {
 .hero-bg-editor {
   max-width: 460px;
   margin: 0 auto;
+}
+
+.home-hero-quick-tools {
+  max-width: min(560px, 92vw);
+  margin: 0 auto;
+}
+
+.home-hero-quick-tools .card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
 }
 
 .hero-bg-preview-canvas {
@@ -1516,6 +1525,21 @@ body.site-edit-mode .site-editable-image {
   margin-bottom: 0;
 }
 
+#join .join-benefit-card {
+  text-align: center;
+}
+
+#join .join-benefit-card h5 {
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+  color: var(--text-dark);
+}
+
+#join .join-benefit-card p {
+  margin-bottom: 0;
+  color: var(--text-light);
+}
+
 .text-white-75 {
   color: rgba(255, 255, 255, 0.75);
 }
@@ -2000,6 +2024,7 @@ hr {
   #ops-dashboard td[data-col-key='manage'] .btn {
     min-height: 44px;
     min-width: 108px;
+  }
 
   #calendar-grid {
     overflow-x: hidden;
@@ -2040,7 +2065,6 @@ hr {
 
   #calendar-grid .weave-calendar-cell.day .day-count {
     font-size: 0.66rem;
-  }
   }
 
   #news-table td[data-col-key='title'],
@@ -2425,7 +2449,7 @@ hr {
 }
 
 .mobile-bottom-nav {
-  display: none;
+  display: flex;
   transition: transform 0.2s ease;
 }
 

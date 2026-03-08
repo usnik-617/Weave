@@ -48,11 +48,15 @@ function normalizeExecutive(item) {
   const raw = item || {};
   const rawPhoto = String(raw.photo || '').trim();
   const safePhoto = (rawPhoto.startsWith('data:image/') || /^(https?:)?\/\//i.test(rawPhoto)) ? rawPhoto : '';
+  const safePhotoPosX = Math.max(0, Math.min(100, Number.isFinite(Number(raw.photoPosX)) ? Number(raw.photoPosX) : 50));
+  const safePhotoPosY = Math.max(0, Math.min(100, Number.isFinite(Number(raw.photoPosY)) ? Number(raw.photoPosY) : 50));
   return {
     name: String(raw.name || '').trim().slice(0, ABOUT_EXECUTIVE_NAME_MAX) || '이름 미정',
     role: String(raw.role || '').trim().slice(0, ABOUT_EXECUTIVE_ROLE_MAX) || '직책 미정',
     bio: String(raw.bio || '').trim().slice(0, ABOUT_EXECUTIVE_BIO_MAX) || '소개 문구를 입력해 주세요.',
-    photo: safePhoto
+    photo: safePhoto,
+    photoPosX: safePhotoPosX,
+    photoPosY: safePhotoPosY
   };
 }
 
@@ -118,12 +122,14 @@ function renderExecutives() {
     const safeRole = escapeExecutiveHtml(item.role);
     const safeBio = escapeExecutiveHtml(item.bio);
     const safePhoto = escapeExecutiveHtml(item.photo || ABOUT_EXECUTIVE_FALLBACK_PHOTO);
+    const safePhotoPosX = Math.max(0, Math.min(100, Number(item.photoPosX || 50)));
+    const safePhotoPosY = Math.max(0, Math.min(100, Number(item.photoPosY || 50)));
 
     if (!isAdmin) {
       return `
       <div class="col-12 col-sm-6 col-lg-4">
         <article class="executive-card h-100">
-          <img class="executive-photo" src="${safePhoto}" alt="${safeName} 사진" loading="lazy" decoding="async">
+          <img class="executive-photo" src="${safePhoto}" alt="${safeName} 사진" loading="lazy" decoding="async" style="object-position:${safePhotoPosX}% ${safePhotoPosY}%">
           <div class="p-3">
             <h5 class="fw-bold mb-1">${safeName}</h5>
             <p class="text-primary fw-semibold mb-2">${safeRole}</p>
@@ -136,11 +142,15 @@ function renderExecutives() {
     return `
     <div class="col-12 col-sm-6 col-lg-4">
       <article class="executive-card h-100 executive-card-admin" data-executive-index="${index}">
-        <img class="executive-photo" src="${safePhoto}" alt="${safeName} 사진" loading="lazy" decoding="async">
+        <img class="executive-photo" src="${safePhoto}" alt="${safeName} 사진" loading="lazy" decoding="async" data-executive-photo-preview="${index}" style="object-position:${safePhotoPosX}% ${safePhotoPosY}%" title="클릭/드래그로 사진 위치 조절">
         <div class="p-3 d-flex flex-column gap-2">
           <input class="form-control form-control-sm" data-executive-field="name" data-executive-index="${index}" value="${safeName}" placeholder="이름">
           <input class="form-control form-control-sm" data-executive-field="role" data-executive-index="${index}" value="${safeRole}" placeholder="직책">
           <textarea class="form-control form-control-sm" data-executive-field="bio" data-executive-index="${index}" rows="3" placeholder="소개">${safeBio}</textarea>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" data-executive-move-up-btn="${index}" ${index === 0 ? 'disabled' : ''}>위로</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" data-executive-move-down-btn="${index}" ${index === executives.length - 1 ? 'disabled' : ''}>아래로</button>
+          </div>
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-outline-primary flex-fill" data-executive-photo-btn="${index}" aria-label="${safeName} 사진 변경">사진</button>
             <button type="button" class="btn btn-sm btn-outline-danger flex-fill" data-executive-delete-btn="${index}">삭제</button>
@@ -189,6 +199,81 @@ function renderExecutives() {
       const fileInput = document.getElementById('executive-photo-input');
       if (fileInput instanceof HTMLInputElement) fileInput.click();
     });
+  });
+
+  listEl.querySelectorAll('[data-executive-move-up-btn]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const idx = Number(button.getAttribute('data-executive-move-up-btn'));
+      const current = getStoredExecutives();
+      if (!Number.isInteger(idx) || idx <= 0 || idx >= current.length) return;
+      [current[idx - 1], current[idx]] = [current[idx], current[idx - 1]];
+      saveExecutives(current);
+      renderExecutives();
+    });
+  });
+
+  listEl.querySelectorAll('[data-executive-move-down-btn]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const idx = Number(button.getAttribute('data-executive-move-down-btn'));
+      const current = getStoredExecutives();
+      if (!Number.isInteger(idx) || idx < 0 || idx >= current.length - 1) return;
+      [current[idx], current[idx + 1]] = [current[idx + 1], current[idx]];
+      saveExecutives(current);
+      renderExecutives();
+    });
+  });
+
+  listEl.querySelectorAll('[data-executive-photo-preview]').forEach((imageEl) => {
+    let dragging = false;
+    let pointerId = null;
+    const idx = Number(imageEl.getAttribute('data-executive-photo-preview'));
+    if (!Number.isInteger(idx) || idx < 0) return;
+
+    const applyPointerPosition = (clientX, clientY, persist) => {
+      const rect = imageEl.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const xPct = Math.max(0, Math.min(100, Math.round(((clientX - rect.left) / rect.width) * 100)));
+      const yPct = Math.max(0, Math.min(100, Math.round(((clientY - rect.top) / rect.height) * 100)));
+      imageEl.style.objectPosition = `${xPct}% ${yPct}%`;
+      if (!persist) return;
+      const current = getStoredExecutives();
+      if (!current[idx]) return;
+      current[idx].photoPosX = xPct;
+      current[idx].photoPosY = yPct;
+      saveExecutives(current);
+    };
+
+    imageEl.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      pointerId = event.pointerId;
+      imageEl.setPointerCapture?.(pointerId);
+      applyPointerPosition(event.clientX, event.clientY, false);
+    });
+
+    imageEl.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      if (pointerId !== null && event.pointerId !== pointerId) return;
+      applyPointerPosition(event.clientX, event.clientY, false);
+    });
+
+    imageEl.addEventListener('click', (event) => {
+      if (dragging) return;
+      applyPointerPosition(event.clientX, event.clientY, true);
+      renderExecutives();
+    });
+
+    const finishDrag = (event) => {
+      if (!dragging) return;
+      if (pointerId !== null && event && event.pointerId !== pointerId) return;
+      dragging = false;
+      if (pointerId !== null) imageEl.releasePointerCapture?.(pointerId);
+      applyPointerPosition(event.clientX, event.clientY, true);
+      pointerId = null;
+      renderExecutives();
+    };
+
+    imageEl.addEventListener('pointerup', finishDrag);
+    imageEl.addEventListener('pointercancel', finishDrag);
   });
 }
 

@@ -592,6 +592,11 @@
     const homeHeroForm = document.getElementById('update-home-hero-form');
     const homeHeroBgImageInput = document.getElementById('home-hero-bg-image-input');
     const homeHeroBgImageDropzone = document.getElementById('home-hero-bg-image-dropzone');
+    const homeHeroBgImageInputHome = document.getElementById('home-hero-bg-image-input-home');
+    const homeHeroBgImageDropzoneHome = document.getElementById('home-hero-bg-image-dropzone-home');
+    const homeHeroBgImageOpenHome = document.getElementById('home-hero-bg-image-open-home');
+    const homeHeroBgResetHome = document.getElementById('home-hero-bg-reset-home');
+    const homeHeroBgPreviewHome = document.getElementById('home-hero-bg-preview-home');
     const homeHeroPosX = document.getElementById('home-hero-position-x');
     const homeHeroPosY = document.getElementById('home-hero-position-y');
     const homeHeroPosXNumber = document.getElementById('home-hero-position-x-number');
@@ -609,6 +614,16 @@
     const homeHeroBgPosYMinus = document.getElementById('home-hero-bg-position-y-minus');
     const homeHeroBgPosYPlus = document.getElementById('home-hero-bg-position-y-plus');
     const homeHeroResetBtn = document.getElementById('home-hero-reset-btn');
+    const syncHomeQuickBgPreview = () => {
+      if (!homeHeroBgPreviewHome) return;
+      const hero = getHomeHeroConfig();
+      const bgImage = String(hero.backgroundImage || DEFAULT_HOME_HERO.backgroundImage).replace(/'/g, "\\'");
+      const bgPosX = Math.max(0, Math.min(100, Number(hero.backgroundPosX || 50)));
+      const bgPosY = Math.max(0, Math.min(100, Number(hero.backgroundPosY || 45)));
+      homeHeroBgPreviewHome.style.backgroundImage = `url('${bgImage}')`;
+      homeHeroBgPreviewHome.style.backgroundPosition = `${bgPosX}% ${bgPosY}%`;
+    };
+    syncHomeQuickBgPreview();
     if (homeHeroForm) {
       const hero = getHomeHeroConfig();
       homeHeroForm.leadText.value = hero.leadText;
@@ -806,6 +821,13 @@
         e.target.value = '';
       });
     }
+    if (homeHeroBgImageInputHome) {
+      homeHeroBgImageInputHome.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) applyHomeHeroBackgroundFile(file);
+        e.target.value = '';
+      });
+    }
     if (homeHeroBgImageDropzone) {
       homeHeroBgImageDropzone.addEventListener('click', () => {
         const user = getCurrentUser();
@@ -828,6 +850,89 @@
         const file = e.dataTransfer?.files?.[0];
         if (file) applyHomeHeroBackgroundFile(file);
       });
+    }
+    if (homeHeroBgImageOpenHome) {
+      homeHeroBgImageOpenHome.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!canManageHomeHero(user)) {
+          notifyMessage('권한이 없습니다.');
+          return;
+        }
+        if (homeHeroBgImageInputHome) homeHeroBgImageInputHome.click();
+      });
+    }
+    if (homeHeroBgImageDropzoneHome) {
+      homeHeroBgImageDropzoneHome.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!canManageHomeHero(user)) {
+          notifyMessage('권한이 없습니다.');
+          return;
+        }
+        if (homeHeroBgImageInputHome) homeHeroBgImageInputHome.click();
+      });
+      homeHeroBgImageDropzoneHome.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        homeHeroBgImageDropzoneHome.classList.add('dragover');
+      });
+      homeHeroBgImageDropzoneHome.addEventListener('dragleave', () => {
+        homeHeroBgImageDropzoneHome.classList.remove('dragover');
+      });
+      homeHeroBgImageDropzoneHome.addEventListener('drop', (e) => {
+        e.preventDefault();
+        homeHeroBgImageDropzoneHome.classList.remove('dragover');
+        const file = e.dataTransfer?.files?.[0];
+        if (file) applyHomeHeroBackgroundFile(file);
+      });
+    }
+    if (homeHeroBgResetHome) {
+      homeHeroBgResetHome.addEventListener('click', () => {
+        const user = getCurrentUser();
+        if (!canManageHomeHero(user)) {
+          notifyMessage('권한이 없습니다.');
+          return;
+        }
+        localStorage.removeItem(HOME_HERO_KEY);
+        renderHomeHeroConfig();
+        syncHomeQuickBgPreview();
+        notifyMessage('홈 배경을 기본값으로 복원했습니다.');
+      });
+    }
+    if (homeHeroBgPreviewHome) {
+      let dragging = false;
+      let pointerId = null;
+      const applyQuickPreviewPointer = (clientX, clientY) => {
+        const user = getCurrentUser();
+        if (!canManageHomeHero(user)) return;
+        const rect = homeHeroBgPreviewHome.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const xPct = Math.max(0, Math.min(100, Math.round(((clientX - rect.left) / rect.width) * 100)));
+        const yPct = Math.max(0, Math.min(100, Math.round(((clientY - rect.top) / rect.height) * 100)));
+        saveHomeHeroConfig({ backgroundPosX: xPct, backgroundPosY: yPct });
+        renderHomeHeroConfig();
+        syncHomeQuickBgPreview();
+      };
+      homeHeroBgPreviewHome.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        pointerId = event.pointerId;
+        homeHeroBgPreviewHome.classList.add('dragging');
+        homeHeroBgPreviewHome.setPointerCapture?.(pointerId);
+        applyQuickPreviewPointer(event.clientX, event.clientY);
+      });
+      homeHeroBgPreviewHome.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        if (pointerId !== null && event.pointerId !== pointerId) return;
+        applyQuickPreviewPointer(event.clientX, event.clientY);
+      });
+      const finishQuickPreviewPointer = (event) => {
+        if (!dragging) return;
+        if (pointerId !== null && event && event.pointerId !== pointerId) return;
+        dragging = false;
+        if (pointerId !== null) homeHeroBgPreviewHome.releasePointerCapture?.(pointerId);
+        pointerId = null;
+        homeHeroBgPreviewHome.classList.remove('dragging');
+      };
+      homeHeroBgPreviewHome.addEventListener('pointerup', finishQuickPreviewPointer);
+      homeHeroBgPreviewHome.addEventListener('pointercancel', finishQuickPreviewPointer);
     }
     if (homeHeroResetBtn) {
       homeHeroResetBtn.addEventListener('click', () => {

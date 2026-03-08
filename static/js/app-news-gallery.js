@@ -132,10 +132,14 @@ function renderNews() {
     const pageItems = filtered.slice(start, start + NEWS_PAGE_SIZE);
     tbody.innerHTML = '';
 
+  const user = getCurrentUser();
+  const isAdmin = !!(user && (user.isAdmin || (typeof isAdminUser === 'function' && isAdminUser(user))));
+  // 관리 헤더 토글
+  const adminTh = document.getElementById('news-admin-th');
+  if (adminTh) adminTh.style.display = isAdmin ? '' : 'none';
+
   pageItems.forEach((item) => {
-    const user = getCurrentUser();
     const newsId = normalizeId(item?.id);
-    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
     const recommendCount = getRecommendCount(getPostKey('news', newsId));
     const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
     const safeTitle = safeText(item?.title || '제목 없음');
@@ -148,7 +152,6 @@ function renderNews() {
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
       <td>${recommendCount}</td>
-      <td>${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${newsId})">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -225,7 +228,6 @@ function renderFaq() {
       <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
-      <td>${admin ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${faqId}, 'faq')">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -295,11 +297,10 @@ function renderQna() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${qnaId > -1 ? qnaId : ''}</td>
-      <td>${canRead ? `<a href="#" onclick="openQnaDetail(${qnaId}); return false;">${safeTitle}${item?.isSecret ? ' 🔒' : ''}</a>` : '비밀글 🔒'}</td>
+      <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' 🔒' : ''}</a>` : '비밀글 🔒'}</td>
       <td>${formatAuthorDisplay(item?.author || '', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.answer ? '답변완료' : '대기'}</td>
-      <td>${user && item?.author === user.username ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditNews(${qnaId}, 'qna')">수정</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });

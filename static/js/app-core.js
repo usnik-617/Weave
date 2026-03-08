@@ -319,8 +319,18 @@ function getCurrentUser() {
 function setCurrentUser(user) {
   if (user) {
     safeStorageSet(CURRENT_USER_KEY, JSON.stringify(user));
+    try {
+      sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    } catch (_) {}
   } else {
     safeStorageRemove(CURRENT_USER_KEY);
+    try {
+      sessionStorage.removeItem(CURRENT_USER_KEY);
+    } catch (_) {}
+    // 로그아웃 시 세션스토리지 전체 초기화(권장)
+    try {
+      sessionStorage.clear();
+    } catch (_) {}
   }
   updateAuthUI();
 }
@@ -391,6 +401,8 @@ function handleSessionExpired(path = '') {
   if (SESSION_EXPIRED_SHOWN) return;
   if (String(path || '').startsWith('/auth/')) return;
   if (!getCurrentUser()) return;
+  setCurrentUser(null);
+  movePanel('home');
   const panel = getActivePanelId();
   if (panel) PENDING_RETURN_PANEL = panel;
   if (panel === 'news') {
@@ -486,8 +498,12 @@ async function apiRequest(path, options = {}) {
     ...(options.headers || {})
   };
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  if (!headers['Content-Type'] && options.body !== undefined && !isFormDataBody && typeof options.body !== 'string') {
-    headers['Content-Type'] = 'application/json';
+  const isStringBody = typeof options.body === 'string';
+  const looksLikeJsonString = isStringBody && /^[\s\r\n]*[\[{]/.test(options.body);
+  if (!headers['Content-Type'] && options.body !== undefined && !isFormDataBody) {
+    if (!isStringBody || looksLikeJsonString) {
+      headers['Content-Type'] = 'application/json';
+    }
   }
   let requestBody = options.body;
   if (requestBody !== undefined && !isFormDataBody && headers['Content-Type'] === 'application/json' && typeof requestBody !== 'string') {
@@ -556,7 +572,8 @@ async function hydrateCurrentUser() {
 }
 
 function isAdminUser(user) {
-  return !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
+  const role = String(user?.role || '').toUpperCase();
+  return !!(user && (user.isAdmin || role === 'ADMIN' || ADMIN_EMAILS.includes(user.email)));
 }
 
 function isStaffUser(user) {

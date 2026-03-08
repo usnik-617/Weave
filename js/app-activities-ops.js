@@ -30,8 +30,14 @@ function movePanel(panelId) {
   if (homeCalendarPreview) homeCalendarPreview.style.display = nextPanelId === 'home' ? 'block' : 'none';
   if (homeNoticeCarousel) homeNoticeCarousel.style.display = nextPanelId === 'home' && getHomeNoticeItems().length ? 'block' : 'none';
   if (document.body) document.body.classList.toggle('panel-home-active', nextPanelId === 'home');
-  if (nextPanelId === 'home' && !homeNoticePaused) {
-    startHomeNoticeAutoRotate();
+  if (nextPanelId === 'home') {
+    if (!homeNoticePaused) {
+      startHomeNoticeAutoRotate();
+    }
+    // 홈 진입 시 캘린더 데이터 로드 보장
+    if (typeof loadActivitiesCalendar === 'function') {
+      loadActivitiesCalendar();
+    }
   } else {
     stopHomeNoticeAutoRotate();
   }

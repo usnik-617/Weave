@@ -570,6 +570,7 @@
           await apiRequest('/auth/logout', { method: 'POST' });
         } catch (_) {}
         setCurrentUser(null);
+        movePanel('home');
         notifyMessage('로그아웃되었습니다.');
       });
     }

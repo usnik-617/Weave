@@ -349,7 +349,8 @@
 
     function syncMobileNavByScroll() {
       navScrollTicking = false;
-      if (window.matchMedia('(min-width: 769px)').matches || prefersReducedMotion) {
+      // 모바일 뷰포트에서만 동작
+      if (!window.matchMedia('(max-width: 768px)').matches || prefersReducedMotion) {
         document.body.classList.remove('scroll-down-hide-nav');
         lastScrollY = window.scrollY || 0;
         return;

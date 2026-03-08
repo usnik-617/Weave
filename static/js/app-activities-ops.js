@@ -17,8 +17,11 @@ function movePanel(panelId) {
   const previousActive = document.querySelector('.panel-active');
   if (previousActive && previousActive.id) {
     try {
-      sessionStorage.setItem(`weave:panel-scroll:${previousActive.id}`, String(window.scrollY || window.pageYOffset || 0));
-    } catch (_) {}
+      const scrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+      sessionStorage.setItem(`weave:panel-scroll:${previousActive.id}`, String(scrollY));
+    } catch (e) {
+      // QuotaExceeded 등 예외 무시
+    }
   }
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   const target = document.getElementById(nextPanelId);
@@ -54,8 +57,8 @@ function movePanel(panelId) {
   try {
     const raw = sessionStorage.getItem(`weave:panel-scroll:${nextPanelId}`);
     const parsed = Number(raw || 0);
-    restoreTop = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  } catch (_) {
+    restoreTop = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  } catch (e) {
     restoreTop = 0;
   }
   window.scrollTo({ top: restoreTop, behavior: 'auto' });
@@ -517,6 +520,14 @@ function renderHomeCalendarPreview() {
   const miniGrid = document.getElementById('home-calendar-mini-grid');
   if (!summaryEl || !listEl) return;
 
+  // 데이터가 없거나 에러일 때 안내 메시지
+  if (!Array.isArray(calendarActivities) || calendarActivities.length === 0) {
+    summaryEl.innerHTML = '<div class="alert alert-warning mb-2">이번 달 활동 데이터가 없습니다. 관리자에게 문의해 주세요.</div>';
+    listEl.innerHTML = '';
+    if (miniGrid) miniGrid.innerHTML = '';
+    return;
+  }
+
   if (monthLabelEl) {
     monthLabelEl.innerText = getCalendarMonthLabel(calendarBaseDate);
   }
@@ -627,7 +638,7 @@ function renderHomeNoticeCarousel() {
   const isHomePanelActive = !!(homePanel && homePanel.classList.contains('panel-active'));
   if (section) section.style.display = isHomePanelActive && homeNoticeItems.length ? 'block' : 'none';
   if (!homeNoticeItems.length) {
-    track.innerHTML = '';
+    track.innerHTML = '<div class="alert alert-warning mb-2">홈에 노출할 공지 데이터가 없습니다.</div>';
     dots.innerHTML = '';
     toggleBtn.textContent = homeNoticePaused ? '재생' : '일시정지';
     stopHomeNoticeAutoRotate();

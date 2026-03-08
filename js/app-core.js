@@ -486,8 +486,12 @@ async function apiRequest(path, options = {}) {
     ...(options.headers || {})
   };
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  if (!headers['Content-Type'] && options.body !== undefined && !isFormDataBody && typeof options.body !== 'string') {
-    headers['Content-Type'] = 'application/json';
+  const isStringBody = typeof options.body === 'string';
+  const looksLikeJsonString = isStringBody && /^[\s\r\n]*[\[{]/.test(options.body);
+  if (!headers['Content-Type'] && options.body !== undefined && !isFormDataBody) {
+    if (!isStringBody || looksLikeJsonString) {
+      headers['Content-Type'] = 'application/json';
+    }
   }
   let requestBody = options.body;
   if (requestBody !== undefined && !isFormDataBody && headers['Content-Type'] === 'application/json' && typeof requestBody !== 'string') {
@@ -556,7 +560,8 @@ async function hydrateCurrentUser() {
 }
 
 function isAdminUser(user) {
-  return !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
+  const role = String(user?.role || '').toUpperCase();
+  return !!(user && (user.isAdmin || role === 'ADMIN' || ADMIN_EMAILS.includes(user.email)));
 }
 
 function isStaffUser(user) {

@@ -121,8 +121,11 @@
 
   function updateHomeHeroAdminControls() {
     const tools = document.getElementById('home-hero-admin-tools');
+    const quickTools = document.getElementById('home-hero-quick-admin-tools');
     const user = getCurrentUser();
-    if (tools) tools.classList.toggle('d-none', !canManageHomeHero(user));
+    const canManage = canManageHomeHero(user);
+    if (tools) tools.classList.toggle('d-none', !canManage);
+    if (quickTools) quickTools.classList.toggle('d-none', !(canManage && siteEditMode));
   }
 
   const SITE_TEXT_EDITS_KEY = 'weave_site_text_edits_v1';
@@ -460,6 +463,7 @@
       toggleBtn.classList.toggle('btn-outline-light', !siteEditMode);
       toggleBtn.textContent = siteEditMode ? '편집 종료' : '페이지 편집';
     }
+    updateHomeHeroAdminControls();
   }
 
   function updateSiteEditorControls() {

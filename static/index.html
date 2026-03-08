@@ -112,6 +112,24 @@
         <div class="d-flex gap-3 justify-content-center flex-wrap animate__animated animate__fadeInUp anim-delay-400">
           <a href="#about" class="btn btn-outline-primary btn-lg px-5" data-panel="about" data-about-tab="history" data-analytics="home-learn-more">자세히 알아보기</a>
         </div>
+        <div id="home-hero-quick-admin-tools" class="home-hero-quick-tools d-none mt-4">
+          <div class="card border-0 shadow-sm text-start">
+            <div class="card-body p-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h6 class="fw-bold mb-0">홈 배경 빠른 편집</h6>
+                <small class="text-muted">관리자 전용</small>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-sm btn-primary" id="home-hero-bg-image-open-home">배경 이미지 변경</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="home-hero-bg-reset-home">배경 기본값 복원</button>
+              </div>
+              <label class="form-label mb-1 mt-2 small fw-semibold" for="home-hero-bg-preview-home">배경 위치(클릭/드래그)</label>
+              <div id="home-hero-bg-preview-home" class="hero-bg-preview-canvas" role="img" aria-label="홈 배경 위치 미리보기"></div>
+              <input id="home-hero-bg-image-input-home" type="file" class="d-none" accept="image/*">
+              <div id="home-hero-bg-image-dropzone-home" class="image-dropzone mt-2">여기에 배경 이미지를 드래그&드롭해도 변경됩니다</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -874,7 +892,6 @@
             <th class="th-date">날짜</th>
             <th class="th-metric">조회</th>
             <th class="th-metric">추천</th>
-            <th class="th-admin">관리</th>
           </tr>
         </thead>
         <tbody id="news-table-body"></tbody>
@@ -905,7 +922,6 @@
               <th class="th-author">작성자</th>
               <th class="th-date">날짜</th>
               <th class="th-metric">조회수</th>
-              <th class="th-admin">관리</th>
             </tr>
           </thead>
           <tbody id="faq-table-body"></tbody>
@@ -934,7 +950,6 @@
               <th class="th-author">작성자</th>
               <th class="th-date">날짜</th>
               <th class="th-metric">상태</th>
-              <th class="th-admin">관리</th>
             </tr>
           </thead>
           <tbody id="qna-table-body"></tbody>
@@ -1024,22 +1039,28 @@
 
         <div class="row g-4 mb-5">
           <div class="col-md-4">
-            <div class="join-benefit">
-              <i class="fas fa-lightbulb fa-2x mb-3"></i>
+            <div class="activity-card h-100 join-benefit-card">
+              <div class="activity-icon bg-primary-light">
+                <i class="fas fa-lightbulb fa-2x text-primary"></i>
+              </div>
               <h5>역량 강화</h5>
               <p>리더십, 소통, 협력 능력 개발</p>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="join-benefit">
-              <i class="fas fa-people-group fa-2x mb-3"></i>
+            <div class="activity-card h-100 join-benefit-card">
+              <div class="activity-icon bg-primary-light">
+                <i class="fas fa-people-group fa-2x text-primary"></i>
+              </div>
               <h5>네트워크</h5>
               <p>뜻이 맞는 청년들과의 만남</p>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="join-benefit">
-              <i class="fas fa-heart fa-2x mb-3"></i>
+            <div class="activity-card h-100 join-benefit-card">
+              <div class="activity-icon bg-primary-light">
+                <i class="fas fa-heart fa-2x text-primary"></i>
+              </div>
               <h5>의미 있는 봉사</h5>
               <p>실제 변화를 만드는 경험</p>
             </div>
@@ -1538,7 +1559,6 @@
       </div>
       <div class="modal-body">
         <form id="login-form">
-          <p class="modal-step-hint" id="login-step-hint">1단계: 아이디와 비밀번호를 입력해주세요.</p>
           <div class="mb-3">
             <label class="form-label">아이디</label>
             <input type="text" class="form-control" name="username" required autocapitalize="off" autocomplete="username" spellcheck="false" inputmode="text" enterkeyhint="next">
@@ -1568,7 +1588,6 @@
       </div>
       <div class="modal-body">
         <form id="signup-form">
-          <p class="modal-step-hint" id="signup-step-hint">1단계: 기본 정보를 입력하고 필수 약관에 동의해주세요.</p>
           <div class="mb-3">
             <label class="form-label">이름</label>
             <input type="text" class="form-control" name="name" required autocomplete="name" autocapitalize="words" inputmode="text" enterkeyhint="next" spellcheck="false">
