@@ -98,7 +98,31 @@
   }
 
   function saveContent(data) {
-    localStorage.setItem(DATA_KEY, JSON.stringify(normalizeContent(data)));
+    // news에 activityId가 있는 경우 activities에 자동 연동
+    const safeData = normalizeContent(data);
+    if (Array.isArray(safeData.news)) {
+      safeData.activities = Array.isArray(safeData.activities) ? safeData.activities : [];
+      safeData.news.forEach(newsItem => {
+        const activityId = Number(newsItem.activityId || newsItem.activity_id || 0);
+        if (activityId > 0 && newsItem.date) {
+          // 기존 activities에서 동일 id 찾기
+          const idx = safeData.activities.findIndex(a => Number(a.id) === activityId);
+          const newActivity = {
+            id: activityId,
+            title: newsItem.title || '봉사 일정',
+            startAt: newsItem.date,
+            description: newsItem.content || '',
+            linkedNewsId: newsItem.id
+          };
+          if (idx >= 0) {
+            safeData.activities[idx] = { ...safeData.activities[idx], ...newActivity };
+          } else {
+            safeData.activities.push(newActivity);
+          }
+        }
+      });
+    }
+    localStorage.setItem(DATA_KEY, JSON.stringify(safeData));
   }
 
   function getTodayString() {

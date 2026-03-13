@@ -637,86 +637,91 @@ function renderGallery() {
 
     grid.innerHTML = '';
 
-  pageItems.forEach((item) => {
-    const user = getCurrentUser();
-    const galleryId = normalizeId(item?.id);
-    const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
-    const recommendCount = getRecommendCount(getPostKey('gallery', galleryId));
-    const firstBodyImage = getFirstImageFromHtml(item.content || '');
-    const thumbImage = item.thumb_url
-      || item.thumbnail_url
-      || item.thumb
-      || firstBodyImage
-      || item.image_url
-      || (Array.isArray(item.images) ? item.images[0] : '')
-      || item.image
-      || 'logo.png';
-    const safeThumb = safeUrl(thumbImage) || 'logo.png';
-    const safeTitle = safeText(item?.title || '제목 없음');
-    const safeDate = safeText(item?.date || '');
-    const safeYear = safeText(item?.year || '');
-    const categoryClass = safeCategoryClass(item?.category);
-    const div = document.createElement('div');
-    div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
-    div.innerHTML = `
-      <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
-        <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
-        <div class="gallery-caption p-3 bg-white border-top">
-          <h6 class="mb-1">${safeTitle}</h6>
-          <small class="text-muted">${safeDate} · ${safeYear}</small>
-          <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
-          ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${galleryId});">수정</button></div>` : ''}
+    if (pageItems.length === 0) {
+      // 글이 없으면 아무것도 노출하지 않음
+      return;
+    }
+
+    pageItems.forEach((item) => {
+      const user = getCurrentUser();
+      const galleryId = normalizeId(item?.id);
+      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
+      const recommendCount = getRecommendCount(getPostKey('gallery', galleryId));
+      const firstBodyImage = getFirstImageFromHtml(item.content || '');
+      const thumbImage = item.thumb_url
+        || item.thumbnail_url
+        || item.thumb
+        || firstBodyImage
+        || item.image_url
+        || (Array.isArray(item.images) ? item.images[0] : '')
+        || item.image
+        || 'logo.png';
+      const safeThumb = safeUrl(thumbImage) || 'logo.png';
+      const safeTitle = safeText(item?.title || '제목 없음');
+      const safeDate = safeText(item?.date || '');
+      const safeYear = safeText(item?.year || '');
+      const categoryClass = safeCategoryClass(item?.category);
+      const div = document.createElement('div');
+      div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
+      div.innerHTML = `
+        <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
+          <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
+          <div class="gallery-caption p-3 bg-white border-top">
+            <h6 class="mb-1">${safeTitle}</h6>
+            <small class="text-muted">${safeDate} · ${safeYear}</small>
+            <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
+            ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${galleryId});">수정</button></div>` : ''}
+          </div>
+          <div class="gallery-overlay">
+            <i class="fas fa-search-plus"></i>
+          </div>
         </div>
-        <div class="gallery-overlay">
-          <i class="fas fa-search-plus"></i>
-        </div>
-      </div>
-    `;
-    grid.appendChild(div);
-  });
+      `;
+      grid.appendChild(div);
+    });
 
     if (pagination) {
       pagination.innerHTML = '';
-    const prevLi = document.createElement('li');
-    prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
-    prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
-    prevLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (galleryCurrentPage > 1) {
-        galleryCurrentPage -= 1;
-        syncGalleryRouteState();
-        renderGallery();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
-    pagination.appendChild(prevLi);
-
-    for (let page = 1; page <= totalPages; page++) {
-      const li = document.createElement('li');
-      li.className = `page-item ${page === galleryCurrentPage ? 'active' : ''}`;
-      li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
-      li.addEventListener('click', (e) => {
+      const prevLi = document.createElement('li');
+      prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
+      prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+      prevLi.addEventListener('click', (e) => {
         e.preventDefault();
-        galleryCurrentPage = page;
-        syncGalleryRouteState();
-        renderGallery();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (galleryCurrentPage > 1) {
+          galleryCurrentPage -= 1;
+          syncGalleryRouteState();
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
       });
-      pagination.appendChild(li);
-    }
+      pagination.appendChild(prevLi);
 
-    const nextLi = document.createElement('li');
-    nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
-    nextLi.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (galleryCurrentPage < totalPages) {
-        galleryCurrentPage += 1;
-        syncGalleryRouteState();
-        renderGallery();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      for (let page = 1; page <= totalPages; page++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${page === galleryCurrentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+        li.addEventListener('click', (e) => {
+          e.preventDefault();
+          galleryCurrentPage = page;
+          syncGalleryRouteState();
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        pagination.appendChild(li);
       }
-    });
+
+      const nextLi = document.createElement('li');
+      nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
+      nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+      nextLi.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (galleryCurrentPage < totalPages) {
+          galleryCurrentPage += 1;
+          syncGalleryRouteState();
+          renderGallery();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
       pagination.appendChild(nextLi);
     }
   } catch (_) {
@@ -733,14 +738,12 @@ function openGalleryDetail(id) {
 
   item.views = (item.views || 0) + 1;
   saveContent(content);
-  renderGallery();
 
   const user = getCurrentUser();
   const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item.author === user.username || item.author === user.name));
   const itemKey = getPostKey('gallery', normalizedId);
   currentGalleryDetailId = normalizedId;
   const detailImage = document.getElementById('gallery-detail-image');
-  const detailContentHtml = String(item.content || '');
   const originalImage = item.image_url
     || item.image
     || (Array.isArray(item.images) ? item.images[0] : '')
@@ -767,7 +770,13 @@ function openGalleryDetail(id) {
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  contentEl.innerHTML = detailContentHtml || '내용이 없습니다.';
+  // 본문에는 대표 이미지를 제외한 나머지 이미지만 노출
+  let filteredContentHtml = String(item.content || '');
+  if (safeOriginalImage) {
+    // 대표 이미지 src와 일치하는 <img> 태그 제거
+    filteredContentHtml = filteredContentHtml.replace(new RegExp(`<img[^>]+src=["']${safeOriginalImage}["'][^>]*>`, 'gi'), '');
+  }
+  contentEl.innerHTML = filteredContentHtml || '내용이 없습니다.';
   enableContentImagePreview('gallery-detail-content');
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
@@ -834,7 +843,11 @@ function openGalleryDetail(id) {
   renderPostComments('gallery-comments-section', itemKey);
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
-  document.getElementById('gallery-detail')?.classList.add('panel-active');
+  const detailPanel = document.getElementById('gallery-detail');
+  if (detailPanel) {
+    detailPanel.classList.add('panel-active');
+    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 

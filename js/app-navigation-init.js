@@ -1,6 +1,20 @@
-﻿  // ============ MAIN NAVIGATION ============
+﻿// ============ MAIN NAVIGATION ============
   document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('[data-panel]');
+    // 내 정보 탭 진입 시 로그인 체크
+    navLinks.forEach(link => {
+      if (link.dataset.panel === 'myinfo') {
+        link.addEventListener('click', function(e) {
+          const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+          if (!user) {
+            e.preventDefault();
+            document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+            document.getElementById('myinfo-auth')?.classList.add('panel-active');
+            return false;
+          }
+        });
+      }
+    });
     const statsSection = document.getElementById('home-stats');
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const offcanvasToggleBtn = document.querySelector('[data-bs-target="#mobileMenuDrawer"]');

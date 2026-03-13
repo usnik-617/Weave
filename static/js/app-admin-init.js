@@ -222,6 +222,7 @@
         const editorImages = getEditorImageSources('gallery-editor');
         const coverImage = editorImages[0] || '';
         const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+        let galleryItem = null;
         if (editId) {
           const target = data.gallery.find(g => g.id === editId);
           if (target) {
@@ -244,11 +245,12 @@
               delete target.activityId;
               delete target.activityStartAt;
             }
+            galleryItem = target;
           }
         } else {
           const newId = Math.max(...data.gallery.map(x => Number(x.id) || 0), 0) + 1;
           const nextImages = editorImages.length ? editorImages : [];
-          data.gallery.unshift({
+          galleryItem = {
             id: newId,
             title: e.target.title.value,
             date: newDate,
@@ -262,6 +264,29 @@
             views: 0,
             activityId: activityId > 0 ? activityId : undefined,
             activityStartAt: activityId > 0 ? activityStartAt : undefined
+          };
+          data.gallery.unshift(galleryItem);
+        }
+        // 봉사 기간(활동) 선택 시 캘린더 일정 추가
+        if (activityId > 0 && activityStartAt) {
+          // 일정 추가 API 호출 (예시, 실제 API 엔드포인트에 맞게 수정 필요)
+          fetch('/activities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: galleryItem.title,
+              startAt: activityStartAt,
+              endAt: activityStartAt,
+              place: '-',
+              manager: user.nickname || user.username || user.name,
+              sourceType: 'gallery',
+              sourceGalleryId: galleryItem.id
+            })
+          }).then(() => {
+            // 일정 추가 후 캘린더 새로고침
+            if (typeof loadActivitiesCalendar === 'function') {
+              loadActivitiesCalendar();
+            }
           });
         }
         saveContent(data);

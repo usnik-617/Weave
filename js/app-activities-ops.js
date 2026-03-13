@@ -575,26 +575,24 @@ function renderHomeCalendarPreview() {
   summaryEl.innerText = `이번 기간 활동 ${calendarActivities.length}건`;
   if (!upcoming.length) {
     listEl.innerHTML = '<div class="text-muted small">예정된 활동이 없습니다.</div>';
-    return;
-  }
-
-  listEl.innerHTML = upcoming.map(item => `
-    <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
-      <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
-      <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
-    </button>
-  `).join('');
-
-  listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const selectedDate = toSafeDateKey(btn.dataset.homeActivityDate);
-      if (!selectedDate) return;
-      movePanel('activities');
-      openActivitiesCalendarTab();
-      calendarSelectedDate = selectedDate;
-      await loadActivitiesCalendar();
+  } else {
+    listEl.innerHTML = upcoming.map(item => `
+      <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
+        <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+        <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
+      </button>
+    `).join('');
+    listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const selectedDate = toSafeDateKey(btn.dataset.homeActivityDate);
+        if (!selectedDate) return;
+        movePanel('activities');
+        openActivitiesCalendarTab();
+        calendarSelectedDate = selectedDate;
+        await loadActivitiesCalendar();
+      });
     });
-  });
+  }
 }
 
 function getHomeNoticeItems() {

@@ -520,14 +520,6 @@ function renderHomeCalendarPreview() {
   const miniGrid = document.getElementById('home-calendar-mini-grid');
   if (!summaryEl || !listEl) return;
 
-  // 데이터가 없거나 에러일 때 안내 메시지
-  if (!Array.isArray(calendarActivities) || calendarActivities.length === 0) {
-    summaryEl.innerHTML = '<div class="alert alert-warning mb-2">이번 달 활동 데이터가 없습니다. 관리자에게 문의해 주세요.</div>';
-    listEl.innerHTML = '';
-    if (miniGrid) miniGrid.innerHTML = '';
-    return;
-  }
-
   if (monthLabelEl) {
     monthLabelEl.innerText = getCalendarMonthLabel(calendarBaseDate);
   }
@@ -580,26 +572,24 @@ function renderHomeCalendarPreview() {
   summaryEl.innerText = `이번 기간 활동 ${calendarActivities.length}건`;
   if (!upcoming.length) {
     listEl.innerHTML = '<div class="text-muted small">예정된 활동이 없습니다.</div>';
-    return;
-  }
-
-  listEl.innerHTML = upcoming.map(item => `
-    <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
-      <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
-      <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
-    </button>
-  `).join('');
-
-  listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const selectedDate = toSafeDateKey(btn.dataset.homeActivityDate);
-      if (!selectedDate) return;
-      movePanel('activities');
-      openActivitiesCalendarTab();
-      calendarSelectedDate = selectedDate;
-      await loadActivitiesCalendar();
+  } else {
+    listEl.innerHTML = upcoming.map(item => `
+      <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
+        <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+        <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
+      </button>
+    `).join('');
+    listEl.querySelectorAll('[data-home-activity-date]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const selectedDate = toSafeDateKey(btn.dataset.homeActivityDate);
+        if (!selectedDate) return;
+        movePanel('activities');
+        openActivitiesCalendarTab();
+        calendarSelectedDate = selectedDate;
+        await loadActivitiesCalendar();
+      });
     });
-  });
+  }
 }
 
 function getHomeNoticeItems() {

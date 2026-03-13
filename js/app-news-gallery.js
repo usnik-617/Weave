@@ -221,7 +221,21 @@ function renderFaq() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${faqId > -1 ? faqId : ''}</td>
-      <td><a href="#" onclick="openFaqDetail(${faqId}); return false;">${safeTitle}</a></td>
+        div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
+        div.innerHTML = `
+          <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
+            <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
+            <div class="gallery-caption p-3 bg-white border-top">
+              <h6 class="mb-1">${safeTitle}</h6>
+              <small class="text-muted">${safeDate} · ${safeYear}</small>
+              <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
+              ${canEdit && !window.matchMedia('(max-width: 768px)').matches ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${galleryId});">수정</button></div>` : ''}
+            </div>
+            <div class="gallery-overlay">
+              <i class="fas fa-search-plus"></i>
+            </div>
+          </div>
+        `;
       <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
@@ -380,7 +394,22 @@ function openFaqDetail(id) {
   const imageEl = document.getElementById('news-detail-image');
   const recommendBtn = document.getElementById('news-recommend-btn');
   if (contentEl) contentEl.innerHTML = item.content || '';
-  if (imageEl) imageEl.classList.add('d-none');
+  if (imageEl) {
+    const faqImage = safeUrl((Array.isArray(item.images) && item.images[0]) || item.image_url || item.image);
+    if (faqImage) {
+      const imageTagRegex = new RegExp(`<img[^>]+src=["']?${faqImage.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}["']?[^>]*>`, 'i');
+      const isImageInContent = imageTagRegex.test(contentEl.innerHTML);
+      if (!isImageInContent) {
+        imageEl.src = faqImage;
+        imageEl.classList.remove('d-none');
+      } else {
+        imageEl.removeAttribute('src');
+        imageEl.classList.add('d-none');
+      }
+    } else {
+      imageEl.classList.add('d-none');
+    }
+  }
   if (recommendBtn?.parentElement) recommendBtn.parentElement.classList.add('d-none');
   const editBtn = document.getElementById('news-detail-edit-btn');
   const deleteBtn = document.getElementById('news-detail-delete-btn');
@@ -427,6 +456,23 @@ function openQnaDetail(id) {
   const answerEl = document.getElementById('qna-detail-answer');
   if (questionEl) questionEl.innerHTML = item.content || '';
   if (answerEl) answerEl.innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
+  const imageEl = document.getElementById('news-detail-image');
+  if (imageEl) {
+    const qnaImage = safeUrl((Array.isArray(item.images) && item.images[0]) || item.image_url || item.image);
+    if (qnaImage) {
+      const imageTagRegex = new RegExp(`<img[^>]+src=["']?${qnaImage.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}["']?[^>]*>`, 'i');
+      const isImageInContent = imageTagRegex.test(questionEl.innerHTML);
+      if (!isImageInContent) {
+        imageEl.src = qnaImage;
+        imageEl.classList.remove('d-none');
+      } else {
+        imageEl.removeAttribute('src');
+        imageEl.classList.add('d-none');
+      }
+    } else {
+      imageEl.classList.add('d-none');
+    }
+  }
   const answerBtn = document.getElementById('qna-answer-btn');
   if (answerBtn) {
     answerBtn.classList.toggle('d-none', !operator);
@@ -554,8 +600,15 @@ function openNotice(id) {
   if (recommendBtn?.parentElement) recommendBtn.parentElement.classList.remove('d-none');
   const noticeImage = safeUrl((Array.isArray(notice.images) && notice.images[0]) || notice.image_url || notice.image);
   if (noticeImage) {
-    imageEl.src = noticeImage;
-    imageEl.classList.remove('d-none');
+    const imageTagRegex = new RegExp(`<img[^>]+src=["']?${noticeImage.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}["']?[^>]*>`, 'i');
+    const isImageInContent = imageTagRegex.test(contentEl.innerHTML);
+    if (!isImageInContent) {
+      imageEl.src = noticeImage;
+      imageEl.classList.remove('d-none');
+    } else {
+      imageEl.removeAttribute('src');
+      imageEl.classList.add('d-none');
+    }
   } else {
     imageEl.classList.add('d-none');
   }
@@ -638,27 +691,28 @@ function renderGallery() {
 
   pageItems.forEach((item) => {
     const user = getCurrentUser();
-    const galleryId = normalizeId(item?.id);
+    const newsId = normalizeId(item?.id);
     const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
-    const recommendCount = getRecommendCount(getPostKey('gallery', galleryId));
-    const firstBodyImage = getFirstImageFromHtml(item.content || '');
-    const thumbImage = item.thumb_url
-      || item.thumbnail_url
-      || item.thumb
-      || firstBodyImage
-      || item.image_url
-      || (Array.isArray(item.images) ? item.images[0] : '')
-      || item.image
-      || 'logo.png';
-    const safeThumb = safeUrl(thumbImage) || 'logo.png';
+    const recommendCount = getRecommendCount(getPostKey('news', newsId));
+    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
     const safeTitle = safeText(item?.title || '제목 없음');
     const safeDate = safeText(item?.date || '');
-    const safeYear = safeText(item?.year || '');
-    const categoryClass = safeCategoryClass(item?.category);
-    const div = document.createElement('div');
+    const tr = document.createElement('tr');
+    tr.className = 'news-list-row';
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => openNotice(newsId);
+    tr.innerHTML = `
+      <td style="text-align:left;">${newsId > -1 ? newsId : ''}</td>
+      <td style="text-align:right;">${safeDate}</td>
+      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
+      <td colspan="2" style="text-align:right;">조회 ${item.views || 0} · 추천 ${recommendCount}</td>
+      ${canEdit && !window.matchMedia('(max-width: 768px)').matches ? `<td><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditNews(${newsId})">수정</button></td>` : '<td></td>'}
+    `;
+    tbody.appendChild(tr);
+  });
     div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
     div.innerHTML = `
-      <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
+      <div class="gallery-card position-relative overflow-hidden rounded-3">
         <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
         <div class="gallery-caption p-3 bg-white border-top">
           <h6 class="mb-1">${safeTitle}</h6>
@@ -671,6 +725,11 @@ function renderGallery() {
         </div>
       </div>
     `;
+    // galleryId가 정상일 때만 상세 진입 이벤트 바인딩
+    const card = div.querySelector('.gallery-card');
+    if (card && typeof galleryId !== 'undefined' && galleryId !== null) {
+      card.addEventListener('click', () => openGalleryDetail(galleryId));
+    }
     grid.appendChild(div);
   });
 
@@ -739,14 +798,17 @@ function openGalleryDetail(id) {
   const itemKey = getPostKey('gallery', normalizedId);
   currentGalleryDetailId = normalizedId;
   const detailImage = document.getElementById('gallery-detail-image');
-  const detailContentHtml = String(item.content || '');
+  let detailContentHtml = String(item.content || '');
   const originalImage = item.image_url
     || item.image
     || (Array.isArray(item.images) ? item.images[0] : '')
     || '';
   const safeOriginalImage = safeUrl(originalImage);
+  // 대표 이미지가 본문에 포함되어 있으면 상단 이미지를 숨김
+  const imageTagRegex = new RegExp(`<img[^>]+src=["']?${safeOriginalImage.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}["']?[^>]*>`, 'i');
+  const isImageInContent = safeOriginalImage && imageTagRegex.test(detailContentHtml);
   if (detailImage) {
-    if (safeOriginalImage) {
+    if (safeOriginalImage && !isImageInContent) {
       detailImage.src = safeOriginalImage;
       detailImage.classList.remove('d-none');
     } else {
@@ -780,9 +842,14 @@ function openGalleryDetail(id) {
       goCalendarBtn.onclick = async () => {
         if (typeof openCalendarActivityFromGallery === 'function') {
           await openCalendarActivityFromGallery(linkedActivityId, item.activityStartAt || item.date || '');
-          return;
+        } else if (item.date) {
+          await focusCalendarDate(item.date);
+        } else {
+          // activityId만 있을 때 캘린더 상세로 이동
+          if (typeof openCalendarActivityDetailModal === 'function') {
+            await openCalendarActivityDetailModal({ id: linkedActivityId }, getCurrentUser());
+          }
         }
-        if (item.date) await focusCalendarDate(item.date);
       };
     }
   }
