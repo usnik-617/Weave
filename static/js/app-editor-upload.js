@@ -136,6 +136,7 @@ const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
 const IMAGE_UPLOAD_MIN_QUALITY = 0.45;
 const WRITE_DRAFT_NEWS_KEY = 'weave_draft_news';
 const WRITE_DRAFT_GALLERY_KEY = 'weave_draft_gallery';
+const IMAGE_UPLOAD_STRIP_EXIF_KEY = 'weave_image_strip_exif';
 
 function getDataUrlByteSize(dataUrl) {
   const text = String(dataUrl || '');
@@ -143,6 +144,19 @@ function getDataUrlByteSize(dataUrl) {
   if (!base64) return 0;
   const padding = (base64.match(/=+$/) || [''])[0].length;
   return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function getPreferredImageMimeType() {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    const sample = canvas.toDataURL('image/webp', 0.8);
+    if (typeof sample === 'string' && sample.startsWith('data:image/webp')) {
+      return 'image/webp';
+    }
+  } catch (_) {}
+  return 'image/jpeg';
 }
 
 function estimateLocalStorageUsageBytes() {
@@ -188,7 +202,8 @@ async function readImageFileWithOrientation(file) {
     canvas.height = height;
     context.drawImage(bitmap, 0, 0, width, height);
     if (typeof bitmap.close === 'function') bitmap.close();
-    return canvas.toDataURL('image/jpeg', 0.92);
+    const preferredType = getPreferredImageMimeType();
+    return canvas.toDataURL(preferredType, 0.9);
   } catch (_) {
     return '';
   }
@@ -215,6 +230,7 @@ async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEF
   let scale = 1;
   let quality = 0.9;
   let best = String(dataUrl || '');
+  const preferredType = getPreferredImageMimeType();
 
   for (let attempt = 0; attempt < 10; attempt++) {
     canvas.width = Math.max(1, Math.round(width * scale));
@@ -222,7 +238,7 @@ async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEF
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const candidate = canvas.toDataURL('image/jpeg', quality);
+    const candidate = canvas.toDataURL(preferredType, quality);
     if (getDataUrlByteSize(candidate) < getDataUrlByteSize(best)) {
       best = candidate;
     }
@@ -239,6 +255,40 @@ async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEF
   return best;
 }
 
+async function createThumbnailDataUrl(dataUrl, options = {}) {
+  const source = String(dataUrl || '').trim();
+  if (!source || !source.startsWith('data:image/')) return '';
+  const widthLimit = Math.max(80, Number(options.width || 360));
+  const heightLimit = Math.max(80, Number(options.height || 220));
+  const quality = Math.max(0.4, Math.min(0.92, Number(options.quality || 0.78)));
+  const image = await loadImageFromDataUrl(source);
+  const sourceWidth = Number(image.naturalWidth || image.width || 0);
+  const sourceHeight = Number(image.naturalHeight || image.height || 0);
+  if (!sourceWidth || !sourceHeight) return '';
+  const ratio = Math.min(widthLimit / sourceWidth, heightLimit / sourceHeight, 1);
+  const targetWidth = Math.max(1, Math.round(sourceWidth * ratio));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * ratio));
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return '';
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  context.clearRect(0, 0, targetWidth, targetHeight);
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+  const preferredType = getPreferredImageMimeType();
+  return canvas.toDataURL(preferredType, quality);
+}
+
+async function buildEditorThumbnail(editorId, options = {}) {
+  const firstImage = (getEditorImageSources(editorId) || [])[0] || '';
+  if (!firstImage) return '';
+  try {
+    return await createThumbnailDataUrl(firstImage, options);
+  } catch (_) {
+    return '';
+  }
+}
+
 function getAdaptiveImageMaxBytes() {
   const storageLimit = 5 * 1024 * 1024;
   const used = estimateLocalStorageUsageBytes();
@@ -247,7 +297,24 @@ function getAdaptiveImageMaxBytes() {
   return Math.max(IMAGE_UPLOAD_MIN_MAX_BYTES, Math.min(IMAGE_UPLOAD_HARD_MAX_BYTES, adaptive || IMAGE_UPLOAD_DEFAULT_MAX_BYTES));
 }
 
-function readImageFileToDataUrl(file, onDone) {
+function shouldStripExifMetadata() {
+  const newsToggle = document.getElementById('news-strip-exif');
+  const galleryToggle = document.getElementById('gallery-strip-exif');
+  if (newsToggle instanceof HTMLInputElement && newsToggle.checked === false) return false;
+  if (galleryToggle instanceof HTMLInputElement && galleryToggle.checked === false) return false;
+  const stored = String(localStorage.getItem(IMAGE_UPLOAD_STRIP_EXIF_KEY) || '').trim().toLowerCase();
+  if (stored === '0' || stored === 'false') return false;
+  return true;
+}
+
+function persistStripExifPreference() {
+  const enabled = shouldStripExifMetadata();
+  try {
+    localStorage.setItem(IMAGE_UPLOAD_STRIP_EXIF_KEY, enabled ? '1' : '0');
+  } catch (_) {}
+}
+
+function readImageFileToDataUrl(file, onDone, options = {}) {
   if (!file || !file.type.startsWith('image/')) {
     notifyMessage('이미지 파일만 업로드할 수 있습니다.');
     return;
@@ -256,9 +323,14 @@ function readImageFileToDataUrl(file, onDone) {
   reader.onload = async () => {
     let result = String(reader.result || '');
     try {
-      const oriented = await readImageFileWithOrientation(file);
-      if (oriented) result = oriented;
-      result = await resizeImageDataUrlToMaxBytes(result, getAdaptiveImageMaxBytes());
+      const stripExif = typeof options.stripExif === 'boolean'
+        ? options.stripExif
+        : shouldStripExifMetadata();
+      if (stripExif) {
+        const oriented = await readImageFileWithOrientation(file);
+        if (oriented) result = oriented;
+        result = await resizeImageDataUrlToMaxBytes(result, getAdaptiveImageMaxBytes());
+      }
     } catch (_) {}
     onDone(result);
   };
@@ -330,6 +402,17 @@ function initWriteDraftAutosave() {
   });
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const stored = String(localStorage.getItem(IMAGE_UPLOAD_STRIP_EXIF_KEY) || '1');
+  const enabled = !(stored === '0' || stored.toLowerCase() === 'false');
+  ['news-strip-exif', 'gallery-strip-exif'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLInputElement)) return;
+    el.checked = enabled;
+    el.addEventListener('change', persistStripExifPreference);
+  });
+});
+
 function readAnyFileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     if (!file) {
@@ -343,21 +426,27 @@ function readAnyFileToDataUrl(file) {
   });
 }
 
-function readImageFileToDataUrlAsync(file) {
+function readImageFileToDataUrlAsync(file, options = {}) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type.startsWith('image/')) {
       reject(new Error('이미지 파일만 업로드할 수 있습니다.'));
       return;
     }
-    readImageFileToDataUrl(file, (dataUrl) => resolve(String(dataUrl || '')));
+    readImageFileToDataUrl(file, (dataUrl) => resolve(String(dataUrl || '')), options);
   });
 }
 
-function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenName, imagesHiddenName, editorId }) {
+function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenName, imagesHiddenName, editorId, stripExifToggleId = '' }) {
   const form = document.getElementById(formId);
   if (!form) return;
   const input = form.elements[inputName];
   const dropzone = document.getElementById(dropzoneId);
+  const resolveStripExif = () => {
+    const toggle = stripExifToggleId ? document.getElementById(stripExifToggleId) : null;
+    if (toggle instanceof HTMLInputElement) return !!toggle.checked;
+    return shouldStripExifMetadata();
+  };
+
   const applyFiles = async (files) => {
     const imageFiles = Array.from(files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
     if (!imageFiles.length) {
@@ -367,10 +456,10 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
     const uploadedImages = [];
     for (const file of imageFiles) {
       try {
-        const dataUrl = await readImageFileToDataUrlAsync(file);
+        const dataUrl = await readImageFileToDataUrlAsync(file, { stripExif: resolveStripExif() });
         uploadedImages.push(dataUrl);
       } catch (error) {
-        notifyMessage(error.message || '?대?吏 ?낅줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎.');
+        notifyMessage(error.message || '이미지 업로드에 실패했습니다.');
         return;
       }
     }
@@ -471,7 +560,7 @@ async function buildNoticeAttachments(files = []) {
   for (let index = 0; index < normalized.length; index++) {
     const file = normalized[index];
     const dataUrl = await readAnyFileToDataUrl(file);
-    const fallbackName = `泥⑤??뚯씪_${index + 1}`;
+    const fallbackName = `첨부파일_${index + 1}`;
     attachments.push({
       id: `att_${Date.now()}_${index}`,
       original_name: file.name || fallbackName,

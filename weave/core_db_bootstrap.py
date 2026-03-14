@@ -46,6 +46,7 @@ def ensure_activities_migration(cur):
         ("recurrence_group_id", "TEXT DEFAULT ''"),
         ("is_cancelled", "INTEGER NOT NULL DEFAULT 0"),
         ("cancelled_at", "TEXT"),
+        ("thumb_url", "TEXT DEFAULT ''"),
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
@@ -144,6 +145,32 @@ def ensure_attendance_migration(cur):
     )
 
 
+def ensure_in_app_notifications_migration(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS in_app_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'general',
+            title TEXT NOT NULL,
+            message TEXT DEFAULT '',
+            panel TEXT DEFAULT '',
+            target_id INTEGER,
+            meta_json TEXT DEFAULT '{}',
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            read_at TEXT
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_in_app_notifications_user_created ON in_app_notifications(user_id, created_at DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_in_app_notifications_user_read ON in_app_notifications(user_id, is_read)"
+    )
+
+
 def init_db(default_admin_password):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -179,6 +206,7 @@ def init_db(default_admin_password):
             gather_time TEXT DEFAULT '',
             manager_name TEXT DEFAULT '',
             recruitment_limit INTEGER NOT NULL DEFAULT 0,
+            thumb_url TEXT DEFAULT '',
             created_by INTEGER,
             created_at TEXT NOT NULL
         )
@@ -503,6 +531,7 @@ def init_db(default_admin_password):
     )
     ensure_post_files_migration(cur)
     ensure_attendance_migration(cur)
+    ensure_in_app_notifications_migration(cur)
 
     cur.execute(
         """

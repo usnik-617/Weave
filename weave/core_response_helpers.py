@@ -13,6 +13,7 @@ def serialize_activity_row(row):
         "gatherTime": row["gather_time"],
         "manager": row["manager_name"],
         "recruitmentLimit": row["recruitment_limit"],
+        "thumbUrl": row["thumb_url"],
         "recurrenceGroupId": row["recurrence_group_id"],
         "isCancelled": bool(row["is_cancelled"]),
     }

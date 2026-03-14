@@ -302,6 +302,46 @@ def admin_dashboard():
         "SELECT COUNT(*) AS c FROM expenses WHERE settled = 0 AND substr(due_date,1,7) = ?",
         (month_prefix,),
     ).fetchone()["c"]
+    deadline_soon = conn.execute(
+        """
+        SELECT COUNT(*) AS c
+        FROM posts
+        WHERE category IN ('notice', 'review', 'recruit')
+          AND volunteer_start_date IS NOT NULL
+          AND TRIM(volunteer_start_date) != ''
+          AND date(volunteer_start_date) BETWEEN date('now') AND date('now', '+7 day')
+        """
+    ).fetchone()["c"]
+    monitor_rows = conn.execute(
+        """
+        SELECT kind, title, count, severity
+        FROM (
+          SELECT 'qna_unanswered' AS kind,
+                 'Q&A 미답변' AS title,
+                 COUNT(*) AS count,
+                 'high' AS severity
+          FROM qna_posts
+          WHERE TRIM(COALESCE(answer,'')) = ''
+          UNION ALL
+          SELECT 'notice_deadline',
+                 '임박 마감 공지(7일)',
+                 COUNT(*),
+                 'medium'
+          FROM posts
+          WHERE category IN ('notice', 'review', 'recruit')
+            AND volunteer_start_date IS NOT NULL
+            AND TRIM(volunteer_start_date) != ''
+            AND date(volunteer_start_date) BETWEEN date('now') AND date('now', '+7 day')
+          UNION ALL
+          SELECT 'pending_approvals',
+                 '가입 승인 대기',
+                 COUNT(*),
+                 'medium'
+          FROM users
+          WHERE status = 'pending'
+        )
+        """
+    ).fetchall()
     conn.close()
 
     return jsonify(
@@ -315,6 +355,16 @@ def admin_dashboard():
                 "scheduledNotices": int(scheduled_notices or 0),
                 "qnaUnanswered": int(qna_unanswered or 0),
                 "expenseAlerts": int(expense_alerts or 0),
+                "deadlineSoon": int(deadline_soon or 0),
+                "alertMonitor": [
+                    {
+                        "kind": str(row["kind"] or ""),
+                        "title": str(row["title"] or ""),
+                        "count": int(row["count"] or 0),
+                        "severity": str(row["severity"] or "low"),
+                    }
+                    for row in monitor_rows
+                ],
             },
         }
     )

@@ -19,9 +19,9 @@ def create_activity_record(payload, me):
             """
             INSERT INTO activities (
                 title, description, start_at, end_at, place, supplies, gather_time,
-                manager_name, recruitment_limit, recurrence_group_id, created_by, created_at
+                manager_name, recruitment_limit, thumb_url, recurrence_group_id, created_by, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(payload.get("title", "")).strip(),
@@ -33,6 +33,7 @@ def create_activity_record(payload, me):
                 str(payload.get("gatherTime", "")).strip(),
                 str(payload.get("manager", me["name"])).strip(),
                 int(payload.get("recruitmentLimit", 0) or 0),
+                str(payload.get("thumbUrl", payload.get("thumbnailData", ""))).strip(),
                 str(payload.get("recurrenceGroupId", "")).strip(),
                 me["id"],
                 now_iso(),
@@ -53,7 +54,7 @@ def update_activity_record(activity_id, payload, target, me):
             """
             UPDATE activities
             SET title = ?, description = ?, start_at = ?, end_at = ?, place = ?, supplies = ?,
-                gather_time = ?, manager_name = ?, recruitment_limit = ?
+                gather_time = ?, manager_name = ?, recruitment_limit = ?, thumb_url = ?
             WHERE id = ?
             """,
             (
@@ -66,6 +67,7 @@ def update_activity_record(activity_id, payload, target, me):
                 str(payload.get("gatherTime", target["gather_time"] or "")).strip(),
                 str(payload.get("manager", target["manager_name"] or me["name"])).strip(),
                 int(payload.get("recruitmentLimit", target["recruitment_limit"]) or 0),
+                str(payload.get("thumbUrl", payload.get("thumbnailData", target["thumb_url"] or ""))).strip(),
                 activity_id,
             ),
         )

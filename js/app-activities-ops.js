@@ -12,13 +12,56 @@ function toSafeDateKey(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
 }
 
+function toDateOnlyKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatDateOnly(parsed);
+}
+
+function buildNoticeCalendarItems() {
+  const content = getContent();
+  const notices = Array.isArray(content?.news) ? content.news : [];
+  const items = [];
+  notices.forEach((notice) => {
+    const noticeId = toSafeActivityId(notice?.id);
+    if (!noticeId) return;
+    const startKey = toDateOnlyKey(notice?.volunteerStartDate || notice?.volunteerDate || '');
+    const endKey = toDateOnlyKey(notice?.volunteerEndDate || notice?.volunteerDate || startKey);
+    if (!startKey) return;
+    const range = typeof expandDateRange === 'function' ? expandDateRange(startKey, endKey || startKey) : [startKey];
+    range.forEach((dayKey) => {
+      if (!dayKey) return;
+      items.push({
+        id: `notice-${noticeId}-${dayKey}`,
+        sourceType: 'notice',
+        sourceNoticeId: noticeId,
+        title: String(notice.title || '공지사항'),
+        startAt: `${dayKey}T09:00`,
+        endAt: `${dayKey}T18:00`,
+        place: '공지사항',
+        manager: String(notice.author || '관리자'),
+        recruitmentLimit: 0,
+        description: String(notice.content || ''),
+        isCancelled: false
+      });
+    });
+  });
+  return items;
+}
+
 function movePanel(panelId) {
   const nextPanelId = String(panelId || '').trim() || 'home';
   const previousActive = document.querySelector('.panel-active');
   if (previousActive && previousActive.id) {
     try {
-      sessionStorage.setItem(`weave:panel-scroll:${previousActive.id}`, String(window.scrollY || window.pageYOffset || 0));
-    } catch (_) {}
+      const scrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+      sessionStorage.setItem(`weave:panel-scroll:${previousActive.id}`, String(scrollY));
+    } catch (e) {
+      // QuotaExceeded 등 예외 무시
+    }
   }
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   const target = document.getElementById(nextPanelId);
@@ -30,14 +73,8 @@ function movePanel(panelId) {
   if (homeCalendarPreview) homeCalendarPreview.style.display = nextPanelId === 'home' ? 'block' : 'none';
   if (homeNoticeCarousel) homeNoticeCarousel.style.display = nextPanelId === 'home' && getHomeNoticeItems().length ? 'block' : 'none';
   if (document.body) document.body.classList.toggle('panel-home-active', nextPanelId === 'home');
-  if (nextPanelId === 'home') {
-    if (!homeNoticePaused) {
-      startHomeNoticeAutoRotate();
-    }
-    // 홈 진입 시 캘린더 데이터 로드 보장
-    if (typeof loadActivitiesCalendar === 'function') {
-      loadActivitiesCalendar();
-    }
+  if (nextPanelId === 'home' && !homeNoticePaused) {
+    startHomeNoticeAutoRotate();
   } else {
     stopHomeNoticeAutoRotate();
   }
@@ -60,8 +97,8 @@ function movePanel(panelId) {
   try {
     const raw = sessionStorage.getItem(`weave:panel-scroll:${nextPanelId}`);
     const parsed = Number(raw || 0);
-    restoreTop = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  } catch (_) {
+    restoreTop = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  } catch (e) {
     restoreTop = 0;
   }
   window.scrollTo({ top: restoreTop, behavior: 'auto' });
@@ -180,7 +217,18 @@ async function loadActivitiesCalendar() {
   try {
     data = await apiRequest(`/activities?view=month&date=${dateParam}`, { method: 'GET' });
     const baseItems = Array.isArray(data.items) ? data.items : [];
-    calendarActivities = [...baseItems]
+    const noticeItems = buildNoticeCalendarItems();
+    const mergedItems = [...baseItems];
+    noticeItems.forEach((item) => {
+      const duplicate = mergedItems.some((existing) => {
+        const existingSource = String(existing?.sourceType || '').toLowerCase();
+        if (existingSource !== 'notice') return false;
+        return Number(existing?.sourceNoticeId || 0) === Number(item?.sourceNoticeId || 0)
+          && toSafeDateKey(formatDateOnly(existing?.startAt)) === toSafeDateKey(formatDateOnly(item?.startAt));
+      });
+      if (!duplicate) mergedItems.push(item);
+    });
+    calendarActivities = [...mergedItems]
       .filter((item) => {
         const key = toSafeDateKey(formatDateOnly(item?.startAt));
         return key && key.slice(0, 7) === dateParam.slice(0, 7);
@@ -262,6 +310,9 @@ function getModalInstanceById(modalId) {
 }
 
 function buildActivityActionButtons(item, user, currentStatus) {
+  if (item?.sourceType === 'notice' && Number(item?.sourceNoticeId || 0) > 0) {
+    return `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-open-notice-id="${Number(item.sourceNoticeId)}">공지 상세 보기</button></div>`;
+  }
   return '';
 }
 
@@ -279,19 +330,29 @@ async function getMyActivityHistoryMap(user = getCurrentUser()) {
 
 function buildActivityDetailMarkup(item, user, status = '', extraClass = '') {
   const statusLabel = status ? `<span class="badge text-bg-light border">${status}</span>` : '';
+  const deadlineInfo = typeof getDdayInfo === 'function' ? getDdayInfo(item?.startAt || '') : { label: '', className: '' };
+  const deadlineBadge = deadlineInfo.label
+    ? `<span class="deadline-badge ${escapeHtml(deadlineInfo.className || '')}">신청 ${escapeHtml(deadlineInfo.label)}</span>`
+    : '';
   const descriptionHtml = sanitizeRichHtml(item.description || '');
+  const thumbUrl = String(item?.thumbUrl || item?.thumbnailUrl || '').trim();
+  const thumbBlock = thumbUrl
+    ? `<div class="mt-2"><img src="${escapeHtml(thumbUrl)}" alt="활동 썸네일" loading="lazy" width="240" height="140" style="width:100%;max-width:240px;height:auto;border-radius:10px;border:1px solid #e6eef8;object-fit:cover;"></div>`
+    : '';
   return `
     <div class="border rounded p-3 bg-white${extraClass}">
       <div class="d-flex justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-bold">${escapeHtml(item.title || '제목 없음')}</div>
           <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
+          ${deadlineBadge ? `<div class="mt-1">${deadlineBadge}</div>` : ''}
         </div>
         ${statusLabel}
       </div>
       ${item.recurrenceGroupId ? `<div class="small mt-1"><span class="badge text-bg-light border">반복그룹: ${escapeHtml(item.recurrenceGroupId)}</span></div>` : ''}
       <div class="small mt-2">장소: ${escapeHtml(item.place || '-')} / 집결: ${escapeHtml(item.gatherTime || '-')} / 담당자: ${escapeHtml(item.manager || '-')} / 모집: ${item.recruitmentLimit || 0}명</div>
       <div class="small text-muted">준비물: ${escapeHtml(item.supplies || '-')}</div>
+      ${thumbBlock}
       ${descriptionHtml ? `<div class="small mt-2 activity-description-body">${descriptionHtml}</div>` : ''}
       ${buildActivityActionButtons(item, user, status)}
     </div>
@@ -326,6 +387,14 @@ function openCalendarActivityDetailModal(item, user, status = '') {
   const activityId = toSafeActivityId(item.id);
   const hasActionableId = Number.isFinite(activityId) && activityId > 0;
   body.innerHTML = buildActivityDetailMarkup(item, user, status);
+  body.querySelectorAll('[data-open-notice-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const noticeId = Number(btn.getAttribute('data-open-notice-id') || 0);
+      const detailModal = getModalInstanceById('calendarActivityDetailModal');
+      if (detailModal) detailModal.hide();
+      if (noticeId > 0 && typeof openNotice === 'function') openNotice(noticeId);
+    });
+  });
   if (leftActionWrap) {
     leftActionWrap.innerHTML = '';
     const canApply = !!(hasActionableId && item.sourceType !== 'notice' && user && user.status === 'active' && (!status || ['cancelled', 'noshow'].includes(status)));
@@ -418,30 +487,33 @@ function openCalendarActivityListModal(dateKey, items, user, historyMap) {
   if (!titleEl || !listEl) return;
 
   titleEl.innerText = `${dateKey} 일정 목록 (${items.length}건)`;
-  listEl.innerHTML = items.map(item => `
-    <button class="btn btn-outline-primary text-start" data-calendar-activity-id="${toSafeActivityId(item.id)}">
+  listEl.innerHTML = items.map((item, index) => `
+    <button class="btn btn-outline-primary text-start" data-calendar-item-index="${index}">
       <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
-      <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
+      <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}${item?.sourceType === 'notice' ? ' · 공지' : ''}</div>
     </button>
   `).join('');
 
   const listModal = getModalInstanceById('calendarActivityListModal');
   if (listModal) listModal.show();
 
-  const itemMap = {};
-  items.forEach(item => {
-    itemMap[String(toSafeActivityId(item.id))] = item;
-  });
-
-  listEl.querySelectorAll('[data-calendar-activity-id]').forEach(btn => {
+  listEl.querySelectorAll('[data-calendar-item-index]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const selected = itemMap[String(toSafeActivityId(btn.dataset.calendarActivityId))];
+      const idx = Number(btn.getAttribute('data-calendar-item-index') || -1);
+      const selected = Number.isFinite(idx) ? items[idx] : null;
       if (!selected) return;
-      const status = historyMap[String(selected.id)] || '';
       if (listModal) listModal.hide();
-      setTimeout(() => {
-        openCalendarActivityDetailModal(selected, user, status);
-      }, 160);
+      if (selected?.sourceType === 'notice' && Number(selected?.sourceNoticeId || 0) > 0) {
+        const noticeId = Number(selected.sourceNoticeId || 0);
+        setTimeout(() => {
+          movePanel('news');
+          activateNewsTab('notice');
+          if (typeof openNotice === 'function') openNotice(noticeId);
+        }, 160);
+        return;
+      }
+      const status = historyMap[String(selected.id)] || '';
+      setTimeout(() => openCalendarActivityDetailModal(selected, user, status), 160);
     });
   });
 }
@@ -452,6 +524,12 @@ async function openCalendarDatePopup(dateKey, items) {
   const historyMap = await getMyActivityHistoryMap(user);
   if (items.length === 1) {
     const onlyItem = items[0];
+    if (onlyItem?.sourceType === 'notice' && Number(onlyItem?.sourceNoticeId || 0) > 0) {
+      movePanel('news');
+      activateNewsTab('notice');
+      if (typeof openNotice === 'function') openNotice(Number(onlyItem.sourceNoticeId || 0));
+      return;
+    }
     openCalendarActivityDetailModal(onlyItem, user, historyMap[String(onlyItem.id)] || '');
     return;
   }
@@ -481,6 +559,16 @@ async function renderActivitiesDayList(dateKey) {
       : '';
     return buildActivityDetailMarkup(item, user, status, highlightClass);
   }).join('');
+
+  dayList.querySelectorAll('[data-open-notice-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const noticeId = Number(btn.getAttribute('data-open-notice-id') || 0);
+      if (noticeId <= 0) return;
+      movePanel('news');
+      activateNewsTab('notice');
+      if (typeof openNotice === 'function') openNotice(noticeId);
+    });
+  });
 
   if (focusedActivityDateKey === dateKey) {
     setTimeout(() => {
@@ -579,6 +667,8 @@ function renderHomeCalendarPreview() {
     listEl.innerHTML = upcoming.map(item => `
       <button class="btn btn-light text-start border" data-home-activity-date="${toSafeDateKey(formatDateOnly(item.startAt))}">
         <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+        ${String(item?.thumbUrl || '').trim() ? `<div class="mt-1"><img src="${escapeHtml(String(item.thumbUrl || ''))}" alt="활동 썸네일" loading="lazy" width="180" height="100" style="width:100%;max-width:180px;height:auto;border-radius:8px;border:1px solid #e6eef8;object-fit:cover;"></div>` : ''}
+        <div class="small">${typeof getDdayInfo === 'function' && getDdayInfo(item.startAt).label ? `<span class="deadline-badge ${escapeHtml(getDdayInfo(item.startAt).className || '')}">신청 ${escapeHtml(getDdayInfo(item.startAt).label || '')}</span>` : ''}</div>
         <div class="small text-muted">${escapeHtml(formatKoreanDate(item.startAt))} · ${escapeHtml(item.place || '-')}</div>
       </button>
     `).join('');
@@ -631,7 +721,7 @@ function renderHomeNoticeCarousel() {
   const isHomePanelActive = !!(homePanel && homePanel.classList.contains('panel-active'));
   if (section) section.style.display = isHomePanelActive && homeNoticeItems.length ? 'block' : 'none';
   if (!homeNoticeItems.length) {
-    track.innerHTML = '';
+    track.innerHTML = '<div class="alert alert-warning mb-2">홈에 노출할 공지 데이터가 없습니다.</div>';
     dots.innerHTML = '';
     toggleBtn.textContent = homeNoticePaused ? '재생' : '일시정지';
     stopHomeNoticeAutoRotate();
@@ -744,11 +834,35 @@ async function loadOpsDashboard(page = opsPendingPage) {
     setText('ops-card-notices', info.scheduledNotices);
     setText('ops-card-qna', info.qnaUnanswered);
     setText('ops-card-expense', info.expenseAlerts);
+    setText('ops-card-deadline', info.deadlineSoon || 0);
     if (typeof getClientTelemetrySnapshot === 'function') {
       const telemetry = getClientTelemetrySnapshot();
       setText('ops-card-client-403', telemetry.errors403 || 0);
       setText('ops-card-client-429', telemetry.errors429 || 0);
       setText('ops-card-client-upload-fail', telemetry.uploadFailures || 0);
+    }
+
+    const monitorListEl = document.getElementById('ops-alert-monitor-list');
+    if (monitorListEl) {
+      const monitorItems = Array.isArray(info.alertMonitor) ? info.alertMonitor : [];
+      if (!monitorItems.length) {
+        monitorListEl.innerHTML = '<div class="small text-muted">표시할 알림이 없습니다.</div>';
+      } else {
+        monitorListEl.innerHTML = monitorItems.map((item) => {
+          const severity = String(item.severity || 'low');
+          const severityClass = severity === 'high'
+            ? 'danger'
+            : severity === 'medium'
+              ? 'warning'
+              : 'secondary';
+          return `
+            <div class="d-flex justify-content-between align-items-center border rounded p-2">
+              <div class="small">${escapeHtml(String(item.title || '알림'))}</div>
+              <span class="badge text-bg-${severityClass}">${Number(item.count || 0)}건</span>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     const rows = pending.items || [];
@@ -873,6 +987,13 @@ async function createActivityFromCalendar(event) {
     manager: form.manager.value.trim() || (user.name || user.username || ''),
     recruitmentLimit: Number(form.recruitmentLimit.value || 0)
   };
+  const activityEditorImages = typeof getEditorImageSources === 'function' ? getEditorImageSources('activity-editor') : [];
+  const activityCover = String(activityEditorImages?.[0] || '').trim();
+  if (activityCover && typeof createThumbnailDataUrl === 'function') {
+    try {
+      payload.thumbnailData = await createThumbnailDataUrl(activityCover, { width: 320, height: 200, quality: 0.76 });
+    } catch (_) {}
+  }
   const repeatWeeks = Number(form.repeatWeeks.value || 0);
   const recurrenceGroupId = repeatWeeks > 0
     ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`

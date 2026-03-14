@@ -8,7 +8,8 @@
       previewId: 'news-image-preview',
       hiddenName: 'imageData',
       imagesHiddenName: 'imagesData',
-      editorId: 'news-editor'
+      editorId: 'news-editor',
+      stripExifToggleId: 'news-strip-exif'
     });
     bindImageUploader({
       formId: 'add-gallery-form',
@@ -17,41 +18,10 @@
       previewId: 'gallery-image-preview',
       hiddenName: 'imageData',
       imagesHiddenName: 'imagesData',
-      editorId: 'gallery-editor'
+      editorId: 'gallery-editor',
+      stripExifToggleId: 'gallery-strip-exif'
     });
     ensureGalleryYearOptions();
-    updateWriteTemplateVisibility();
-
-    const newsTemplateText = document.getElementById('news-template-text');
-    const galleryTemplateText = document.getElementById('gallery-template-text');
-    const templateSaveBtn = document.getElementById('write-template-save-btn');
-    const newsTemplateApplyBtn = document.getElementById('news-template-apply-btn');
-    const galleryTemplateApplyBtn = document.getElementById('gallery-template-apply-btn');
-
-    const currentTemplates = getWriteTemplates();
-    if (newsTemplateText) newsTemplateText.value = currentTemplates.news;
-    if (galleryTemplateText) galleryTemplateText.value = currentTemplates.gallery;
-
-    if (templateSaveBtn) {
-      templateSaveBtn.addEventListener('click', () => {
-        const user = getCurrentUser();
-        if (!user || user.status !== 'active' || !isStaffUser(user)) {
-          notifyMessage('운영진/관리자만 템플릿을 저장할 수 있습니다.');
-          return;
-        }
-        saveWriteTemplates({
-          news: newsTemplateText?.value || '',
-          gallery: galleryTemplateText?.value || ''
-        });
-        notifyMessage('작성 템플릿이 저장되었습니다.');
-      });
-    }
-    if (newsTemplateApplyBtn) {
-      newsTemplateApplyBtn.addEventListener('click', () => applyTemplateToEditor('news-editor', 'news'));
-    }
-    if (galleryTemplateApplyBtn) {
-      galleryTemplateApplyBtn.addEventListener('click', () => applyTemplateToEditor('gallery-editor', 'gallery'));
-    }
     const galleryTabTrigger = document.getElementById('gallery-tab');
     if (galleryTabTrigger) {
       galleryTabTrigger.addEventListener('shown.bs.tab', () => {
@@ -88,6 +58,9 @@
         const newDate = getTodayString();
         const editorImages = getEditorImageSources('news-editor');
         const coverImage = editorImages[0] || '';
+        const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
+          ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
+          : '';
         const tabType = e.target.postTab.value;
         const isSecret = !!e.target.isSecret.checked;
         const volunteerStartDate = (e.target.volunteerStartDate?.value || '').trim();
@@ -129,9 +102,19 @@
             const nextImages = editorImages.length ? editorImages : existingImages;
             target.images = [];
             target.image = coverImage || nextImages[0] || target.image || '';
+            if (generatedThumb) {
+              target.thumb_url = generatedThumb;
+              target.thumbnail_url = generatedThumb;
+            }
             target.content = e.target.content.value;
             target.publishAt = publishAt || '';
             if (tabType === 'qna') target.isSecret = isSecret;
+            if (tabType === 'qna') {
+              target.authorUserId = Number(target.authorUserId || user.id || 0) || 0;
+              target.authorUsername = target.authorUsername || user.username || '';
+              target.authorNickname = target.authorNickname || user.nickname || '';
+              target.authorEmail = target.authorEmail || user.email || '';
+            }
             if (tabType === 'notice') {
               target.featuredOnHome = featuredOnHome;
               if (Array.isArray(noticeAttachments)) {
@@ -161,6 +144,8 @@
             author: e.target.author.value || user.nickname || user.username || user.name,
             date: newDate,
             image: coverImage || nextImages[0] || '',
+            thumb_url: generatedThumb || '',
+            thumbnail_url: generatedThumb || '',
             images: [],
             content: e.target.content.value,
             publishAt: publishAt || '',
@@ -168,6 +153,12 @@
             isSecret: tabType === 'qna' ? isSecret : false,
             answer: ''
           };
+          if (tabType === 'qna') {
+            newItem.authorUserId = Number(user.id || 0) || 0;
+            newItem.authorUsername = user.username || '';
+            newItem.authorNickname = user.nickname || '';
+            newItem.authorEmail = user.email || '';
+          }
           if (tabType === 'notice') {
             newItem.featuredOnHome = featuredOnHome;
             if (Array.isArray(noticeAttachments)) {
@@ -187,6 +178,9 @@
         renderQna();
         resetWriteForms();
         activateNewsTab(tabType);
+        if (tabType === 'notice' && typeof loadActivitiesCalendar === 'function') {
+          loadActivitiesCalendar().catch(() => {});
+        }
         movePanel('news');
         notifyMessage('글이 저장되었습니다!');
       };
@@ -202,7 +196,7 @@
           if (!galleryForm.isScheduled.checked && galleryForm.publishAt) galleryForm.publishAt.value = '';
         });
       }
-      galleryForm.onsubmit = (e) => {
+      galleryForm.onsubmit = async (e) => {
         e.preventDefault();
         const user = getCurrentUser();
         if (!user) {
@@ -221,7 +215,11 @@
         const newDate = getTodayString();
         const editorImages = getEditorImageSources('gallery-editor');
         const coverImage = editorImages[0] || '';
+        const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
+          ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
+          : '';
         const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+        let galleryItem = null;
         if (editId) {
           const target = data.gallery.find(g => g.id === editId);
           if (target) {
@@ -235,6 +233,10 @@
             const nextImages = editorImages.length ? editorImages : existingImages;
             target.images = [];
             target.image = coverImage || nextImages[0] || target.image || 'logo.png';
+            if (generatedThumb) {
+              target.thumb_url = generatedThumb;
+              target.thumbnail_url = generatedThumb;
+            }
             target.content = e.target.content.value || '';
             target.publishAt = publishAt || '';
             if (activityId > 0) {
@@ -244,17 +246,20 @@
               delete target.activityId;
               delete target.activityStartAt;
             }
+            galleryItem = target;
           }
         } else {
           const newId = Math.max(...data.gallery.map(x => Number(x.id) || 0), 0) + 1;
           const nextImages = editorImages.length ? editorImages : [];
-          data.gallery.unshift({
+          galleryItem = {
             id: newId,
             title: e.target.title.value,
             date: newDate,
             year,
             category: `y${year}`,
             image: coverImage || nextImages[0] || 'logo.png',
+            thumb_url: generatedThumb || '',
+            thumbnail_url: generatedThumb || '',
             images: [],
             content: e.target.content.value || '',
             publishAt: publishAt || '',
@@ -262,6 +267,29 @@
             views: 0,
             activityId: activityId > 0 ? activityId : undefined,
             activityStartAt: activityId > 0 ? activityStartAt : undefined
+          };
+          data.gallery.unshift(galleryItem);
+        }
+        // 봉사 기간(활동) 선택 시 캘린더 일정 추가
+        if (activityId > 0 && activityStartAt) {
+          // 일정 추가 API 호출 (예시, 실제 API 엔드포인트에 맞게 수정 필요)
+          fetch('/activities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: galleryItem.title,
+              startAt: activityStartAt,
+              endAt: activityStartAt,
+              place: '-',
+              manager: user.nickname || user.username || user.name,
+              sourceType: 'gallery',
+              sourceGalleryId: galleryItem.id
+            })
+          }).then(() => {
+            // 일정 추가 후 캘린더 새로고침
+            if (typeof loadActivitiesCalendar === 'function') {
+              loadActivitiesCalendar();
+            }
           });
         }
         saveContent(data);
@@ -308,6 +336,29 @@
         target.answerDate = getTodayString();
         target.answerAuthor = user.nickname || user.username || user.name || '운영자';
         saveContent(next);
+        if (typeof pushInAppNotification === 'function') {
+          pushInAppNotification({
+            title: 'Q&A 답변이 등록되었습니다.',
+            message: `질문 "${target.title || '제목 없음'}"에 운영진 답변이 등록되었습니다.`,
+            panel: 'qna',
+            qnaId: editId,
+            userId: Number(target.authorUserId || 0) || 0,
+            toUser: target.author || '',
+            toUsername: target.authorUsername || target.author || '',
+            toNickname: target.authorNickname || target.author || '',
+            toName: target.author || ''
+            ,
+            toEmail: target.authorEmail || '',
+            anchorId: 'qna-answer-anchor',
+            kind: 'qna_answer',
+            targetId: editId,
+            meta: {
+              qnaId: editId,
+              anchorId: 'qna-answer-anchor'
+            }
+          });
+        }
+        if (typeof renderMyNotifications === 'function') renderMyNotifications();
         renderQna();
         openQnaDetail(editId);
       });

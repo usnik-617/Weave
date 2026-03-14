@@ -348,6 +348,42 @@ a:hover {
   vertical-align: middle;
 }
 
+.search-highlight {
+  background: #fff2a8;
+  color: #213547;
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.deadline-badge {
+  margin-left: 6px;
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid transparent;
+}
+
+.deadline-badge.dday-open {
+  background: #e8f8ff;
+  color: #066089;
+  border-color: #8fd3f4;
+}
+
+.deadline-badge.dday-today {
+  background: #fff4d6;
+  color: #8f5a00;
+  border-color: #efc979;
+}
+
+.deadline-badge.dday-closed {
+  background: #f2f4f7;
+  color: #6b7280;
+  border-color: #cfd5df;
+}
+
 .nav-link::after {
   content: '';
   position: absolute;
@@ -1703,6 +1739,8 @@ hr {
     border-radius: 10px;
     margin-bottom: 4px;
     font-weight: 600;
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.01em;
   }
 
   #mobileMenuDrawer {
@@ -1769,6 +1807,14 @@ hr {
     gap: 8px;
     padding-top: 8px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 35%);
+  }
+
+  #mobileMenuDrawer .offcanvas-title,
+  #mobileMenuDrawer .list-group-item span,
+  #mobile-bottom-nav .mobile-tab,
+  #mobile-bottom-nav .mobile-tab span {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.01em;
   }
 
   .nav-submenu {
@@ -2084,7 +2130,6 @@ hr {
     gap: 2px;
   }
 
-  #news-table td[data-col-key='number'],
   #faq-table td[data-col-key='number'],
   #qna-table td[data-col-key='number'],
   #news-table td[data-col-key='date'],
@@ -3039,6 +3084,15 @@ body.reduced-data-mode .gallery-card {
 
 /* ============ MOBILE ADVANCED USABILITY ============ */
 @media (max-width: 768px) {
+  #mobileMenuDrawer .list-group-item.is-active,
+  #mobileMenuDrawer .list-group-item[aria-current='page'] {
+    background: linear-gradient(180deg, #e1f3ff 0%, #d2ebff 100%) !important;
+    border-color: rgba(10, 150, 209, 0.52) !important;
+    color: #065d85 !important;
+    font-weight: 800 !important;
+    box-shadow: inset 0 0 0 1px rgba(10, 150, 209, 0.55), 0 4px 12px rgba(10, 150, 209, 0.15);
+  }
+
   :root {
     --mobile-content-max: 760px;
   }
@@ -3261,7 +3315,7 @@ body.reduced-data-mode .gallery-card {
   #auth-buttons .btn,
   #user-profile .btn,
   #mobile-menu-login-btn,
-  #mobile-menu-myinfo-btn {
+  #mobile-menu-signup-btn {
     border-radius: 999px;
     font-weight: 700;
   }
@@ -3359,4 +3413,18 @@ body.reduced-data-mode .gallery-card {
   animation: skeletonLoading 1.25s ease infinite;
 }
 
+
+
+#mobile-notification-badge {
+  font-size: 0.62rem;
+  min-width: 1.05rem;
+  line-height: 1.05;
+}
+
+#my-notifications-filter-all.active,
+#my-notifications-filter-unread.active {
+  color: #fff;
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
 

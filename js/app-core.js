@@ -4,6 +4,7 @@ const COMMENTS_KEY = 'weave_comments';
 const CURRENT_USER_KEY = 'weave_current_user';
 const STATS_KEY = 'weave_stats';
 const ABOUT_VOLUNTEER_PHOTO_KEY = 'weave_about_volunteer_photo';
+const APP_NOTIFICATIONS_KEY = 'weave_app_notifications';
 const DEFAULT_ABOUT_VOLUNTEER_PHOTO = 'https://images.unsplash.com/photo-1559027015-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
 const ADMIN_EMAILS = ['admin@weave.com', 'weave@youth.gg.kr'];
 const API_BASE = '/api';
@@ -235,6 +236,236 @@ window.notifyInfo = notifyInfo;
 window.notifyError = notifyError;
 window.notifyMessage = notifyMessage;
 
+let myNotificationFilter = 'all';
+let myNotificationsCache = [];
+
+function getAppNotifications() {
+  const parsed = safeJsonParse(safeStorageGet(APP_NOTIFICATIONS_KEY, '[]'), []);
+  const safeItems = Array.isArray(parsed) ? parsed : [];
+  const now = Date.now();
+  const maxAgeMs = 90 * 24 * 60 * 60 * 1000;
+  return safeItems.filter((item) => {
+    const createdAtMs = new Date(String(item?.createdAt || '')).getTime();
+    return Number.isFinite(createdAtMs) ? (now - createdAtMs <= maxAgeMs) : true;
+  });
+}
+
+function saveAppNotifications(items) {
+  const safeItems = Array.isArray(items) ? items.slice(0, 500) : [];
+  safeStorageSet(APP_NOTIFICATIONS_KEY, JSON.stringify(safeItems));
+}
+
+async function fetchServerNotifications(filter = 'all') {
+  const normalized = String(filter || 'all').toLowerCase() === 'unread' ? 'unread' : 'all';
+  const query = normalized === 'unread' ? '?filter=unread&limit=100' : '?limit=100';
+  const response = await apiRequest(`/me/notifications${query}`, { method: 'GET', suppressSessionModal: true });
+  const items = Array.isArray(response?.items) ? response.items : [];
+  const unreadCount = Number(response?.unreadCount || 0);
+  return { items, unreadCount };
+}
+
+async function postServerNotification(payload = {}) {
+  return apiRequest('/me/notifications', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+function isNotificationForUser(notification, user) {
+  if (!notification || !user) return false;
+  const hints = [
+    String(user.username || '').trim().toLowerCase(),
+    String(user.nickname || '').trim().toLowerCase(),
+    String(user.name || '').trim().toLowerCase(),
+    String(user.email || '').trim().toLowerCase()
+  ].filter(Boolean);
+  const targets = [
+    String(notification.toUser || '').trim().toLowerCase(),
+    String(notification.toUsername || '').trim().toLowerCase(),
+    String(notification.toNickname || '').trim().toLowerCase(),
+    String(notification.toName || '').trim().toLowerCase(),
+    String(notification.toEmail || '').trim().toLowerCase()
+  ].filter(Boolean);
+  return targets.some((target) => hints.includes(target));
+}
+
+async function pushInAppNotification(payload = {}) {
+  const item = {
+    id: `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    title: String(payload.title || '알림').slice(0, 120),
+    message: String(payload.message || '').slice(0, 300),
+    panel: String(payload.panel || ''),
+    targetId: Number(payload.targetId || payload.newsId || payload.qnaId || 0) || 0,
+    newsId: Number(payload.newsId || 0) || 0,
+    qnaId: Number(payload.qnaId || 0) || 0,
+    toUser: String(payload.toUser || ''),
+    toUsername: String(payload.toUsername || ''),
+    toNickname: String(payload.toNickname || ''),
+    toName: String(payload.toName || ''),
+    toEmail: String(payload.toEmail || ''),
+    read: false,
+    createdAt: new Date().toISOString(),
+    meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {}
+  };
+  const user = getCurrentUser();
+  if (user) {
+    const targetUserId = Number(payload.userId || payload.toUserId || user.id || 0);
+    try {
+      await postServerNotification({
+        userId: targetUserId || Number(user.id || 0),
+        title: item.title,
+        message: item.message,
+        panel: item.panel,
+        targetId: Number(item.targetId || 0),
+        kind: String(payload.kind || 'general'),
+        meta: {
+          ...(item.meta || {}),
+          newsId: Number(item.newsId || 0),
+          qnaId: Number(item.qnaId || 0),
+          anchorId: String(payload.anchorId || item.meta?.anchorId || '')
+        }
+      });
+      await renderMyNotifications();
+      return;
+    } catch (_) {}
+  }
+  const notifications = getAppNotifications();
+  notifications.unshift(item);
+  saveAppNotifications(notifications);
+  if (typeof renderMyNotifications === 'function') renderMyNotifications();
+}
+
+function getCurrentUserNotifications() {
+  const user = getCurrentUser();
+  if (!user) return [];
+  return getAppNotifications().filter((item) => isNotificationForUser(item, user));
+}
+
+async function markCurrentUserNotificationsRead() {
+  const user = getCurrentUser();
+  if (!user) return;
+  try {
+    await apiRequest('/me/notifications/read-all', { method: 'PATCH' });
+    return;
+  } catch (_) {}
+  const notifications = getAppNotifications();
+  const next = notifications.map((item) => (
+    isNotificationForUser(item, user) ? { ...item, read: true } : item
+  ));
+  saveAppNotifications(next);
+}
+
+async function renderMyNotifications() {
+  const listEl = document.getElementById('my-notifications-list');
+  const emptyEl = document.getElementById('my-notifications-empty');
+  const countEl = document.getElementById('my-notifications-count');
+  const navBadge = document.getElementById('my-info-unread-badge');
+  const mobileBadge = document.getElementById('mobile-notification-badge');
+  const filterAllBtn = document.getElementById('my-notifications-filter-all');
+  const filterUnreadBtn = document.getElementById('my-notifications-filter-unread');
+  const markAllBtn = document.getElementById('my-notifications-mark-all-read');
+  const user = getCurrentUser();
+  let items = [];
+  let unreadCount = 0;
+  if (user) {
+    try {
+      const server = await fetchServerNotifications(myNotificationFilter);
+      items = Array.isArray(server.items) ? server.items.map((item) => ({
+        ...item,
+        newsId: Number(item?.meta?.newsId || (item.panel === 'news' ? item.targetId : 0) || 0),
+        qnaId: Number(item?.meta?.qnaId || (item.panel === 'qna' ? item.targetId : 0) || 0),
+        anchorId: String(item?.meta?.anchorId || '')
+      })) : [];
+      unreadCount = Number(server.unreadCount || 0);
+      myNotificationsCache = items;
+    } catch (_) {
+      items = getCurrentUserNotifications();
+      unreadCount = items.filter((item) => !item.read).length;
+      myNotificationsCache = items;
+    }
+  }
+  if (!user) {
+    myNotificationsCache = [];
+  }
+
+  if (filterAllBtn) filterAllBtn.classList.toggle('active', myNotificationFilter === 'all');
+  if (filterUnreadBtn) filterUnreadBtn.classList.toggle('active', myNotificationFilter === 'unread');
+  if (countEl) countEl.textContent = String(items.length);
+  if (navBadge) {
+    navBadge.textContent = String(unreadCount);
+    navBadge.classList.toggle('d-none', unreadCount <= 0 || !user);
+  }
+  if (mobileBadge) {
+    mobileBadge.textContent = String(unreadCount);
+    mobileBadge.classList.toggle('d-none', unreadCount <= 0 || !user);
+  }
+  if (markAllBtn) markAllBtn.classList.toggle('d-none', !user || unreadCount <= 0);
+  if (!listEl || !emptyEl) return;
+  if (!user || !items.length) {
+    listEl.innerHTML = '';
+    emptyEl.classList.remove('d-none');
+    return;
+  }
+  emptyEl.classList.add('d-none');
+  const viewItems = items.slice(0, 20);
+  listEl.innerHTML = viewItems.map((item) => `
+    <button type="button" class="list-group-item list-group-item-action ${item.read ? '' : 'list-group-item-info'}" data-my-notification-id="${escapeHtml(item.id || '')}">
+      <div class="fw-semibold">${escapeHtml(item.title || '알림')}</div>
+      <div class="small text-muted">${escapeHtml(item.message || '')}</div>
+      <div class="small text-muted mt-1">${escapeHtml(formatDetailDateTime(item.createdAt || ''))}</div>
+    </button>
+  `).join('');
+  const mapById = {};
+  viewItems.forEach((item) => { mapById[String(item.id || '')] = item; });
+  listEl.querySelectorAll('[data-my-notification-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const item = mapById[String(btn.getAttribute('data-my-notification-id') || '')];
+      if (!item) return;
+      if (user && !item.read) {
+        try {
+          await apiRequest(`/me/notifications/${Number(item.id || 0)}/read`, { method: 'PATCH' });
+        } catch (_) {}
+      }
+      if (item.panel === 'qna' && Number(item.qnaId || 0) > 0 && typeof openQnaDetail === 'function') {
+        movePanel('news');
+        activateNewsTab('qna');
+        openQnaDetail(Number(item.qnaId || 0), { scrollToAnswer: true, anchorId: item.anchorId || 'qna-answer-anchor' });
+        return;
+      }
+      if (item.panel === 'news' && Number(item.newsId || 0) > 0 && typeof openNotice === 'function') {
+        movePanel('news');
+        activateNewsTab('notice');
+        openNotice(Number(item.newsId || 0));
+      }
+    });
+  });
+}
+
+window.pushInAppNotification = pushInAppNotification;
+window.renderMyNotifications = renderMyNotifications;
+window.markCurrentUserNotificationsRead = markCurrentUserNotificationsRead;
+
+document.addEventListener('click', async (event) => {
+  const target = event.target instanceof HTMLElement ? event.target.closest('[data-my-notification-action]') : null;
+  if (!(target instanceof HTMLElement)) return;
+  const action = String(target.dataset.myNotificationAction || '').trim();
+  if (action === 'filter-all') {
+    myNotificationFilter = 'all';
+    await renderMyNotifications();
+    return;
+  }
+  if (action === 'filter-unread') {
+    myNotificationFilter = 'unread';
+    await renderMyNotifications();
+    return;
+  }
+  if (action === 'mark-all-read') {
+    await markCurrentUserNotificationsRead();
+    myNotificationFilter = 'all';
+    await renderMyNotifications();
+  }
+});
+
 function recordClientTelemetry(responseStatus, requestPath = '') {
   const status = Number(responseStatus || 0);
   const path = String(requestPath || '');
@@ -319,8 +550,18 @@ function getCurrentUser() {
 function setCurrentUser(user) {
   if (user) {
     safeStorageSet(CURRENT_USER_KEY, JSON.stringify(user));
+    try {
+      sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    } catch (_) {}
   } else {
     safeStorageRemove(CURRENT_USER_KEY);
+    try {
+      sessionStorage.removeItem(CURRENT_USER_KEY);
+    } catch (_) {}
+    // 로그아웃 시 세션스토리지 전체 초기화(권장)
+    try {
+      sessionStorage.clear();
+    } catch (_) {}
   }
   updateAuthUI();
 }
@@ -391,6 +632,8 @@ function handleSessionExpired(path = '') {
   if (SESSION_EXPIRED_SHOWN) return;
   if (String(path || '').startsWith('/auth/')) return;
   if (!getCurrentUser()) return;
+  setCurrentUser(null);
+  movePanel('home');
   const panel = getActivePanelId();
   if (panel) PENDING_RETURN_PANEL = panel;
   if (panel === 'news') {
@@ -604,38 +847,15 @@ function normalizeContact(value) {
 }
 
 async function findUsernameFlow() {
-  const contact = prompt('이메일 또는 연락처를 입력하세요.');
-  if (!contact) return;
-  try {
-    const data = await apiRequest('/auth/find-username', {
-      method: 'POST',
-      body: JSON.stringify({ contact })
-    });
-    notifyMessage(`아이디는 ${data.username} 입니다.`);
-  } catch (error) {
-    notifyMessage(error.message || '일치하는 계정을 찾지 못했습니다.');
-  }
+  movePanel('account-recovery');
+  const usernameTabBtn = document.getElementById('recover-username-tab-btn');
+  if (usernameTabBtn instanceof HTMLElement) usernameTabBtn.click();
 }
 
 async function findPasswordFlow() {
-  const username = prompt('아이디를 입력하세요.');
-  if (!username) return;
-  const contact = prompt('이메일 또는 연락처를 입력하세요.');
-  if (!contact) return;
-  const newPassword = prompt('새 비밀번호를 입력하세요. (8자 이상, 대문자/특수문자 포함)');
-  if (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
-    notifyMessage('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
-    return;
-  }
-  try {
-    const data = await apiRequest('/auth/reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ username, contact, newPassword })
-    });
-    notifyMessage(data.message || '비밀번호가 재설정되었습니다.');
-  } catch (error) {
-    notifyMessage(error.message || '비밀번호 재설정에 실패했습니다.');
-  }
+  movePanel('account-recovery');
+  const passwordTabBtn = document.getElementById('recover-password-tab-btn');
+  if (passwordTabBtn instanceof HTMLElement) passwordTabBtn.click();
 }
 
 function getStats() {
@@ -688,6 +908,9 @@ function updateAuthUI() {
   const profileEmailEl = document.getElementById('profile-email');
   const profileDetailsEl = document.getElementById('profile-details');
   const profileJoinDateEl = document.getElementById('profile-joindate');
+  const mobileMyInfoLink = document.getElementById('mobile-menu-myinfo-link');
+  const mobileSignupBtn = document.getElementById('mobile-menu-signup-btn');
+  const mobileLoginBtn = document.getElementById('mobile-menu-login-btn');
 
   if (user) {
     if (authButtons) {
@@ -723,6 +946,9 @@ function updateAuthUI() {
     if (faqWriteBtn) faqWriteBtn.classList.toggle('d-none', !(activeMember && isAdminUser(user)));
     if (qnaWriteBtn) qnaWriteBtn.classList.toggle('d-none', !activeMember);
     if (galleryWriteBtn) galleryWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
+    if (mobileMyInfoLink) mobileMyInfoLink.classList.remove('d-none');
+    if (mobileSignupBtn) mobileSignupBtn.classList.add('d-none');
+    if (mobileLoginBtn) mobileLoginBtn.textContent = '내 정보';
   } else {
     if (authButtons) {
       authButtons.style.display = 'flex';
@@ -734,14 +960,17 @@ function updateAuthUI() {
     if (qnaWriteBtn) qnaWriteBtn.classList.add('d-none');
     if (galleryWriteBtn) galleryWriteBtn.classList.add('d-none');
     if (opsDashboardBtn) opsDashboardBtn.classList.add('d-none');
+    if (mobileMyInfoLink) mobileMyInfoLink.classList.add('d-none');
+    if (mobileSignupBtn) mobileSignupBtn.classList.remove('d-none');
+    if (mobileLoginBtn) mobileLoginBtn.textContent = '로그인';
   }
   if (typeof setNewsWriteButtons === 'function') setNewsWriteButtons();
   if (typeof updateCalendarCreateVisibility === 'function') updateCalendarCreateVisibility();
-  if (typeof updateWriteTemplateVisibility === 'function') updateWriteTemplateVisibility();
   if (typeof updateAboutPhotoAdminControls === 'function') updateAboutPhotoAdminControls();
   if (typeof updateExecutivesAdminControls === 'function') updateExecutivesAdminControls();
   if (typeof updateHomeHeroAdminControls === 'function') updateHomeHeroAdminControls();
   if (typeof updateSiteEditorControls === 'function') updateSiteEditorControls();
+  if (typeof renderMyNotifications === 'function') renderMyNotifications();
 }
 
 function isValidBirthDate(value) {

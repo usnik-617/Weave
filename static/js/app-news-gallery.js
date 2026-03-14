@@ -1,4 +1,4 @@
-// ============ NEWS SECTION ============
+﻿// ============ NEWS SECTION ============
 function isFutureScheduled(item) {
   const publishAt = String(item?.publishAt || '').trim();
   if (!publishAt) return false;
@@ -69,6 +69,30 @@ function safeUrl(value) {
   return '';
 }
 
+function highlightKeywordText(text, keyword) {
+  const source = String(text ?? '');
+  const key = String(keyword ?? '').trim();
+  if (!key) return safeText(source);
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const splitter = new RegExp(`(${escaped})`, 'ig');
+  return source
+    .split(splitter)
+    .map((part) => {
+      if (!part) return '';
+      return part.toLowerCase() === key.toLowerCase()
+        ? `<mark class="search-highlight">${safeText(part)}</mark>`
+        : safeText(part);
+    })
+    .join('');
+}
+
+function renderDeadlineBadge(targetDate) {
+  if (typeof getDdayInfo !== 'function') return '';
+  const info = getDdayInfo(targetDate);
+  if (!info?.label) return '';
+  return `<span class="deadline-badge ${safeText(info.className || '')}">${safeText(info.label)}</span>`;
+}
+
 function getFilteredNewsItems() {
   const content = getContent();
   return content.news
@@ -119,7 +143,7 @@ function renderNews() {
   const totalCount = document.getElementById('news-total-count');
   if (!tbody || !pagination || !totalCount) return;
 
-  tbody.innerHTML = makeSkeletonRows(5, 7);
+  tbody.innerHTML = makeSkeletonRows(5, 5);
 
   try {
     const filtered = getFilteredNewsItems();
@@ -134,21 +158,21 @@ function renderNews() {
 
   const user = getCurrentUser();
   const isAdmin = !!(user && (user.isAdmin || (typeof isAdminUser === 'function' && isAdminUser(user))));
-  // 관리 헤더 토글
+  // 愿由??ㅻ뜑 ?좉?
   const adminTh = document.getElementById('news-admin-th');
   if (adminTh) adminTh.style.display = isAdmin ? '' : 'none';
 
   pageItems.forEach((item) => {
     const newsId = normalizeId(item?.id);
     const recommendCount = getRecommendCount(getPostKey('news', newsId));
-    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
-    const safeTitle = safeText(item?.title || '제목 없음');
+    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">?덉빟</span>' : '';
+    const deadlineBadge = renderDeadlineBadge(item?.volunteerStartDate || item?.volunteerDate || '');
+    const safeTitle = safeText(item?.title || '?쒕ぉ ?놁쓬');
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${newsId > -1 ? newsId : ''}</td>
-      <td><a href="#" onclick="openNotice(${newsId}); return false;">${safeTitle}</a>${scheduledBadge}</td>
-      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
+      <td><a href="#" onclick="openNotice(${newsId}); return false;">${safeTitle}</a>${scheduledBadge}${deadlineBadge}</td>
+      <td>${formatAuthorDisplay(item?.author || '愿由ъ옄', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
       <td>${recommendCount}</td>
@@ -159,7 +183,7 @@ function renderNews() {
     pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${newsCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (newsCurrentPage > 1) {
@@ -185,7 +209,7 @@ function renderNews() {
 
     const nextLi = document.createElement('li');
     nextLi.className = `page-item ${newsCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+    nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
     nextLi.addEventListener('click', (e) => {
       e.preventDefault();
       if (newsCurrentPage < totalPages) {
@@ -219,13 +243,13 @@ function renderFaq() {
   tbody.innerHTML = '';
   pageItems.forEach((item) => {
     const faqId = normalizeId(item?.id);
-    const safeTitle = safeText(item?.title || '질문 없음');
+    const safeTitle = highlightKeywordText(item?.title || '吏덈Ц ?놁쓬', faqSearchKeyword);
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${faqId > -1 ? faqId : ''}</td>
       <td><a href="#" onclick="openFaqDetail(${faqId}); return false;">${safeTitle}</a></td>
-      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
+      <td>${formatAuthorDisplay(item?.author || '愿由ъ옄', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
     `;
@@ -235,7 +259,7 @@ function renderFaq() {
   pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${faqCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (faqCurrentPage > 1) {
@@ -261,7 +285,7 @@ function renderFaq() {
 
   const nextLi = document.createElement('li');
   nextLi.className = `page-item ${faqCurrentPage === totalPages ? 'disabled' : ''}`;
-  nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+  nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
   nextLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (faqCurrentPage < totalPages) {
@@ -292,15 +316,15 @@ function renderQna() {
   pageItems.forEach((item) => {
     const qnaId = normalizeId(item?.id);
     const canRead = !item?.isSecret || admin;
-    const safeTitle = safeText(item?.title || '질문 없음');
+    const safeTitle = highlightKeywordText(item?.title || '吏덈Ц ?놁쓬', qnaSearchKeyword);
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${qnaId > -1 ? qnaId : ''}</td>
-      <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' 🔒' : ''}</a>` : '비밀글 🔒'}</td>
+      <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' ?뵏' : ''}</a>` : '鍮꾨?湲 ?뵏'}</td>
       <td>${formatAuthorDisplay(item?.author || '', getCurrentUser())}</td>
       <td>${safeDate}</td>
-      <td>${item.answer ? '답변완료' : '대기'}</td>
+      <td>${item.answer ? '?듬??꾨즺' : '?湲?}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -308,7 +332,7 @@ function renderQna() {
   pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${qnaCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (qnaCurrentPage > 1) {
@@ -334,7 +358,7 @@ function renderQna() {
 
   const nextLi = document.createElement('li');
   nextLi.className = `page-item ${qnaCurrentPage === totalPages ? 'disabled' : ''}`;
-  nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+  nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
   nextLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (qnaCurrentPage < totalPages) {
@@ -370,7 +394,7 @@ function openFaqDetail(id) {
 
   document.getElementById('news-detail-title').textContent = item.title;
   updateDetailMeta('news', {
-    author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
+    author: formatAuthorDisplay(item.author || '愿由ъ옄', getCurrentUser()),
     date: formatDetailDateTime(item.date),
     volunteer: '',
     views: item.views || 0,
@@ -394,7 +418,7 @@ function openFaqDetail(id) {
   if (deleteBtn) {
     deleteBtn.classList.toggle('d-none', !canManage);
     deleteBtn.onclick = canManage ? (() => {
-      if (!confirm('이 FAQ를 삭제하시겠습니까?')) return;
+      if (!confirm('??FAQ瑜???젣?섏떆寃좎뒿?덇퉴?')) return;
       const next = getContent();
       next.faq = (next.faq || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
@@ -404,13 +428,13 @@ function openFaqDetail(id) {
     }) : null;
   }
   const commentsEl = document.getElementById('news-comments-section');
-  if (commentsEl) commentsEl.innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
+  if (commentsEl) commentsEl.innerHTML = '<div class="small text-muted">FAQ?먮뒗 ?볤????묒꽦?????놁뒿?덈떎.</div>';
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   document.getElementById('news-detail')?.classList.add('panel-active');
 }
 
-function openQnaDetail(id) {
+function openQnaDetail(id, options = {}) {
   const user = getCurrentUser();
   const operator = isStaffUser(user);
   const data = getContent();
@@ -418,16 +442,16 @@ function openQnaDetail(id) {
   const item = (data.qna || []).find((q) => normalizeId(q.id) === normalizedId);
   if (!item) return;
   if (item.isSecret && !operator) {
-    notifyMessage('비밀글은 운영자만 열람할 수 있습니다.');
+    notifyMessage('鍮꾨?湲? ?댁쁺?먮쭔 ?대엺?????덉뒿?덈떎.');
     return;
   }
 
   document.getElementById('qna-detail-title').textContent = item.title;
-  document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
+  document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 鍮꾨?湲' : ''}`;
   const questionEl = document.getElementById('qna-detail-question');
   const answerEl = document.getElementById('qna-detail-answer');
   if (questionEl) questionEl.innerHTML = item.content || '';
-  if (answerEl) answerEl.innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
+  if (answerEl) answerEl.innerHTML = item.answer || '?꾩쭅 ?듬????깅줉?섏? ?딆븯?듬땲??';
   const answerBtn = document.getElementById('qna-answer-btn');
   if (answerBtn) {
     answerBtn.classList.toggle('d-none', !operator);
@@ -445,7 +469,7 @@ function openQnaDetail(id) {
   if (qnaDeleteBtn) {
     qnaDeleteBtn.classList.toggle('d-none', !canQnaEdit);
     qnaDeleteBtn.onclick = canQnaEdit ? (() => {
-      if (!confirm('이 Q&A를 삭제하시겠습니까?')) return;
+      if (!confirm('??Q&A瑜???젣?섏떆寃좎뒿?덇퉴?')) return;
       const next = getContent();
       next.qna = (next.qna || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
@@ -457,6 +481,16 @@ function openQnaDetail(id) {
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   document.getElementById('qna-detail')?.classList.add('panel-active');
+  const shouldScrollToAnswer = !!options.scrollToAnswer;
+  const anchorId = String(options.anchorId || 'qna-answer-anchor');
+  if (shouldScrollToAnswer && item.answer) {
+    window.setTimeout(() => {
+      const anchor = document.getElementById(anchorId);
+      if (anchor instanceof HTMLElement) {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 40);
+  }
 }
 
 function openNotice(id) {
@@ -486,11 +520,12 @@ function openNotice(id) {
   titleEl.textContent = notice.title;
   const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
   const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
+  const deadlineInfo = typeof getDdayInfo === 'function' ? getDdayInfo(volunteerStart) : { label: '' };
   const volunteerMeta = volunteerStart
-    ? `봉사 날짜 ${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}`
+    ? `遊됱궗 ?좎쭨 ${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}${deadlineInfo.label ? ` (${deadlineInfo.label})` : ''}`
     : '';
   updateDetailMeta('news', {
-    author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
+    author: formatAuthorDisplay(notice.author || '愿由ъ옄', getCurrentUser()),
     date: formatDetailDateTime(notice.date),
     volunteer: volunteerMeta,
     views: notice.views || 0,
@@ -513,35 +548,35 @@ function openNotice(id) {
       const downloadUrl = safeUrl(file.download_url || file.downloadUrl || fileUrl) || '#';
       const previewUrl = safeUrl(file.preview_url || file.inline_url || appendInlineQuery(fileUrl)) || '#';
       const mimeType = String(file.mime_type || '').toLowerCase();
-      const fileName = String(file.original_name || file.name || '첨부파일');
+      const fileName = String(file.original_name || file.name || '泥⑤??뚯씪');
       const fileSize = Number(file.size || 0);
-      const sizeText = fileSize > 0 ? ` · ${(fileSize / 1024).toFixed(1)}KB` : '';
+      const sizeText = fileSize > 0 ? ` 쨌 ${(fileSize / 1024).toFixed(1)}KB` : '';
       const lowerName = fileName.toLowerCase();
       const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
       const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName);
       if (isPdf) {
         return `
           <span class="small text-muted d-block mt-2"><i class="fas fa-file-pdf me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
-          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener" aria-label="PDF 새 탭 열기: ${escapeHtml(fileName)}">새 탭에서 보기</a>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
+          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener" aria-label="PDF ?????닿린: ${escapeHtml(fileName)}">????뿉??蹂닿린</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="泥⑤??뚯씪 ?ㅼ슫濡쒕뱶: ${escapeHtml(fileName)}">?ㅼ슫濡쒕뱶</a>
         `;
       }
       if (!isImage) {
         return `
           <span class="small text-muted d-block mt-2"><i class="fas fa-paperclip me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="泥⑤??뚯씪 ?ㅼ슫濡쒕뱶: ${escapeHtml(fileName)}">?ㅼ슫濡쒕뱶</a>
         `;
       }
       const imageThumb = safeUrl(file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl) || fileUrl;
       return `
         <a class="d-inline-block mt-2 me-2" href="${fileUrl}" target="_blank" rel="noopener">
-          <img src="${imageThumb}" alt="첨부 이미지 미리보기: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
+          <img src="${imageThumb}" alt="泥⑤? ?대?吏 誘몃━蹂닿린: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
         </a>
       `;
     }).join('');
 
     const calendarButton = volunteerStart
-      ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">캘린더로 이동</button>`
+      ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">罹섎┛?붾줈 ?대룞</button>`
       : '';
 
     actionsEl.innerHTML = `${calendarButton}${attachmentHtml ? `<div class="mt-2 notice-attachment-actions">${attachmentHtml}</div>` : ''}`;
@@ -554,7 +589,8 @@ function openNotice(id) {
   }
   if (recommendBtn?.parentElement) recommendBtn.parentElement.classList.remove('d-none');
   const noticeImage = safeUrl((Array.isArray(notice.images) && notice.images[0]) || notice.image_url || notice.image);
-  if (noticeImage) {
+  const noticeContentHasImageTag = /<img[\s>]/i.test(String(notice.content || ''));
+  if (noticeImage && !noticeContentHasImageTag) {
     imageEl.src = noticeImage;
     imageEl.classList.remove('d-none');
   } else {
@@ -569,7 +605,7 @@ function openNotice(id) {
   if (canManage) {
     deleteBtn.classList.remove('d-none');
     deleteBtn.onclick = () => {
-      if (!confirm('이 공지글을 삭제하시겠습니까?')) return;
+      if (!confirm('??怨듭?湲????젣?섏떆寃좎뒿?덇퉴?')) return;
       const next = getContent();
       next.news = (next.news || []).filter((n) => normalizeId(n.id) !== normalizedId);
       saveContent(next);
@@ -591,7 +627,7 @@ function openNotice(id) {
         recommendCountEl.textContent = String(getRecommendCount(itemKey));
         setRecommendButtonState(recommendBtn, hasRecommendation(itemKey));
         updateDetailMeta('news', {
-          author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
+          author: formatAuthorDisplay(notice.author || '愿由ъ옄', getCurrentUser()),
           date: formatDetailDateTime(notice.date),
           volunteer: volunteerMeta,
           views: notice.views || 0,
@@ -638,7 +674,7 @@ function renderGallery() {
     grid.innerHTML = '';
 
     if (pageItems.length === 0) {
-      // 글이 없으면 아무것도 노출하지 않음
+      // 湲???놁쑝硫??꾨Т寃껊룄 ?몄텧?섏? ?딆쓬
       return;
     }
 
@@ -657,26 +693,43 @@ function renderGallery() {
         || item.image
         || 'logo.png';
       const safeThumb = safeUrl(thumbImage) || 'logo.png';
-      const safeTitle = safeText(item?.title || '제목 없음');
+      const safeTitle = safeText(item?.title || '?쒕ぉ ?놁쓬');
       const safeDate = safeText(item?.date || '');
       const safeYear = safeText(item?.year || '');
       const categoryClass = safeCategoryClass(item?.category);
       const div = document.createElement('div');
       div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
       div.innerHTML = `
-        <div class="gallery-card position-relative overflow-hidden rounded-3" onclick="openGalleryDetail(${galleryId})">
+        <div class="gallery-card position-relative overflow-hidden rounded-3" role="button" tabindex="0" aria-label="${safeTitle} ?곸꽭 蹂닿린">
           <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
           <div class="gallery-caption p-3 bg-white border-top">
             <h6 class="mb-1">${safeTitle}</h6>
-            <small class="text-muted">${safeDate} · ${safeYear}</small>
-            <div class="small text-muted">조회 ${(item.views || 0)} · 추천 ${recommendCount}</div>
-            ${canEdit ? `<div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); startEditGallery(${galleryId});">수정</button></div>` : ''}
+            <small class="text-muted">${safeDate} 쨌 ${safeYear}</small>
+            <div class="small text-muted">議고쉶 ${(item.views || 0)} 쨌 異붿쿇 ${recommendCount}</div>
+            ${canEdit ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-gallery-edit-id="${galleryId}">?섏젙</button></div>` : ''}
           </div>
           <div class="gallery-overlay">
             <i class="fas fa-search-plus"></i>
           </div>
         </div>
       `;
+      const cardEl = div.querySelector('.gallery-card');
+      if (cardEl) {
+        cardEl.addEventListener('click', () => openGalleryDetail(galleryId));
+        cardEl.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openGalleryDetail(galleryId);
+          }
+        });
+      }
+      const editBtn = div.querySelector(`[data-gallery-edit-id="${galleryId}"]`);
+      if (editBtn) {
+        editBtn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          startEditGallery(galleryId);
+        });
+      }
       grid.appendChild(div);
     });
 
@@ -684,7 +737,7 @@ function renderGallery() {
       pagination.innerHTML = '';
       const prevLi = document.createElement('li');
       prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
-      prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
+      prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
       prevLi.addEventListener('click', (e) => {
         e.preventDefault();
         if (galleryCurrentPage > 1) {
@@ -712,7 +765,7 @@ function renderGallery() {
 
       const nextLi = document.createElement('li');
       nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
-      nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
+      nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
       nextLi.addEventListener('click', (e) => {
         e.preventDefault();
         if (galleryCurrentPage < totalPages) {
@@ -749,8 +802,9 @@ function openGalleryDetail(id) {
     || (Array.isArray(item.images) ? item.images[0] : '')
     || '';
   const safeOriginalImage = safeUrl(originalImage);
+  const contentHasImageTag = /<img[\s>]/i.test(String(item.content || ''));
   if (detailImage) {
-    if (safeOriginalImage) {
+    if (safeOriginalImage && !contentHasImageTag) {
       detailImage.src = safeOriginalImage;
       detailImage.classList.remove('d-none');
     } else {
@@ -763,27 +817,21 @@ function openGalleryDetail(id) {
   if (!titleEl || !contentEl) return;
   titleEl.innerText = item.title;
   updateDetailMeta('gallery', {
-    author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
+    author: formatAuthorDisplay(item.author || '?묒꽦??誘몄긽', getCurrentUser()),
     date: formatDetailDateTime(item.date),
-    volunteer: item.year ? `${item.year}년 활동` : '',
+    volunteer: item.year ? `${item.year}???쒕룞` : '',
     views: item.views || 0,
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  // 본문에는 대표 이미지를 제외한 나머지 이미지만 노출
-  let filteredContentHtml = String(item.content || '');
-  if (safeOriginalImage) {
-    // 대표 이미지 src와 일치하는 <img> 태그 제거
-    filteredContentHtml = filteredContentHtml.replace(new RegExp(`<img[^>]+src=["']${safeOriginalImage}["'][^>]*>`, 'gi'), '');
-  }
-  contentEl.innerHTML = filteredContentHtml || '내용이 없습니다.';
+  contentEl.innerHTML = String(item.content || '') || '?댁슜???놁뒿?덈떎.';
   enableContentImagePreview('gallery-detail-content');
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
     const linkedActivityId = Number(item.activityId || item.activity_id || 0);
     const hasLinkedActivity = Number.isFinite(linkedActivityId) && linkedActivityId > 0;
     actionsEl.innerHTML = hasLinkedActivity
-      ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">캘린더로 이동</button>'
+      ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">罹섎┛?붾줈 ?대룞</button>'
       : '';
     const goCalendarBtn = document.getElementById('gallery-go-calendar-btn');
     if (goCalendarBtn) {
@@ -804,7 +852,7 @@ function openGalleryDetail(id) {
     if (deleteBtn) deleteBtn.classList.remove('d-none');
     if (editBtn) editBtn.onclick = () => startEditGallery(normalizedId);
     if (deleteBtn) deleteBtn.onclick = () => {
-      if (!confirm('이 글을 삭제하시겠습니까?')) return;
+      if (!confirm('??湲????젣?섏떆寃좎뒿?덇퉴?')) return;
       const data = getContent();
       data.gallery = (data.gallery || []).filter((g) => normalizeId(g.id) !== normalizedId);
       saveContent(data);
@@ -829,9 +877,9 @@ function openGalleryDetail(id) {
         recommendCountEl.textContent = String(getRecommendCount(itemKey));
         setRecommendButtonState(recommendBtn, hasRecommendation(itemKey));
         updateDetailMeta('gallery', {
-          author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
+          author: formatAuthorDisplay(item.author || '?묒꽦??誘몄긽', getCurrentUser()),
           date: formatDetailDateTime(item.date),
-          volunteer: item.year ? `${item.year}년 활동` : '',
+          volunteer: item.year ? `${item.year}???쒕룞` : '',
           views: item.views || 0,
           recommends: getRecommendCount(itemKey),
           comments: getCommentCount(itemKey)
@@ -853,7 +901,7 @@ function openGalleryDetail(id) {
 
 function startEditNews(id) {
   const user = getCurrentUser();
-  if (!user) return notifyMessage('로그인이 필요합니다.');
+  if (!user) return notifyMessage('濡쒓렇?몄씠 ?꾩슂?⑸땲??');
   const type = arguments[1] || 'notice';
   const data = getContent();
   const source = type === 'faq' ? (data.faq || []) : (type === 'qna' ? (data.qna || []) : data.news);
@@ -894,7 +942,7 @@ function startEditNews(id) {
 
 function startEditGallery(id) {
   const user = getCurrentUser();
-  if (!user) return notifyMessage('로그인이 필요합니다.');
+  if (!user) return notifyMessage('濡쒓렇?몄씠 ?꾩슂?⑸땲??');
   const data = getContent();
   const item = data.gallery.find(g => g.id === id);
   if (!item) return;
@@ -924,3 +972,4 @@ function startEditGallery(id) {
   setEditorHtml('gallery-editor', item.content || '');
   openWritePanel('gallery-admin');
 }
+

@@ -1,4 +1,5 @@
 ﻿import sqlite3
+import json
 from datetime import datetime
 
 from weave import core as weave_core
@@ -23,6 +24,41 @@ from weave.responses import (
 )
 from weave.time_utils import now_iso
 from weave.validators import validate_nickname
+
+
+NOTIFICATION_RETENTION_DAYS = 90
+
+
+def _cleanup_old_notifications(conn):
+    conn.execute(
+        """
+        DELETE FROM in_app_notifications
+        WHERE created_at < datetime('now', ?)
+        """,
+        (f"-{NOTIFICATION_RETENTION_DAYS} days",),
+    )
+
+
+def _notification_row_to_dict(row):
+    payload = {}
+    try:
+        payload = json.loads(str(row["meta_json"] or "{}"))
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return {
+        "id": int(row["id"]),
+        "kind": str(row["kind"] or "general"),
+        "title": str(row["title"] or ""),
+        "message": str(row["message"] or ""),
+        "panel": str(row["panel"] or ""),
+        "targetId": int(row["target_id"] or 0),
+        "meta": payload,
+        "read": bool(int(row["is_read"] or 0)),
+        "createdAt": row["created_at"],
+        "readAt": row["read_at"],
+    }
 
 
 def delete_my_account():
@@ -373,4 +409,195 @@ def approve_role_request_legacy(request_id):
 
 def reject_role_request_legacy(request_id):
     return _decide_role_request(request_id, False)
+
+
+def list_my_notifications():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response(error_messages.UNAUTHORIZED, 401)
+
+    only_unread = str(request.args.get("filter", "")).strip().lower() == "unread"
+    limit = min(100, max(1, int(request.args.get("limit", "30") or 30)))
+    with transaction(conn):
+        _cleanup_old_notifications(conn)
+        if only_unread:
+            rows = conn.execute(
+                """
+                SELECT id, kind, title, message, panel, target_id, meta_json, is_read, created_at, read_at
+                FROM in_app_notifications
+                WHERE user_id = ? AND is_read = 0
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (me["id"], limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, kind, title, message, panel, target_id, meta_json, is_read, created_at, read_at
+                FROM in_app_notifications
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (me["id"], limit),
+            ).fetchall()
+        unread_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM in_app_notifications WHERE user_id = ? AND is_read = 0",
+            (me["id"],),
+        ).fetchone()["c"]
+    conn.close()
+    return success_response(
+        {
+            "items": [_notification_row_to_dict(row) for row in rows],
+            "unreadCount": int(unread_count or 0),
+            "retentionDays": NOTIFICATION_RETENTION_DAYS,
+        }
+    )
+
+
+def create_my_notification():
+    payload = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response(error_messages.UNAUTHORIZED, 401)
+
+    target_user_id = int(payload.get("userId") or 0)
+    if target_user_id <= 0:
+        hint_candidates = [
+            str(payload.get("toUsername", "")).strip(),
+            str(payload.get("toUser", "")).strip(),
+            str(payload.get("toNickname", "")).strip(),
+            str(payload.get("toName", "")).strip(),
+            str(payload.get("toEmail", "")).strip(),
+        ]
+        hint_candidates = [item for item in hint_candidates if item]
+        if hint_candidates:
+            placeholders = ",".join(["?"] * len(hint_candidates))
+            row = conn.execute(
+                f"""
+                SELECT id
+                FROM users
+                WHERE username IN ({placeholders})
+                   OR nickname IN ({placeholders})
+                   OR name IN ({placeholders})
+                   OR email IN ({placeholders})
+                ORDER BY id ASC
+                LIMIT 1
+                """,
+                tuple(hint_candidates + hint_candidates + hint_candidates + hint_candidates),
+            ).fetchone()
+            if row:
+                target_user_id = int(row["id"] or 0)
+    if target_user_id <= 0:
+        target_user_id = int(me["id"])
+
+    if target_user_id != int(me["id"]) and not role_at_least(me["role"], "VICE_LEADER"):
+        conn.close()
+        return error_response(error_messages.ROLE_REQUEST_VICE_LEADER_REQUIRED, 403)
+
+    title = str(payload.get("title", "")).strip()[:120]
+    message = str(payload.get("message", "")).strip()[:500]
+    panel = str(payload.get("panel", "")).strip()[:40]
+    kind = str(payload.get("kind", "general")).strip()[:40] or "general"
+    target_id = int(payload.get("targetId", 0) or 0)
+    meta = payload.get("meta", {})
+    if not title:
+        conn.close()
+        return error_response("알림 제목은 필수입니다.", 400)
+    if not isinstance(meta, dict):
+        meta = {}
+
+    with transaction(conn):
+        _cleanup_old_notifications(conn)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO in_app_notifications
+            (user_id, kind, title, message, panel, target_id, meta_json, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+            """,
+            (
+                target_user_id,
+                kind,
+                title,
+                message,
+                panel,
+                target_id,
+                json.dumps(meta, ensure_ascii=False),
+                now_iso(),
+            ),
+        )
+        new_id = int(cur.lastrowid or 0)
+    row = conn.execute(
+        """
+        SELECT id, kind, title, message, panel, target_id, meta_json, is_read, created_at, read_at
+        FROM in_app_notifications
+        WHERE id = ?
+        """,
+        (new_id,),
+    ).fetchone()
+    conn.close()
+    return success_response({"item": _notification_row_to_dict(row)}, 201)
+
+
+def mark_my_notifications_read_all():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response(error_messages.UNAUTHORIZED, 401)
+
+    now_text = now_iso()
+    with transaction(conn):
+        _cleanup_old_notifications(conn)
+        conn.execute(
+            """
+            UPDATE in_app_notifications
+            SET is_read = 1, read_at = COALESCE(read_at, ?)
+            WHERE user_id = ? AND is_read = 0
+            """,
+            (now_text, me["id"]),
+        )
+    unread_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM in_app_notifications WHERE user_id = ? AND is_read = 0",
+        (me["id"],),
+    ).fetchone()["c"]
+    conn.close()
+    return success_response({"ok": True, "unreadCount": int(unread_count or 0)})
+
+
+def mark_my_notification_read(notification_id):
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response(error_messages.UNAUTHORIZED, 401)
+    with transaction(conn):
+        _cleanup_old_notifications(conn)
+        row = conn.execute(
+            "SELECT id FROM in_app_notifications WHERE id = ? AND user_id = ?",
+            (notification_id, me["id"]),
+        ).fetchone()
+        if not row:
+            conn.close()
+            return error_response("알림을 찾을 수 없습니다.", 404)
+        conn.execute(
+            """
+            UPDATE in_app_notifications
+            SET is_read = 1, read_at = COALESCE(read_at, ?)
+            WHERE id = ? AND user_id = ?
+            """,
+            (now_iso(), notification_id, me["id"]),
+        )
+    unread_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM in_app_notifications WHERE user_id = ? AND is_read = 0",
+        (me["id"],),
+    ).fetchone()["c"]
+    conn.close()
+    return success_response({"ok": True, "unreadCount": int(unread_count or 0)})
 

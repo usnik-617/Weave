@@ -7,6 +7,22 @@ bp.add_url_rule("/api/user/profile", view_func=ur.user_profile, methods=["GET"])
 bp.add_url_rule("/api/me/nickname", view_func=ur.update_my_nickname, methods=["PATCH"])
 bp.add_url_rule("/api/me/activity", view_func=ur.list_my_activity, methods=["GET"])
 bp.add_url_rule(
+    "/api/me/notifications", view_func=ur.list_my_notifications, methods=["GET"]
+)
+bp.add_url_rule(
+    "/api/me/notifications", view_func=ur.create_my_notification, methods=["POST"]
+)
+bp.add_url_rule(
+    "/api/me/notifications/read-all",
+    view_func=ur.mark_my_notifications_read_all,
+    methods=["PATCH"],
+)
+bp.add_url_rule(
+    "/api/me/notifications/<int:notification_id>/read",
+    view_func=ur.mark_my_notification_read,
+    methods=["PATCH"],
+)
+bp.add_url_rule(
     "/api/user/nickname", view_func=ur.update_user_nickname_legacy, methods=["POST"]
 )
 bp.add_url_rule(
