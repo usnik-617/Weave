@@ -65,7 +65,9 @@ function safeUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
   if (raw.startsWith('data:image/')) return raw;
+  if (/^javascript:/i.test(raw)) return '';
   if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+  if (/^[A-Za-z0-9._/\-]+$/.test(raw) && !raw.includes('..')) return raw;
   return '';
 }
 
@@ -95,9 +97,25 @@ function renderDeadlineBadge(targetDate) {
 
 function getFilteredNewsItems() {
   const content = getContent();
-  return content.news
+  const baseItems = Array.isArray(content?.news) ? content.news : [];
+  const items = baseItems
     .filter((item) => safeLowerText(item?.title).includes(safeLowerText(newsSearchKeyword)))
-    .sort((a, b) => b.id - a.id);
+    .slice();
+  const sortMode = String(newsSortMode || 'latest').toLowerCase();
+  if (sortMode === 'views') {
+    items.sort((a, b) => Number(b?.views || 0) - Number(a?.views || 0));
+  } else if (sortMode === 'likes') {
+    items.sort((a, b) => {
+      const aId = normalizeId(a?.id);
+      const bId = normalizeId(b?.id);
+      const aLikes = getRecommendCount(getPostKey('news', aId));
+      const bLikes = getRecommendCount(getPostKey('news', bId));
+      return bLikes - aLikes;
+    });
+  } else {
+    items.sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0));
+  }
+  return items;
 }
 
 function getFilteredFaqItems() {
@@ -183,7 +201,7 @@ function renderNews() {
     pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${newsCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (newsCurrentPage > 1) {
@@ -209,7 +227,7 @@ function renderNews() {
 
     const nextLi = document.createElement('li');
     nextLi.className = `page-item ${newsCurrentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
+    nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
     nextLi.addEventListener('click', (e) => {
       e.preventDefault();
       if (newsCurrentPage < totalPages) {
@@ -247,11 +265,9 @@ function renderFaq() {
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${faqId > -1 ? faqId : ''}</td>
       <td><a href="#" onclick="openFaqDetail(${faqId}); return false;">${safeTitle}</a></td>
       <td>${formatAuthorDisplay(item?.author || '愿由ъ옄', getCurrentUser())}</td>
       <td>${safeDate}</td>
-      <td>${item.views || 0}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -259,7 +275,7 @@ function renderFaq() {
   pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${faqCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (faqCurrentPage > 1) {
@@ -285,7 +301,7 @@ function renderFaq() {
 
   const nextLi = document.createElement('li');
   nextLi.className = `page-item ${faqCurrentPage === totalPages ? 'disabled' : ''}`;
-  nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
+  nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
   nextLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (faqCurrentPage < totalPages) {
@@ -320,11 +336,9 @@ function renderQna() {
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${qnaId > -1 ? qnaId : ''}</td>
       <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' ?뵏' : ''}</a>` : '鍮꾨?湲 ?뵏'}</td>
       <td>${formatAuthorDisplay(item?.author || '', getCurrentUser())}</td>
       <td>${safeDate}</td>
-      <td>${item.answer ? '?듬??꾨즺' : '?湲?}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -332,7 +346,7 @@ function renderQna() {
   pagination.innerHTML = '';
   const prevLi = document.createElement('li');
   prevLi.className = `page-item ${qnaCurrentPage === 1 ? 'disabled' : ''}`;
-  prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
+  prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
   prevLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (qnaCurrentPage > 1) {
@@ -358,7 +372,7 @@ function renderQna() {
 
   const nextLi = document.createElement('li');
   nextLi.className = `page-item ${qnaCurrentPage === totalPages ? 'disabled' : ''}`;
-  nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
+  nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
   nextLi.addEventListener('click', (e) => {
     e.preventDefault();
     if (qnaCurrentPage < totalPages) {
@@ -418,7 +432,7 @@ function openFaqDetail(id) {
   if (deleteBtn) {
     deleteBtn.classList.toggle('d-none', !canManage);
     deleteBtn.onclick = canManage ? (() => {
-      if (!confirm('??FAQ瑜???젣?섏떆寃좎뒿?덇퉴?')) return;
+      if (!confirm('FAQ 글을 삭제하시겠습니까?')) return;
       const next = getContent();
       next.faq = (next.faq || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
@@ -428,7 +442,7 @@ function openFaqDetail(id) {
     }) : null;
   }
   const commentsEl = document.getElementById('news-comments-section');
-  if (commentsEl) commentsEl.innerHTML = '<div class="small text-muted">FAQ?먮뒗 ?볤????묒꽦?????놁뒿?덈떎.</div>';
+  if (commentsEl) commentsEl.innerHTML = '<div class="small text-muted">FAQ에는 댓글을 작성할 수 없습니다.</div>';
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   document.getElementById('news-detail')?.classList.add('panel-active');
@@ -469,7 +483,7 @@ function openQnaDetail(id, options = {}) {
   if (qnaDeleteBtn) {
     qnaDeleteBtn.classList.toggle('d-none', !canQnaEdit);
     qnaDeleteBtn.onclick = canQnaEdit ? (() => {
-      if (!confirm('??Q&A瑜???젣?섏떆寃좎뒿?덇퉴?')) return;
+      if (!confirm('Q&A 글을 삭제하시겠습니까?')) return;
       const next = getContent();
       next.qna = (next.qna || []).filter((entry) => normalizeId(entry.id) !== normalizedId);
       saveContent(next);
@@ -491,6 +505,16 @@ function openQnaDetail(id, options = {}) {
       }
     }, 40);
   }
+}
+
+function getNoticePrevNext(noticeId) {
+  const items = getFilteredNewsItems();
+  const idx = items.findIndex((item) => normalizeId(item?.id) === normalizeId(noticeId));
+  if (idx < 0) return { prevItem: null, nextItem: null };
+  return {
+    prevItem: idx < items.length - 1 ? items[idx + 1] : null,
+    nextItem: idx > 0 ? items[idx - 1] : null
+  };
 }
 
 function openNotice(id) {
@@ -557,26 +581,26 @@ function openNotice(id) {
       if (isPdf) {
         return `
           <span class="small text-muted d-block mt-2"><i class="fas fa-file-pdf me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
-          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener" aria-label="PDF ?????닿린: ${escapeHtml(fileName)}">????뿉??蹂닿린</a>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="泥⑤??뚯씪 ?ㅼ슫濡쒕뱶: ${escapeHtml(fileName)}">?ㅼ슫濡쒕뱶</a>
+          <a class="btn btn-sm btn-outline-secondary mt-2 me-2 mobile-attachment-btn" href="${previewUrl}" target="_blank" rel="noopener" aria-label="PDF 미리보기: ${escapeHtml(fileName)}">브라우저에서 보기</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부 파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
         `;
       }
       if (!isImage) {
         return `
           <span class="small text-muted d-block mt-2"><i class="fas fa-paperclip me-1"></i>${escapeHtml(fileName)}${sizeText}</span>
-          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="泥⑤??뚯씪 ?ㅼ슫濡쒕뱶: ${escapeHtml(fileName)}">?ㅼ슫濡쒕뱶</a>
+          <a class="btn btn-sm btn-outline-primary mt-2 me-2 mobile-attachment-btn" href="${downloadUrl}" download target="_blank" rel="noopener" aria-label="첨부 파일 다운로드: ${escapeHtml(fileName)}">다운로드</a>
         `;
       }
       const imageThumb = safeUrl(file.thumbnail_url || file.thumb_url || file.preview_url || fileUrl) || fileUrl;
       return `
         <a class="d-inline-block mt-2 me-2" href="${fileUrl}" target="_blank" rel="noopener">
-          <img src="${imageThumb}" alt="泥⑤? ?대?吏 誘몃━蹂닿린: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
+          <img src="${imageThumb}" alt="첨부 이미지 미리보기: ${escapeHtml(fileName)}" loading="lazy" width="100" height="100" style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">
         </a>
       `;
     }).join('');
 
     const calendarButton = volunteerStart
-      ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">罹섎┛?붾줈 ?대룞</button>`
+      ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">캘린더로 이동</button>`
       : '';
 
     actionsEl.innerHTML = `${calendarButton}${attachmentHtml ? `<div class="mt-2 notice-attachment-actions">${attachmentHtml}</div>` : ''}`;
@@ -605,7 +629,7 @@ function openNotice(id) {
   if (canManage) {
     deleteBtn.classList.remove('d-none');
     deleteBtn.onclick = () => {
-      if (!confirm('??怨듭?湲????젣?섏떆寃좎뒿?덇퉴?')) return;
+      if (!confirm('공지 글을 삭제하시겠습니까?')) return;
       const next = getContent();
       next.news = (next.news || []).filter((n) => normalizeId(n.id) !== normalizedId);
       saveContent(next);
@@ -639,6 +663,26 @@ function openNotice(id) {
   }
 
   renderPostComments('news-comments-section', itemKey);
+  const newsPagerAnchor = document.getElementById('news-detail-pager-anchor');
+  if (newsPagerAnchor) {
+    const nav = getNoticePrevNext(normalizedId);
+    const prevNoticeId = normalizeId(nav.prevItem?.id);
+    const nextNoticeId = normalizeId(nav.nextItem?.id);
+    newsPagerAnchor.innerHTML = `
+      <div class="detail-pager">
+        <button type="button" class="btn btn-sm btn-outline-secondary detail-pager-btn" id="notice-prev-btn" ${prevNoticeId < 0 ? 'disabled' : ''}>
+          이전글
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary detail-pager-btn" id="notice-next-btn" ${nextNoticeId < 0 ? 'disabled' : ''}>
+          다음글
+        </button>
+      </div>
+    `;
+    const prevBtn = document.getElementById('notice-prev-btn');
+    if (prevBtn && prevNoticeId > 0) prevBtn.onclick = () => openNotice(prevNoticeId);
+    const nextBtn = document.getElementById('notice-next-btn');
+    if (nextBtn && nextNoticeId > 0) nextBtn.onclick = () => openNotice(nextNoticeId);
+  }
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   document.getElementById('news-detail')?.classList.add('panel-active');
@@ -646,8 +690,32 @@ function openNotice(id) {
 }
 
 // ============ GALLERY SECTION ============
-function renderGallery() {
+function getFilteredGalleryItems() {
   const content = getContent();
+  const galleryItems = Array.isArray(content.gallery) ? content.gallery : [];
+  const filtered = galleryItems.filter((item) => {
+    const byYear = galleryCurrentFilter === '*' || String(item?.category || '') === String(galleryCurrentFilter || '').replace('.', '');
+    const byKeyword = !gallerySearchKeyword || safeLowerText(item?.title).includes(safeLowerText(gallerySearchKeyword));
+    return byYear && byKeyword;
+  }).slice();
+  const gallerySort = String(gallerySortMode || 'latest').toLowerCase();
+  if (gallerySort === 'views') {
+    filtered.sort((a, b) => Number(b?.views || 0) - Number(a?.views || 0));
+  } else if (gallerySort === 'likes') {
+    filtered.sort((a, b) => {
+      const aId = normalizeId(a?.id);
+      const bId = normalizeId(b?.id);
+      const aLikes = getRecommendCount(getPostKey('gallery', aId));
+      const bLikes = getRecommendCount(getPostKey('gallery', bId));
+      return bLikes - aLikes;
+    });
+  } else {
+    filtered.sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0));
+  }
+  return filtered;
+}
+
+function renderGallery() {
   const grid = document.getElementById('gallery-grid');
   const pagination = document.getElementById('gallery-pagination');
   const totalCount = document.getElementById('gallery-total-count');
@@ -658,12 +726,7 @@ function renderGallery() {
   grid.innerHTML = makeSkeletonCards(6);
 
   try {
-    const galleryItems = Array.isArray(content.gallery) ? content.gallery : [];
-    const filtered = galleryItems.filter((item) => {
-      const byYear = galleryCurrentFilter === '*' || String(item?.category || '') === String(galleryCurrentFilter || '').replace('.', '');
-      const byKeyword = !gallerySearchKeyword || safeLowerText(item?.title).includes(safeLowerText(gallerySearchKeyword));
-      return byYear && byKeyword;
-    });
+    const filtered = getFilteredGalleryItems();
     totalCount.textContent = String(filtered.length);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / GALLERY_PAGE_SIZE));
@@ -737,7 +800,7 @@ function renderGallery() {
       pagination.innerHTML = '';
       const prevLi = document.createElement('li');
       prevLi.className = `page-item ${galleryCurrentPage === 1 ? 'disabled' : ''}`;
-      prevLi.innerHTML = '<a class="page-link" href="#">?댁쟾</a>';
+      prevLi.innerHTML = '<a class="page-link" href="#">이전</a>';
       prevLi.addEventListener('click', (e) => {
         e.preventDefault();
         if (galleryCurrentPage > 1) {
@@ -765,7 +828,7 @@ function renderGallery() {
 
       const nextLi = document.createElement('li');
       nextLi.className = `page-item ${galleryCurrentPage === totalPages ? 'disabled' : ''}`;
-      nextLi.innerHTML = '<a class="page-link" href="#">?ㅼ쓬</a>';
+      nextLi.innerHTML = '<a class="page-link" href="#">다음</a>';
       nextLi.addEventListener('click', (e) => {
         e.preventDefault();
         if (galleryCurrentPage < totalPages) {
@@ -830,9 +893,7 @@ function openGalleryDetail(id) {
   if (actionsEl) {
     const linkedActivityId = Number(item.activityId || item.activity_id || 0);
     const hasLinkedActivity = Number.isFinite(linkedActivityId) && linkedActivityId > 0;
-    actionsEl.innerHTML = hasLinkedActivity
-      ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">罹섎┛?붾줈 ?대룞</button>'
-      : '';
+    actionsEl.innerHTML = `${hasLinkedActivity ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">캘린더로 이동</button>' : ''}`;
     const goCalendarBtn = document.getElementById('gallery-go-calendar-btn');
     if (goCalendarBtn) {
       goCalendarBtn.onclick = async () => {
@@ -889,6 +950,29 @@ function openGalleryDetail(id) {
   }
 
   renderPostComments('gallery-comments-section', itemKey);
+  const galleryPagerAnchor = document.getElementById('gallery-detail-pager-anchor');
+  if (galleryPagerAnchor) {
+    const filtered = getFilteredGalleryItems();
+    const idx = filtered.findIndex((entry) => normalizeId(entry?.id) === normalizedId);
+    const prevItem = idx >= 0 && idx < filtered.length - 1 ? filtered[idx + 1] : null;
+    const nextItem = idx > 0 ? filtered[idx - 1] : null;
+    const prevId = normalizeId(prevItem?.id);
+    const nextId = normalizeId(nextItem?.id);
+    galleryPagerAnchor.innerHTML = `
+      <div class="detail-pager">
+        <button type="button" class="btn btn-sm btn-outline-secondary detail-pager-btn" id="gallery-prev-btn" ${prevId < 0 ? 'disabled' : ''}>
+          이전글
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary detail-pager-btn" id="gallery-next-btn" ${nextId < 0 ? 'disabled' : ''}>
+          다음글
+        </button>
+      </div>
+    `;
+    const prevBtn = document.getElementById('gallery-prev-btn');
+    if (prevBtn && prevId > 0) prevBtn.onclick = () => openGalleryDetail(prevId);
+    const nextBtn = document.getElementById('gallery-next-btn');
+    if (nextBtn && nextId > 0) nextBtn.onclick = () => openGalleryDetail(nextId);
+  }
 
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   const detailPanel = document.getElementById('gallery-detail');

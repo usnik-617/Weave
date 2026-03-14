@@ -31,25 +31,31 @@ function buildNoticeCalendarItems() {
     const startKey = toDateOnlyKey(notice?.volunteerStartDate || notice?.volunteerDate || '');
     const endKey = toDateOnlyKey(notice?.volunteerEndDate || notice?.volunteerDate || startKey);
     if (!startKey) return;
-    const range = typeof expandDateRange === 'function' ? expandDateRange(startKey, endKey || startKey) : [startKey];
-    range.forEach((dayKey) => {
-      if (!dayKey) return;
-      items.push({
-        id: `notice-${noticeId}-${dayKey}`,
-        sourceType: 'notice',
-        sourceNoticeId: noticeId,
-        title: String(notice.title || '공지사항'),
-        startAt: `${dayKey}T09:00`,
-        endAt: `${dayKey}T18:00`,
-        place: '공지사항',
-        manager: String(notice.author || '관리자'),
-        recruitmentLimit: 0,
-        description: String(notice.content || ''),
-        isCancelled: false
-      });
+    items.push({
+      id: `notice-${noticeId}`,
+      sourceType: 'notice',
+      sourceNoticeId: noticeId,
+      title: String(notice.title || '공지사항'),
+      startAt: `${startKey}T09:00`,
+      endAt: `${(endKey || startKey)}T18:00`,
+      place: '공지사항',
+      manager: String(notice.author || '관리자'),
+      recruitmentLimit: 0,
+      description: String(notice.content || ''),
+      isCancelled: false
     });
   });
   return items;
+}
+
+function getCalendarDateKeysForItem(item) {
+  const startKey = toDateOnlyKey(item?.startAt || item?.start_date || '');
+  const endKey = toDateOnlyKey(item?.endAt || item?.end_date || startKey);
+  if (!startKey) return [];
+  if (typeof expandDateRange === 'function') {
+    return expandDateRange(startKey, endKey || startKey);
+  }
+  return [startKey];
 }
 
 function movePanel(panelId) {
@@ -65,7 +71,10 @@ function movePanel(panelId) {
   }
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   const target = document.getElementById(nextPanelId);
-  if (target) target.classList.add('panel-active');
+  if (target) {
+    target.classList.add('panel-active');
+    applyMobilePanelEnterAnimation(target);
+  }
   const statsSection = document.getElementById('home-stats');
   const homeCalendarPreview = document.getElementById('home-calendar-preview');
   const homeNoticeCarousel = document.getElementById('home-notice-carousel');
@@ -88,11 +97,6 @@ function movePanel(panelId) {
       newsTab: String(currentNewsTab || 'notice')
     }
   }));
-  const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
-  if (isMobile) {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    return;
-  }
   let restoreTop = 0;
   try {
     const raw = sessionStorage.getItem(`weave:panel-scroll:${nextPanelId}`);
@@ -102,6 +106,20 @@ function movePanel(panelId) {
     restoreTop = 0;
   }
   window.scrollTo({ top: restoreTop, behavior: 'auto' });
+}
+
+function applyMobilePanelEnterAnimation(panelElement) {
+  if (!(panelElement instanceof HTMLElement)) return;
+  if (!window.matchMedia('(max-width: 768px)').matches) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  panelElement.classList.remove('panel-mobile-enter');
+  // Reflow to reliably restart animation when switching tabs repeatedly.
+  void panelElement.offsetHeight;
+  panelElement.classList.add('panel-mobile-enter');
+  panelElement.addEventListener('animationend', () => {
+    panelElement.classList.remove('panel-mobile-enter');
+  }, { once: true });
 }
 
 function activateNewsTab(tabName) {
@@ -228,6 +246,7 @@ async function loadActivitiesCalendar() {
       });
       if (!duplicate) mergedItems.push(item);
     });
+
     calendarActivities = [...mergedItems]
       .filter((item) => {
         const key = toSafeDateKey(formatDateOnly(item?.startAt));
@@ -256,10 +275,13 @@ function renderActivitiesCalendarGrid(range) {
 
   const mapByDate = {};
   calendarActivities.forEach((item) => {
-    const key = toSafeDateKey(formatDateOnly(item?.startAt));
-    if (!key) return;
-    if (!mapByDate[key]) mapByDate[key] = [];
-    mapByDate[key].push(item);
+    const keys = getCalendarDateKeysForItem(item);
+    keys.forEach((key) => {
+      const safeKey = toSafeDateKey(key);
+      if (!safeKey) return;
+      if (!mapByDate[safeKey]) mapByDate[safeKey] = [];
+      if (!mapByDate[safeKey].includes(item)) mapByDate[safeKey].push(item);
+    });
   });
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -316,6 +338,17 @@ function buildActivityActionButtons(item, user, currentStatus) {
   return '';
 }
 
+function getActivityPeriodInfo(startAt, endAt) {
+  const startKey = toDateOnlyKey(startAt || '');
+  const endKey = toDateOnlyKey(endAt || startKey);
+  if (!startKey) return { label: '', className: '' };
+  const range = typeof expandDateRange === 'function' ? expandDateRange(startKey, endKey || startKey) : [startKey];
+  const days = Math.max(1, Array.isArray(range) ? range.length : 1);
+  if (days <= 1) return { label: '당일', className: 'period-day' };
+  if (days === 2) return { label: '1박 2일', className: 'period-overnight' };
+  return { label: '장기', className: 'period-long' };
+}
+
 async function getMyActivityHistoryMap(user = getCurrentUser()) {
   const map = {};
   if (!user || user.status !== 'active') return map;
@@ -334,6 +367,10 @@ function buildActivityDetailMarkup(item, user, status = '', extraClass = '') {
   const deadlineBadge = deadlineInfo.label
     ? `<span class="deadline-badge ${escapeHtml(deadlineInfo.className || '')}">신청 ${escapeHtml(deadlineInfo.label)}</span>`
     : '';
+  const periodInfo = getActivityPeriodInfo(item?.startAt || '', item?.endAt || '');
+  const periodBadge = periodInfo.label
+    ? `<span class="period-badge ${escapeHtml(periodInfo.className || '')}">${escapeHtml(periodInfo.label)}</span>`
+    : '';
   const descriptionHtml = sanitizeRichHtml(item.description || '');
   const thumbUrl = String(item?.thumbUrl || item?.thumbnailUrl || '').trim();
   const thumbBlock = thumbUrl
@@ -345,7 +382,7 @@ function buildActivityDetailMarkup(item, user, status = '', extraClass = '') {
         <div>
           <div class="fw-bold">${escapeHtml(item.title || '제목 없음')}</div>
           <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}</div>
-          ${deadlineBadge ? `<div class="mt-1">${deadlineBadge}</div>` : ''}
+          ${(deadlineBadge || periodBadge) ? `<div class="mt-1 d-flex gap-1 flex-wrap">${deadlineBadge}${periodBadge}</div>` : ''}
         </div>
         ${statusLabel}
       </div>
@@ -490,6 +527,7 @@ function openCalendarActivityListModal(dateKey, items, user, historyMap) {
   listEl.innerHTML = items.map((item, index) => `
     <button class="btn btn-outline-primary text-start" data-calendar-item-index="${index}">
       <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+      <div class="mt-1"><span class="period-badge ${escapeHtml(getActivityPeriodInfo(item.startAt, item.endAt).className || '')}">${escapeHtml(getActivityPeriodInfo(item.startAt, item.endAt).label || '')}</span></div>
       <div class="small text-muted">${formatKoreanDate(item.startAt)} ~ ${formatKoreanDate(item.endAt)}${item?.sourceType === 'notice' ? ' · 공지' : ''}</div>
     </button>
   `).join('');
@@ -544,7 +582,7 @@ async function renderActivitiesDayList(dateKey) {
   const safeDateKey = toSafeDateKey(dateKey) || formatDateOnly(calendarSelectedDate || new Date());
   dayDetail.innerText = `${safeDateKey} 일정`;
   const user = getCurrentUser();
-  const items = calendarActivities.filter((item) => toSafeDateKey(formatDateOnly(item.startAt)) === safeDateKey);
+  const items = calendarActivities.filter((item) => getCalendarDateKeysForItem(item).includes(safeDateKey));
   if (!items.length) {
     dayList.innerHTML = '<div class="text-muted small">등록된 활동이 없습니다.</div>';
     return;
@@ -552,21 +590,35 @@ async function renderActivitiesDayList(dateKey) {
 
   const myHistoryMap = await getMyActivityHistoryMap(user);
 
-  dayList.innerHTML = items.map(item => {
-    const status = myHistoryMap[String(toSafeActivityId(item.id))] || '';
-    const highlightClass = focusedActivityDateKey && formatDateOnly(item.startAt) === focusedActivityDateKey
+  dayList.innerHTML = items.map((item, index) => {
+    const highlightClass = focusedActivityDateKey && getCalendarDateKeysForItem(item).includes(focusedActivityDateKey)
       ? ' activity-focus-highlight'
       : '';
-    return buildActivityDetailMarkup(item, user, status, highlightClass);
+    const dateLabel = `${formatKoreanDate(item.startAt)}${item.endAt ? ` ~ ${formatKoreanDate(item.endAt)}` : ''}`;
+    const periodInfo = getActivityPeriodInfo(item?.startAt || '', item?.endAt || '');
+    return `
+      <button type="button" class="btn btn-outline-primary text-start w-100 mb-2 ${highlightClass}" data-day-item-index="${index}">
+        <div class="fw-semibold">${escapeHtml(item.title || '제목 없음')}</div>
+        ${periodInfo.label ? `<div class="mt-1"><span class="period-badge ${escapeHtml(periodInfo.className || '')}">${escapeHtml(periodInfo.label)}</span></div>` : ''}
+        <div class="small text-muted">${escapeHtml(dateLabel)}</div>
+      </button>
+    `;
   }).join('');
 
-  dayList.querySelectorAll('[data-open-notice-id]').forEach((btn) => {
+  dayList.querySelectorAll('[data-day-item-index]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const noticeId = Number(btn.getAttribute('data-open-notice-id') || 0);
-      if (noticeId <= 0) return;
-      movePanel('news');
-      activateNewsTab('notice');
-      if (typeof openNotice === 'function') openNotice(noticeId);
+      const idx = Number(btn.getAttribute('data-day-item-index') || -1);
+      if (!Number.isFinite(idx) || idx < 0) return;
+      const selected = items[idx];
+      if (!selected) return;
+      if (selected?.sourceType === 'notice' && Number(selected?.sourceNoticeId || 0) > 0) {
+        movePanel('news');
+        activateNewsTab('notice');
+        if (typeof openNotice === 'function') openNotice(Number(selected.sourceNoticeId || 0));
+        return;
+      }
+      const status = myHistoryMap[String(toSafeActivityId(selected.id))] || '';
+      openCalendarActivityDetailModal(selected, user, status);
     });
   });
 
@@ -618,10 +670,13 @@ function renderHomeCalendarPreview() {
   if (miniGrid) {
     const mapByDate = {};
     calendarActivities.forEach(item => {
-      const key = toSafeDateKey(formatDateOnly(item.startAt));
-      if (!key) return;
-      if (!mapByDate[key]) mapByDate[key] = [];
-      mapByDate[key].push(item);
+      const keys = getCalendarDateKeysForItem(item);
+      keys.forEach((key) => {
+        const safeKey = toSafeDateKey(key);
+        if (!safeKey) return;
+        if (!mapByDate[safeKey]) mapByDate[safeKey] = [];
+        if (!mapByDate[safeKey].includes(item)) mapByDate[safeKey].push(item);
+      });
     });
     const base = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
     const firstDay = base.getDay();
