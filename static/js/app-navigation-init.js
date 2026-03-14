@@ -19,7 +19,7 @@
     };
     const aboutTabLabelMap = {
       history: '연혁',
-      executives: '임원',
+      executives: '임원진',
       logo: '로고',
       relatedsites: '관련사이트',
       rules: '규칙및규약',
@@ -31,8 +31,13 @@
       faq: 'FAQ',
       qna: 'Q&A'
     };
+    const activitiesTabLabelMap = {
+      overview: '활동소개',
+      calendar: '캘린더'
+    };
     let activeAboutTab = 'history';
     let activeNewsTab = 'notice';
+    let activeActivitiesTab = 'overview';
     let skeletonStartAt = 0;
     let lastScrollY = 0;
     let navScrollTicking = false;
@@ -164,14 +169,25 @@
 
     function syncMobileMenuQuickActions() {
       const loginBtn = document.getElementById('mobile-menu-login-btn');
+      const signupBtn = document.getElementById('mobile-menu-signup-btn');
+      const myInfoLink = document.getElementById('mobile-menu-myinfo-link');
       if (!(loginBtn instanceof HTMLElement)) return;
       const isLoggedIn = !!getCurrentUser();
+      if (myInfoLink instanceof HTMLElement) {
+        myInfoLink.classList.toggle('d-none', !isLoggedIn);
+      }
       if (isLoggedIn) {
-        loginBtn.textContent = '계정';
+        loginBtn.textContent = '내 정보';
         loginBtn.setAttribute('aria-label', '내 정보로 이동');
+        loginBtn.classList.remove('btn-outline-primary');
+        loginBtn.classList.add('btn-primary');
+        if (signupBtn instanceof HTMLElement) signupBtn.classList.add('d-none');
       } else {
         loginBtn.textContent = '로그인';
         loginBtn.setAttribute('aria-label', '로그인 열기');
+        loginBtn.classList.remove('btn-primary');
+        loginBtn.classList.add('btn-outline-primary');
+        if (signupBtn instanceof HTMLElement) signupBtn.classList.remove('d-none');
       }
     }
 
@@ -193,9 +209,9 @@
       }
 
       const tableCols = {
-        'news-table-body': 7,
-        'faq-table-body': 6,
-        'qna-table-body': 6
+        'news-table-body': 5,
+        'faq-table-body': 3,
+        'qna-table-body': 3
       };
       Object.entries(tableCols).forEach(([id, colspan]) => {
         const tbody = document.getElementById(id);
@@ -237,33 +253,68 @@
 
     function updateOffcanvasActive(panelId) {
       document.querySelectorAll('#mobileMenuDrawer [data-offcanvas-link]').forEach((el) => {
-        el.classList.toggle('is-active', el.dataset.offcanvasLink === panelId);
+        el.classList.remove('is-active');
         el.setAttribute('aria-current', 'false');
       });
-      const activeOffcanvasItem = document.querySelector(`#mobileMenuDrawer [data-offcanvas-link="${panelId}"]`);
-      let activeLabel = String(activeOffcanvasItem?.textContent || '').trim();
+      document.querySelectorAll('#mobileMenuDrawer button.list-group-item[data-bs-target]').forEach((el) => {
+        el.classList.remove('is-active');
+        el.setAttribute('aria-current', 'false');
+      });
+      const activeTopLevelItem = document.querySelector(`#mobileMenuDrawer [data-offcanvas-link="${panelId}"]:not([data-offcanvas-group])`);
+      let activeLabel = String(activeTopLevelItem?.textContent || '').trim();
       const livePanel = document.querySelector('.panel-active')?.id || panelId;
       if (livePanel === 'news-detail' || livePanel === 'qna-detail') activeLabel = '상세 보기';
       if (livePanel === 'gallery-detail') activeLabel = '사진 상세';
       if (panelId === 'about') activeLabel = aboutTabLabelMap[activeAboutTab] || activeLabel;
       if (panelId === 'news') activeLabel = newsTabLabelMap[activeNewsTab] || activeLabel;
-      if (activeOffcanvasItem instanceof HTMLElement) {
-        activeOffcanvasItem.setAttribute('aria-current', 'page');
+      if (panelId === 'activities') {
+        const isCalendar = !document.getElementById('activities-calendar-pane')?.classList.contains('d-none');
+        activeActivitiesTab = isCalendar ? 'calendar' : 'overview';
+        activeLabel = activitiesTabLabelMap[activeActivitiesTab] || activeLabel;
+      }
+      if (activeTopLevelItem instanceof HTMLElement) {
+        activeTopLevelItem.classList.add('is-active');
+        activeTopLevelItem.setAttribute('aria-current', 'page');
+      }
+      const groupHeaderMap = {
+        about: '#mobileMenuDrawer button[data-bs-target="#mobile-menu-about"]',
+        news: '#mobileMenuDrawer button[data-bs-target="#mobile-menu-news"]',
+        activities: '#mobileMenuDrawer button[data-bs-target="#mobile-menu-activities"]'
+      };
+      const activeGroupHeader = groupHeaderMap[panelId] ? document.querySelector(groupHeaderMap[panelId]) : null;
+      if (activeGroupHeader instanceof HTMLElement) {
+        activeGroupHeader.classList.add('is-active');
+        activeGroupHeader.setAttribute('aria-current', 'page');
       }
       if (panelId === 'about') {
         const exact = document.querySelector(`#mobileMenuDrawer [data-offcanvas-group="about"][data-about-tab="${activeAboutTab}"]`);
-        if (exact instanceof HTMLElement) exact.setAttribute('aria-current', 'page');
+        if (exact instanceof HTMLElement) {
+          exact.classList.add('is-active');
+          exact.setAttribute('aria-current', 'page');
+        }
       }
       if (panelId === 'news') {
         const exact = document.querySelector(`#mobileMenuDrawer [data-offcanvas-group="news"][data-news-tab="${activeNewsTab}"]`);
-        if (exact instanceof HTMLElement) exact.setAttribute('aria-current', 'page');
+        if (exact instanceof HTMLElement) {
+          exact.classList.add('is-active');
+          exact.setAttribute('aria-current', 'page');
+        }
+      }
+      if (panelId === 'activities') {
+        const exact = document.querySelector(`#mobileMenuDrawer [data-offcanvas-group="activities"][data-activities-tab="${activeActivitiesTab}"]`);
+        if (exact instanceof HTMLElement) {
+          exact.classList.add('is-active');
+          exact.setAttribute('aria-current', 'page');
+        }
       }
       updateMobileBreadcrumb(panelId, activeLabel && activeLabel !== panelLabelMap[panelId] ? activeLabel : '');
 
       const aboutExpanded = panelId === 'about';
       const newsExpanded = panelId === 'news';
+      const activitiesExpanded = panelId === 'activities';
       const aboutCollapseEl = document.getElementById('mobile-menu-about');
       const newsCollapseEl = document.getElementById('mobile-menu-news');
+      const activitiesCollapseEl = document.getElementById('mobile-menu-activities');
       if (aboutCollapseEl) {
         const collapse = bootstrap.Collapse.getOrCreateInstance(aboutCollapseEl, { toggle: false });
         if (aboutExpanded) collapse.show(); else collapse.hide();
@@ -272,13 +323,17 @@
         const collapse = bootstrap.Collapse.getOrCreateInstance(newsCollapseEl, { toggle: false });
         if (newsExpanded) collapse.show(); else collapse.hide();
       }
+      if (activitiesCollapseEl) {
+        const collapse = bootstrap.Collapse.getOrCreateInstance(activitiesCollapseEl, { toggle: false });
+        if (activitiesExpanded) collapse.show(); else collapse.hide();
+      }
     }
 
     function applyResponsiveTableLabels() {
       const tableLabelMap = {
-        'news-table': ['number', 'title', 'author', 'date', 'views', 'likes', 'manage'],
-        'faq-table': ['number', 'question', 'author', 'date', 'views', 'manage'],
-        'qna-table': ['number', 'question', 'author', 'date', 'status', 'manage']
+        'news-table': ['title', 'author', 'date', 'views', 'likes'],
+        'faq-table': ['question', 'author', 'date'],
+        'qna-table': ['question', 'author', 'date']
       };
       document.querySelectorAll('table').forEach((table) => {
         const headerCells = Array.from(table.querySelectorAll('thead th'));
@@ -520,6 +575,14 @@
           dispatchPanelChanged(panelId, { newsTab: tabType });
           return;
         }
+        if (panelId === 'myinfo' && !getCurrentUser()) {
+          const loginModalEl = document.getElementById('loginModal');
+          if (loginModalEl) {
+            const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
+            loginModal.show();
+          }
+          return;
+        }
         movePanel(panelId);
         if (panelId === 'news') {
           const tabType = tabBtn.dataset.newsTab || 'notice';
@@ -529,13 +592,6 @@
         if (panelId === 'activities') {
           openActivitiesOverviewTab();
           await loadVolunteerEvents().catch(() => {});
-        }
-        if (panelId === 'myinfo' && !getCurrentUser()) {
-          const loginModalEl = document.getElementById('loginModal');
-          if (loginModalEl) {
-            const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
-            loginModal.show();
-          }
         }
         updateOffcanvasActive(panelId);
         syncRouteState(panelId, { newsTab: panelId === 'news' ? activeNewsTab : '', aboutTab: panelId === 'about' ? activeAboutTab : '' });
@@ -626,6 +682,7 @@
     syncMobileNavByScroll();
 
     const mobileMenuLoginBtn = document.getElementById('mobile-menu-login-btn');
+    const mobileMenuSignupBtn = document.getElementById('mobile-menu-signup-btn');
     if (mobileMenuLoginBtn) {
       mobileMenuLoginBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -643,6 +700,20 @@
           if (drawer) drawer.hide();
           const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
           loginModal.show();
+        }
+      });
+    }
+    if (mobileMenuSignupBtn) {
+      mobileMenuSignupBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (getCurrentUser()) return;
+        const drawerEl = document.getElementById('mobileMenuDrawer');
+        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
+        const signupModalEl = document.getElementById('signupModal');
+        if (signupModalEl) {
+          if (drawer) drawer.hide();
+          const signupModal = bootstrap.Modal.getInstance(signupModalEl) || new bootstrap.Modal(signupModalEl);
+          signupModal.show();
         }
       });
     }
@@ -710,17 +781,15 @@
       btnFees?.classList.add('active');
     }
 
-    if (btnLogo && btnExecutives && btnRelatedSites && btnAwards && btnRules && btnHistory && btnFees) {
-      btnLogo.addEventListener('click', showLogo);
-      btnExecutives.addEventListener('click', showExecutives);
-      btnRelatedSites.addEventListener('click', showRelatedSites);
-      btnAwards.addEventListener('click', showAwards);
-      btnRules.addEventListener('click', showRules);
-      btnHistory.addEventListener('click', showHistory);
-      btnFees.addEventListener('click', showFees);
-      // default
-      showHistory();
-    }
+    if (btnLogo) btnLogo.addEventListener('click', showLogo);
+    if (btnExecutives) btnExecutives.addEventListener('click', showExecutives);
+    if (btnRelatedSites) btnRelatedSites.addEventListener('click', showRelatedSites);
+    if (btnAwards) btnAwards.addEventListener('click', showAwards);
+    if (btnRules) btnRules.addEventListener('click', showRules);
+    if (btnHistory) btnHistory.addEventListener('click', showHistory);
+    if (btnFees) btnFees.addEventListener('click', showFees);
+    // 기본 패널은 연혁
+    if (historyPanel && btnHistory) showHistory();
 
     const routeAfterAboutInit = readRouteState();
     if ((document.querySelector('.panel-active')?.id || '') === 'about') {
@@ -802,7 +871,46 @@
       });
     });
 
-    document.querySelectorAll('#mobileMenuDrawer [data-panel]').forEach((item) => {
+    [
+      ['activities-overview-tab-btn', 'overview'],
+      ['activities-calendar-tab-btn', 'calendar']
+    ].forEach(([id, tab]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        activeActivitiesTab = tab;
+        const currentPanel = document.querySelector('.panel-active')?.id || '';
+        if (currentPanel === 'activities') {
+          updateOffcanvasActive('activities');
+          syncRouteState('activities');
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-activities-tab]').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const targetTab = String(item.dataset.activitiesTab || 'overview');
+        document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
+        document.getElementById('activities')?.classList.add('panel-active');
+        syncHomeStats('activities');
+        if (targetTab === 'calendar') {
+          activeActivitiesTab = 'calendar';
+          openActivitiesCalendarTab();
+          await loadActivitiesCalendar().catch(() => {});
+        } else {
+          activeActivitiesTab = 'overview';
+          openActivitiesOverviewTab();
+        }
+        const drawerEl = document.getElementById('mobileMenuDrawer');
+        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
+        if (drawer) drawer.hide();
+        updateOffcanvasActive('activities');
+        syncRouteState('activities');
+      });
+    });
+
+    document.querySelectorAll('#mobileMenuDrawer [data-panel], #mobileMenuDrawer [data-about-tab], #mobileMenuDrawer [data-news-tab], #mobileMenuDrawer [data-activities-tab]').forEach((item) => {
       item.addEventListener('click', () => {
         const drawerEl = document.getElementById('mobileMenuDrawer');
         const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
@@ -859,6 +967,22 @@
     document.addEventListener('weave:user-state-changed', () => {
       syncMobileMenuQuickActions();
       syncHeaderCompactState();
+    });
+
+    document.addEventListener('weave:panel-changed', (event) => {
+      const panel = String(event?.detail?.panel || '');
+      if (panel === 'join' && typeof setJoinActionPanel === 'function') {
+        setJoinActionPanel('honor');
+      }
+      if (panel === 'myinfo' && typeof markCurrentUserNotificationsRead === 'function') {
+        markCurrentUserNotificationsRead();
+      }
+      if (panel === 'myinfo' && typeof renderMyNotifications === 'function') {
+        renderMyNotifications();
+      }
+      if (panel === 'myinfo' && typeof renderMyActivitySummary === 'function') {
+        renderMyActivitySummary();
+      }
     });
 
     ['logout-btn-profile', 'session-expired-login-btn', 'session-expired-cancel-btn'].forEach((id) => {

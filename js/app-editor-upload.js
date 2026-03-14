@@ -9,9 +9,10 @@ function ensureRepresentativeImageLabel(editorId, options = {}) {
   const showLabel = options.showLabel !== false;
   editor.querySelectorAll('.representative-label').forEach(node => node.remove());
   const images = Array.from(editor.querySelectorAll('img')).filter(img => !!String(img.getAttribute('src') || '').trim());
+  const pinned = images.find((img) => String(img.getAttribute('data-representative') || '').toLowerCase() === 'true');
   images.forEach((img) => img.removeAttribute('data-representative'));
   if (!images.length) return [];
-  const first = images[0];
+  const first = pinned || images[0];
   first.setAttribute('data-representative', 'true');
   if (showLabel) {
     const label = document.createElement('div');
@@ -28,6 +29,16 @@ function getEditorImageSources(editorId) {
   return Array.from(editor.querySelectorAll('img'))
     .map(img => String(img.getAttribute('src') || '').trim())
     .filter(Boolean);
+}
+
+function getRepresentativeEditorImageSource(editorId) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return '';
+  const pinned = editor.querySelector('img[data-representative="true"]');
+  const fromPinned = String(pinned?.getAttribute('src') || '').trim();
+  if (fromPinned) return fromPinned;
+  const first = editor.querySelector('img');
+  return String(first?.getAttribute('src') || '').trim();
 }
 
 function syncEditorToInput(form, editorId, options = {}) {
@@ -88,9 +99,134 @@ function syncCoverImageFromList(form, imagesHiddenName, coverHiddenName, preview
   }
 }
 
+function makeTodayDateInputValue() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function bindGalleryGridDnD(grid) {
+  if (!grid) return;
+  let draggingItem = null;
+  grid.querySelectorAll('.gallery-image-grid-item').forEach((item) => {
+    item.draggable = true;
+    item.addEventListener('dragstart', () => {
+      draggingItem = item;
+      item.classList.add('is-dragging');
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('is-dragging');
+      draggingItem = null;
+    });
+    item.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+    item.addEventListener('drop', (event) => {
+      event.preventDefault();
+      if (!draggingItem || draggingItem === item) return;
+      const rect = item.getBoundingClientRect();
+      const before = (event.clientX - rect.left) < (rect.width / 2);
+      if (before) {
+        item.parentNode?.insertBefore(draggingItem, item);
+      } else {
+        item.parentNode?.insertBefore(draggingItem, item.nextSibling);
+      }
+    });
+  });
+}
+
+function refreshGalleryGridPinUi(grid) {
+  if (!grid) return;
+  const items = Array.from(grid.querySelectorAll('.gallery-image-grid-item'));
+  items.forEach((item) => {
+    let pinBtn = item.querySelector('.gallery-image-pin-btn');
+    const img = item.querySelector('img');
+    if (!img) return;
+    if (!pinBtn) {
+      pinBtn = document.createElement('button');
+      pinBtn.type = 'button';
+      pinBtn.className = 'gallery-image-pin-btn';
+      pinBtn.title = '대표 이미지로 고정';
+      pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
+      item.appendChild(pinBtn);
+      pinBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const allImages = Array.from(grid.querySelectorAll('.gallery-image-grid-item img'));
+        allImages.forEach((target) => target.removeAttribute('data-representative'));
+        img.setAttribute('data-representative', 'true');
+        refreshGalleryGridPinUi(grid);
+      });
+    }
+    const pinned = String(img.getAttribute('data-representative') || '').toLowerCase() === 'true';
+    item.classList.toggle('is-pinned', pinned);
+    pinBtn.classList.toggle('active', pinned);
+  });
+}
+
+function ensureGalleryEditorGrid(editorId = 'gallery-editor') {
+  const editor = document.getElementById(editorId);
+  if (!editor) return null;
+  let grid = editor.querySelector('.gallery-image-grid');
+  if (!grid) {
+    grid = document.createElement('div');
+    grid.className = 'gallery-image-grid';
+    editor.appendChild(grid);
+  }
+  const candidates = Array.from(editor.querySelectorAll('img'));
+  candidates.forEach((img) => {
+    if (img.closest('.gallery-image-grid-item')) return;
+    const src = String(img.getAttribute('src') || '').trim();
+    if (!src) return;
+    const item = document.createElement('div');
+    item.className = 'gallery-image-grid-item';
+    const movedImg = img.cloneNode(true);
+    movedImg.style.maxWidth = '';
+    movedImg.style.height = '';
+    movedImg.style.display = '';
+    movedImg.style.margin = '';
+    item.appendChild(movedImg);
+    grid.appendChild(item);
+    const parent = img.parentElement;
+    if (parent && parent !== editor) {
+      parent.remove();
+    } else {
+      img.remove();
+    }
+  });
+  bindGalleryGridDnD(grid);
+  if (!grid.querySelector('img[data-representative="true"]')) {
+    const first = grid.querySelector('img');
+    if (first) first.setAttribute('data-representative', 'true');
+  }
+  refreshGalleryGridPinUi(grid);
+  return grid;
+}
+
 function insertImagesToEditor(editorId, imageDataUrls = []) {
   const editor = document.getElementById(editorId);
-  if (!editor || !Array.isArray(imageDataUrls) || !imageDataUrls.length) return;
+  if (!editor || !Array.isArray(imageDataUrls) || !imageDataUrls.length) return 0;
+  if (editorId === 'gallery-editor') {
+    const grid = ensureGalleryEditorGrid(editorId);
+    if (!grid) return 0;
+    let inserted = 0;
+    imageDataUrls.forEach((dataUrl) => {
+      const item = document.createElement('div');
+      item.className = 'gallery-image-grid-item';
+      const imageNode = document.createElement('img');
+      imageNode.src = dataUrl;
+      imageNode.alt = '업로드 이미지';
+      imageNode.loading = 'lazy';
+      imageNode.decoding = 'async';
+      item.appendChild(imageNode);
+      grid.appendChild(item);
+      inserted += 1;
+    });
+    bindGalleryGridDnD(grid);
+    return inserted;
+  }
   editor.focus();
 
   const selection = window.getSelection();
@@ -127,6 +263,7 @@ function insertImagesToEditor(editorId, imageDataUrls = []) {
       selection.addRange(range);
     }
   });
+  return imageDataUrls.length;
 }
 
 const IMAGE_UPLOAD_DEFAULT_MAX_BYTES = 420 * 1024;
@@ -134,6 +271,9 @@ const IMAGE_UPLOAD_MIN_MAX_BYTES = 140 * 1024;
 const IMAGE_UPLOAD_HARD_MAX_BYTES = 820 * 1024;
 const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
 const IMAGE_UPLOAD_MIN_QUALITY = 0.45;
+const IMAGE_UPLOAD_MAX_FILE_BYTES = 15 * 1024 * 1024;
+const POST_IMAGE_MAX_COUNT = 30;
+const GALLERY_IMAGE_MAX_BYTES = 90 * 1024;
 const WRITE_DRAFT_NEWS_KEY = 'weave_draft_news';
 const WRITE_DRAFT_GALLERY_KEY = 'weave_draft_gallery';
 const IMAGE_UPLOAD_STRIP_EXIF_KEY = 'weave_image_strip_exif';
@@ -211,7 +351,12 @@ async function readImageFileWithOrientation(file) {
 
 async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEFAULT_MAX_BYTES) {
   const safeLimit = Math.max(IMAGE_UPLOAD_MIN_MAX_BYTES, Math.min(IMAGE_UPLOAD_HARD_MAX_BYTES, Number(maxBytes) || IMAGE_UPLOAD_DEFAULT_MAX_BYTES));
-  if (getDataUrlByteSize(dataUrl) <= safeLimit) return String(dataUrl || '');
+  const sourceText = String(dataUrl || '');
+  const mimeMatch = sourceText.match(/^data:(image\/[a-zA-Z0-9+.-]+);/i);
+  const sourceMime = String(mimeMatch?.[1] || '').toLowerCase();
+  const preferredType = getPreferredImageMimeType();
+  const shouldPreferWebp = preferredType === 'image/webp' && sourceMime && sourceMime !== 'image/webp' && sourceMime !== 'image/gif';
+  if (getDataUrlByteSize(dataUrl) <= safeLimit && !shouldPreferWebp) return sourceText;
 
   const img = await loadImageFromDataUrl(dataUrl);
   let width = img.naturalWidth || img.width;
@@ -230,8 +375,6 @@ async function resizeImageDataUrlToMaxBytes(dataUrl, maxBytes = IMAGE_UPLOAD_DEF
   let scale = 1;
   let quality = 0.9;
   let best = String(dataUrl || '');
-  const preferredType = getPreferredImageMimeType();
-
   for (let attempt = 0; attempt < 10; attempt++) {
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
@@ -314,25 +457,51 @@ function persistStripExifPreference() {
   } catch (_) {}
 }
 
-function readImageFileToDataUrl(file, onDone, options = {}) {
+function readImageFileToDataUrl(file, onDone, options = {}, onError = null) {
   if (!file || !file.type.startsWith('image/')) {
-    notifyMessage('이미지 파일만 업로드할 수 있습니다.');
+    const error = new Error('이미지 파일만 업로드할 수 있습니다.');
+    notifyMessage(error.message);
+    if (typeof onError === 'function') onError(error);
     return;
   }
   const reader = new FileReader();
   reader.onload = async () => {
     let result = String(reader.result || '');
     try {
+      const rawType = String(file.type || '').toLowerCase();
+      const rawName = String(file.name || '').toLowerCase();
+      const isHeicLike = /image\/hei[cf]/.test(rawType) || /\.(heic|heif)$/.test(rawName);
+      if (isHeicLike) {
+        const converted = await readImageFileWithOrientation(file);
+        if (!converted || !String(converted).startsWith('data:image/')) {
+          throw new Error('HEIC/HEIF 변환에 실패했습니다. JPG/PNG/WebP로 변환 후 다시 업로드해 주세요.');
+        }
+        result = converted;
+      }
       const stripExif = typeof options.stripExif === 'boolean'
         ? options.stripExif
         : shouldStripExifMetadata();
-      if (stripExif) {
+      if (stripExif && !isHeicLike) {
         const oriented = await readImageFileWithOrientation(file);
         if (oriented) result = oriented;
-        result = await resizeImageDataUrlToMaxBytes(result, getAdaptiveImageMaxBytes());
       }
-    } catch (_) {}
+      const perImageLimit = Math.max(70 * 1024, Number(options.maxBytes || 0) || getAdaptiveImageMaxBytes());
+      result = await resizeImageDataUrlToMaxBytes(result, perImageLimit);
+      if (!String(result || '').startsWith('data:image/')) {
+        throw new Error('이미지 변환 결과가 올바르지 않습니다.');
+      }
+    } catch (error) {
+      const safeError = error instanceof Error ? error : new Error('이미지 처리 중 오류가 발생했습니다.');
+      notifyMessage(safeError.message || '이미지 처리 중 오류가 발생했습니다.');
+      if (typeof onError === 'function') onError(safeError);
+      return;
+    }
     onDone(result);
+  };
+  reader.onerror = () => {
+    const error = new Error('이미지 파일을 읽을 수 없습니다.');
+    notifyMessage(error.message);
+    if (typeof onError === 'function') onError(error);
   };
   reader.readAsDataURL(file);
 }
@@ -398,7 +567,7 @@ function initWriteDraftAutosave() {
     formId: 'add-gallery-form',
     editorId: 'gallery-editor',
     storageKey: WRITE_DRAFT_GALLERY_KEY,
-    fields: ['title', 'year', 'publishAt']
+    fields: ['title', 'year', 'publishAt', 'activityDuration', 'activityStartDate', 'activityEndDate']
   });
 }
 
@@ -432,19 +601,68 @@ function readImageFileToDataUrlAsync(file, options = {}) {
       reject(new Error('이미지 파일만 업로드할 수 있습니다.'));
       return;
     }
-    readImageFileToDataUrl(file, (dataUrl) => resolve(String(dataUrl || '')), options);
+    readImageFileToDataUrl(
+      file,
+      (dataUrl) => resolve(String(dataUrl || '')),
+      options,
+      (error) => reject(error instanceof Error ? error : new Error('이미지 처리 중 오류가 발생했습니다.'))
+    );
   });
 }
 
-function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenName, imagesHiddenName, editorId, stripExifToggleId = '' }) {
+function bindImageUploader({
+  formId,
+  inputName,
+  dropzoneId,
+  previewId,
+  hiddenName,
+  imagesHiddenName,
+  editorId,
+  stripExifToggleId = '',
+  progressWrapId = '',
+  progressBarId = '',
+  progressTextId = '',
+  progressPercentId = '',
+  maxImageBytes = 0
+}) {
   const form = document.getElementById(formId);
   if (!form) return;
   const input = form.elements[inputName];
   const dropzone = document.getElementById(dropzoneId);
+  const progressWrap = progressWrapId ? document.getElementById(progressWrapId) : null;
+  const progressBar = progressBarId ? document.getElementById(progressBarId) : null;
+  const progressText = progressTextId ? document.getElementById(progressTextId) : null;
+  const progressPercent = progressPercentId ? document.getElementById(progressPercentId) : null;
+  const setProgress = (value, label = '') => {
+    const safe = Math.max(0, Math.min(100, Number(value || 0)));
+    if (progressWrap) progressWrap.classList.remove('d-none');
+    if (progressBar) {
+      progressBar.style.width = `${safe}%`;
+      progressBar.setAttribute('aria-valuenow', String(safe));
+    }
+    if (progressPercent) progressPercent.textContent = String(safe);
+    if (progressText && label) progressText.textContent = label;
+  };
+  const finishProgress = () => {
+    if (!progressWrap) return;
+    window.setTimeout(() => {
+      if (progressWrap) progressWrap.classList.add('d-none');
+      if (progressBar) progressBar.style.width = '0%';
+      if (progressPercent) progressPercent.textContent = '0';
+      if (progressText) progressText.textContent = '업로드 준비중...';
+    }, 420);
+  };
   const resolveStripExif = () => {
     const toggle = stripExifToggleId ? document.getElementById(stripExifToggleId) : null;
     if (toggle instanceof HTMLInputElement) return !!toggle.checked;
     return shouldStripExifMetadata();
+  };
+  const updateGalleryImageLimitHint = () => {
+    if (editorId !== 'gallery-editor') return;
+    const hint = document.getElementById('gallery-image-limit-hint');
+    if (!hint) return;
+    const count = getEditorImageSources('gallery-editor').length;
+    hint.textContent = `본문 이미지 ${count}/${POST_IMAGE_MAX_COUNT}장`;
   };
 
   const applyFiles = async (files) => {
@@ -453,20 +671,88 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
       notifyMessage('이미지 파일만 업로드할 수 있습니다.');
       return;
     }
+    const existingCount = editorId ? getEditorImageSources(editorId).length : 0;
+    const remain = Math.max(0, POST_IMAGE_MAX_COUNT - existingCount);
+    if (remain <= 0) {
+      notifyMessage(`이미지는 게시글당 최대 ${POST_IMAGE_MAX_COUNT}장까지 등록할 수 있습니다.`);
+      return;
+    }
+    const cappedFiles = imageFiles.slice(0, remain);
+    if (imageFiles.length > cappedFiles.length) {
+      notifyMessage(`이미지는 최대 ${POST_IMAGE_MAX_COUNT}장까지 등록 가능합니다. 초과 ${imageFiles.length - cappedFiles.length}장은 제외됩니다.`);
+    }
     const uploadedImages = [];
-    for (const file of imageFiles) {
+    const failedFiles = [];
+    const total = cappedFiles.length;
+    setProgress(0, `이미지 ${total}개 업로드 준비중...`);
+    for (let index = 0; index < total; index += 1) {
+      const file = cappedFiles[index];
+      const filename = String(file?.name || `파일 ${index + 1}`);
       try {
-        const dataUrl = await readImageFileToDataUrlAsync(file, { stripExif: resolveStripExif() });
+        const mime = String(file.type || '').toLowerCase();
+        if (!mime.startsWith('image/')) {
+          throw new Error('지원되지 않는 형식입니다. 이미지 파일만 업로드 가능합니다.');
+        }
+        if (Number(file.size || 0) > IMAGE_UPLOAD_MAX_FILE_BYTES) {
+          throw new Error('파일 용량이 너무 큽니다. 15MB 이하 이미지만 업로드 가능합니다.');
+        }
+        const dataUrl = await readImageFileToDataUrlAsync(file, { stripExif: resolveStripExif(), maxBytes: maxImageBytes || 0 });
+        if (!String(dataUrl || '').startsWith('data:image/')) {
+          throw new Error('이미지 변환에 실패했습니다. 파일 형식을 확인해주세요.');
+        }
         uploadedImages.push(dataUrl);
       } catch (error) {
-        notifyMessage(error.message || '이미지 업로드에 실패했습니다.');
-        return;
+        failedFiles.push(filename);
+        const raw = String(error?.message || '').toLowerCase();
+        if (/network|fetch|연결|오프라인/.test(raw)) {
+          notifyMessage(`${filename}: 네트워크 오류로 업로드에 실패했습니다.`);
+        } else if (/용량|size|15mb/.test(raw)) {
+          notifyMessage(`${filename}: ${error.message || '파일 용량 제한을 초과했습니다.'}`);
+        } else if (/형식|format|mime|이미지 파일만/.test(raw)) {
+          notifyMessage(`${filename}: ${error.message || '지원되지 않는 파일 형식입니다.'}`);
+        } else {
+          notifyMessage(`${filename}: ${error.message || '이미지 업로드 처리 중 오류가 발생했습니다.'}`);
+        }
       }
+      const progress = Math.round(((index + 1) / total) * 100);
+      setProgress(progress, `${index + 1}/${total} 처리됨`);
     }
 
+    finishProgress();
+    if (!uploadedImages.length) return;
     if (editorId) {
-      insertImagesToEditor(editorId, uploadedImages);
+      const insertedCount = Number(insertImagesToEditor(editorId, uploadedImages) || 0);
+      if (editorId === 'gallery-editor' && insertedCount < uploadedImages.length) {
+        // 예외 fallback: 삽입 실패분은 DOM API로 안전 삽입 후 즉시 그리드 재정렬
+        const editor = document.getElementById(editorId);
+        if (editor) {
+          const missing = uploadedImages.slice(insertedCount);
+          const fragment = document.createDocumentFragment();
+          missing.forEach((src) => {
+            const p = document.createElement('p');
+            const img = document.createElement('img');
+            img.src = String(src || '');
+            img.alt = '업로드 이미지';
+            p.appendChild(img);
+            fragment.appendChild(p);
+          });
+          editor.appendChild(fragment);
+        }
+        ensureGalleryEditorGrid(editorId);
+      }
       ensureRepresentativeImageLabel(editorId, { showLabel: editorId !== 'gallery-editor' });
+      if (editorId === 'gallery-editor') {
+        const grid = ensureGalleryEditorGrid(editorId);
+        if (grid) refreshGalleryGridPinUi(grid);
+        const finalCount = getEditorImageSources(editorId).length;
+        notifyMessage(`본문 이미지 ${finalCount}/${POST_IMAGE_MAX_COUNT}장`);
+        updateGalleryImageLimitHint();
+      }
+    }
+    if (uploadedImages.length > 1) {
+      notifyMessage(`${uploadedImages.length}개 이미지가 본문에 추가되었습니다.${failedFiles.length ? ` (실패 ${failedFiles.length}개)` : ''}`);
+    } else if (failedFiles.length) {
+      notifyMessage(`이미지 일부 업로드 실패 (${failedFiles.length}개)`);
     }
 
     if (input) input.value = '';
@@ -495,6 +781,7 @@ function bindImageUploader({ formId, inputName, dropzoneId, previewId, hiddenNam
       await applyFiles(files);
     }
   });
+  updateGalleryImageLimitHint();
 }
 
 function insertFileLinkToEditor(editorId, fileName, fileUrl) {
@@ -670,10 +957,16 @@ function initRichEditorToolbars() {
 function ensureGalleryYearOptions(selectedYear) {
   const select = document.getElementById('gallery-year-select');
   if (!select) return;
-  const years = [...new Set(getContent().gallery.map(g => Number(g.year)).filter(Boolean))].sort((a, b) => b - a);
+  const fixedYears = [2026, 2025, 2024, 2023, 2022];
+  const source = (typeof getContent === 'function') ? getContent() : {};
+  const galleryItems = Array.isArray(source?.gallery) ? source.gallery : [];
+  const dataYears = [...new Set(galleryItems.map(g => Number(g?.year)).filter(Boolean))];
+  const years = [...new Set([...fixedYears, ...dataYears])].sort((a, b) => b - a);
   select.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
   if (selectedYear && years.includes(Number(selectedYear))) {
     select.value = String(selectedYear);
+  } else if (years.length) {
+    select.value = String(years[0]);
   }
 }
 
@@ -713,15 +1006,21 @@ function resetWriteForms() {
     localStorage.removeItem(WRITE_DRAFT_NEWS_KEY);
   }
   if (galleryForm) {
-    galleryForm.reset();
-    galleryForm.editId.value = '';
-    galleryForm.imageData.value = '';
-    if (galleryForm.imagesData) galleryForm.imagesData.value = '[]';
+      galleryForm.reset();
+      galleryForm.editId.value = '';
+      galleryForm.imageData.value = '';
+      if (galleryForm.imagesData) galleryForm.imagesData.value = '[]';
+      if (galleryForm.activityDuration) galleryForm.activityDuration.value = 'same_day';
+      if (galleryForm.activityStartDate) galleryForm.activityStartDate.value = makeTodayDateInputValue();
+      if (galleryForm.activityEndDate) galleryForm.activityEndDate.value = '';
     setEditorHtml('gallery-editor', '');
+    ensureGalleryEditorGrid('gallery-editor');
+    const galleryHint = document.getElementById('gallery-image-limit-hint');
+    if (galleryHint) galleryHint.textContent = `본문 이미지 0/${POST_IMAGE_MAX_COUNT}장`;
     setImagePreview('gallery-image-preview', '');
-    ensureGalleryYearOptions();
-    localStorage.removeItem(WRITE_DRAFT_GALLERY_KEY);
-  }
+      ensureGalleryYearOptions();
+      localStorage.removeItem(WRITE_DRAFT_GALLERY_KEY);
+    }
   const activityForm = document.getElementById('calendar-create-form');
   if (activityForm) {
     if (activityForm.content) activityForm.content.value = '';
@@ -729,6 +1028,10 @@ function resetWriteForms() {
     setEditorHtml('activity-editor', '');
   }
 }
+
+window.ensureGalleryEditorGrid = ensureGalleryEditorGrid;
+window.getRepresentativeEditorImageSource = getRepresentativeEditorImageSource;
+window.GALLERY_IMAGE_MAX_BYTES = GALLERY_IMAGE_MAX_BYTES;
 
 function updateVolunteerDateFieldVisibility(form) {
   if (!form || !form.postTab) return;

@@ -1,5 +1,153 @@
 ﻿  // ============ ADMIN FORMS ============
   document.addEventListener('DOMContentLoaded', function() {
+    const toDateOnly = (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return '';
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+    const addDays = (dateOnly, days) => {
+      const parsed = new Date(`${dateOnly}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return '';
+      parsed.setDate(parsed.getDate() + Number(days || 0));
+      return toDateOnly(parsed);
+    };
+    const compressHtmlInlineImages = async (html, maxBytes = 180 * 1024) => {
+      const raw = String(html || '');
+      if (!raw || typeof DOMParser === 'undefined' || typeof resizeImageDataUrlToMaxBytes !== 'function') return raw;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div id="__weave_inline_root">${raw}</div>`, 'text/html');
+      const root = doc.getElementById('__weave_inline_root');
+      if (!root) return raw;
+      const images = Array.from(root.querySelectorAll('img[src^="data:image/"]'));
+      if (!images.length) return raw;
+      for (const img of images) {
+        const src = String(img.getAttribute('src') || '').trim();
+        if (!src) continue;
+        try {
+          const compressed = await resizeImageDataUrlToMaxBytes(src, maxBytes);
+          if (compressed) img.setAttribute('src', compressed);
+        } catch (_) {}
+      }
+      return root.innerHTML;
+    };
+    const getNextNumericId = (items = []) => {
+      const safeItems = Array.isArray(items) ? items : [];
+      const maxId = safeItems.reduce((maxValue, item) => {
+        const id = Number(item?.id || 0);
+        return Number.isFinite(id) ? Math.max(maxValue, id) : maxValue;
+      }, 0);
+      return maxId + 1;
+    };
+    const dataUrlToBlob = async (dataUrl) => {
+      try {
+        const res = await fetch(String(dataUrl || ''));
+        return await res.blob();
+      } catch (_) {
+        return null;
+      }
+    };
+    const extractInlineImageTokens = (html) => {
+      const raw = String(html || '');
+      const tokenItems = [];
+      let nextHtml = raw;
+      let sequence = 0;
+      const tokenFor = () => `__WEAVE_IMG_TOKEN_${Date.now()}_${sequence++}__`;
+      const parser = typeof DOMParser !== 'undefined' ? new DOMParser() : null;
+      if (parser) {
+        const doc = parser.parseFromString(`<div id="__weave_inline_root">${raw}</div>`, 'text/html');
+        const root = doc.getElementById('__weave_inline_root');
+        if (root) {
+          root.querySelectorAll('img').forEach((img) => {
+            const src = String(img.getAttribute('src') || '').trim();
+            if (!src.startsWith('data:image/')) return;
+            const token = tokenFor();
+            tokenItems.push({ token, src });
+            img.setAttribute('src', token);
+          });
+          nextHtml = root.innerHTML;
+        }
+      } else {
+        nextHtml = raw.replace(/<img([^>]*?)src=["'](data:image\/[^"']+)["']([^>]*)>/gi, (_, pre, src, post) => {
+          const token = tokenFor();
+          tokenItems.push({ token, src: String(src || '') });
+          return `<img${pre}src="${token}"${post}>`;
+        });
+      }
+      return { htmlWithTokens: nextHtml, tokenItems };
+    };
+    const replaceInlineImageTokens = (html, tokenMap = {}) => {
+      let next = String(html || '');
+      Object.entries(tokenMap).forEach(([token, url]) => {
+        const safeToken = String(token || '');
+        const safeUrl = String(url || '');
+        if (!safeToken || !safeUrl) return;
+        next = next.split(safeToken).join(safeUrl);
+      });
+      return next;
+    };
+    const getImageSourcesFromHtml = (html) => {
+      const raw = String(html || '');
+      if (!raw) return [];
+      const matched = raw.match(/<img[^>]+src=["']([^"']+)["']/gi) || [];
+      return matched.map((tag) => {
+        const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+        return String(srcMatch?.[1] || '').trim();
+      }).filter(Boolean);
+    };
+    const uploadGalleryInlineImagesToServer = async (postId, tokenItems = [], representativeSrc = '') => {
+      const items = Array.isArray(tokenItems) ? tokenItems : [];
+      if (!items.length) return { tokenToUrl: {}, representativeUrl: '' };
+      const MAX_PARALLEL_UPLOADS = 2;
+      const rep = String(representativeSrc || '').trim();
+      const sortable = items.slice().sort((a, b) => {
+        const aRep = String(a?.src || '') === rep;
+        const bRep = String(b?.src || '') === rep;
+        if (aRep === bRep) return 0;
+        return aRep ? 1 : -1; // 대표 이미지를 마지막 업로드로 보냄(cover 반영)
+      });
+      const tokenToFileId = {};
+      const uploadOne = async (item, index) => {
+        const blob = await dataUrlToBlob(item.src);
+        if (!blob) return;
+        const ext = String(blob.type || '').includes('webp') ? 'webp' : (String(blob.type || '').includes('png') ? 'png' : 'jpg');
+        const formData = new FormData();
+        formData.append('file', blob, `gallery_${postId}_${index + 1}.${ext}`);
+        const uploaded = await apiRequest(`/posts/${postId}/files`, {
+          method: 'POST',
+          body: formData
+        });
+        const fileId = Number(uploaded?.file_id || uploaded?.fileId || 0);
+        if (fileId > 0) tokenToFileId[item.token] = fileId;
+      };
+      for (let start = 0; start < sortable.length; start += MAX_PARALLEL_UPLOADS) {
+        const chunk = sortable.slice(start, start + MAX_PARALLEL_UPLOADS);
+        await Promise.all(chunk.map((item, offset) => uploadOne(item, start + offset)));
+      }
+      const files = await apiRequest(`/posts/${postId}/files`, { method: 'GET', suppressSessionModal: true });
+      const byId = {};
+      (Array.isArray(files?.items) ? files.items : []).forEach((entry) => {
+        const id = Number(entry?.id || 0);
+        if (id > 0) byId[id] = String(entry?.file_url || '').trim();
+      });
+      const tokenToUrl = {};
+      Object.entries(tokenToFileId).forEach(([token, fileId]) => {
+        const fileUrl = String(byId[fileId] || '').trim();
+        if (fileUrl) tokenToUrl[token] = fileUrl;
+      });
+      let representativeUrl = '';
+      sortable.forEach((item) => {
+        if (item.src !== rep) return;
+        representativeUrl = String(tokenToUrl[item.token] || representativeUrl || '');
+      });
+      return { tokenToUrl, representativeUrl };
+    };
+
     initRichEditorToolbars();
     bindImageUploader({
       formId: 'add-news-form',
@@ -19,16 +167,14 @@
       hiddenName: 'imageData',
       imagesHiddenName: 'imagesData',
       editorId: 'gallery-editor',
-      stripExifToggleId: 'gallery-strip-exif'
+      stripExifToggleId: 'gallery-strip-exif',
+      progressWrapId: 'gallery-upload-progress-wrap',
+      progressBarId: 'gallery-upload-progress-bar',
+      progressTextId: 'gallery-upload-progress-text',
+      progressPercentId: 'gallery-upload-progress-percent',
+      maxImageBytes: (typeof GALLERY_IMAGE_MAX_BYTES === 'number' ? GALLERY_IMAGE_MAX_BYTES : 90 * 1024)
     });
     ensureGalleryYearOptions();
-    const galleryTabTrigger = document.getElementById('gallery-tab');
-    if (galleryTabTrigger) {
-      galleryTabTrigger.addEventListener('shown.bs.tab', () => {
-        const selected = document.getElementById('gallery-activity-select')?.value || '';
-        loadGalleryActivityOptions(selected);
-      });
-    }
 
     // News Form
     const newsForm = document.getElementById('add-news-form');
@@ -46,13 +192,19 @@
       updateVolunteerDateFieldVisibility(newsForm);
       newsForm.onsubmit = async (e) => {
         e.preventDefault();
-        const user = getCurrentUser();
-        if (!user) {
-          notifyMessage('로그인이 필요합니다.');
-          return;
-        }
+        try {
+          const user = getCurrentUser();
+          if (!user) {
+            notifyMessage('로그인이 필요합니다.');
+            return;
+          }
 
         syncEditorToInput(e.target, 'news-editor', { markRepresentative: true });
+        const newsImageCount = (String(e.target.content.value || '').match(/<img[\s>]/gi) || []).length;
+        if (newsImageCount > 30) {
+          notifyMessage('이미지는 게시글당 최대 30장까지 등록할 수 있습니다.');
+          return;
+        }
         const data = getContent();
         const editId = Number(e.target.editId.value || 0);
         const newDate = getTodayString();
@@ -89,8 +241,10 @@
           return;
         }
 
-        const source = tabType === 'faq' ? (data.faq ||= []) : (tabType === 'qna' ? (data.qna ||= []) : data.news);
-        if (editId) {
+          const source = tabType === 'faq'
+            ? (data.faq ||= [])
+            : (tabType === 'qna' ? (data.qna ||= []) : (data.news ||= []));
+          if (editId) {
           const target = source.find(n => n.id === editId);
           if (target) {
             target.title = e.target.title.value;
@@ -135,8 +289,8 @@
               delete target.volunteerEndDate;
             }
           }
-        } else {
-          const newId = Math.max(...source.map(x => x.id), 0) + 1;
+          } else {
+            const newId = getNextNumericId(source);
           const nextImages = editorImages.length ? editorImages : [];
           const newItem = {
             id: newId,
@@ -170,25 +324,79 @@
               newItem.volunteerEndDate = volunteerEndDate;
             }
           }
-          source.unshift(newItem);
+            source.unshift(newItem);
+          }
+          saveContent(data);
+          renderNews();
+          renderFaq();
+          renderQna();
+          resetWriteForms();
+          activateNewsTab(tabType);
+          if (tabType === 'notice' && typeof loadActivitiesCalendar === 'function') {
+            loadActivitiesCalendar().catch(() => {});
+          }
+          movePanel('news');
+          notifyMessage('글이 저장되었습니다!');
+        } catch (error) {
+          notifyMessage(error?.message || '글 저장 중 오류가 발생했습니다.');
         }
-        saveContent(data);
-        renderNews();
-        renderFaq();
-        renderQna();
-        resetWriteForms();
-        activateNewsTab(tabType);
-        if (tabType === 'notice' && typeof loadActivitiesCalendar === 'function') {
-          loadActivitiesCalendar().catch(() => {});
-        }
-        movePanel('news');
-        notifyMessage('글이 저장되었습니다!');
       };
     }
 
     // Gallery Form
     const galleryForm = document.getElementById('add-gallery-form');
     if (galleryForm) {
+      const showGallerySubmitError = (reason, detail = '') => {
+        const message = String(reason || '갤러리 저장 중 오류가 발생했습니다.');
+        notifyMessage(message, { level: 'error', durationMs: 4200 });
+        if (typeof showErrorPopup === 'function') {
+          showErrorPopup('갤러리 작성 실패', message, detail);
+        }
+      };
+      let gallerySubmitInFlight = false;
+      const gallerySubmitBtn = galleryForm.querySelector('button[type="submit"]');
+      if (gallerySubmitBtn && !gallerySubmitBtn.dataset.boundSubmitProxy) {
+        gallerySubmitBtn.dataset.boundSubmitProxy = '1';
+        gallerySubmitBtn.addEventListener('click', (event) => {
+          if (gallerySubmitInFlight) {
+            event.preventDefault();
+            return;
+          }
+          // 일부 브라우저/탭 전환 상태에서 기본 submit 누락 케이스 방지
+          if (typeof galleryForm.requestSubmit === 'function') {
+            event.preventDefault();
+            galleryForm.requestSubmit(gallerySubmitBtn);
+          }
+        });
+      }
+      const galleryDurationEl = document.getElementById('gallery-activity-duration');
+      const galleryStartDateEl = document.getElementById('gallery-activity-start-date');
+      const galleryEndDateEl = document.getElementById('gallery-activity-end-date');
+      const galleryEndWrapEl = document.getElementById('gallery-activity-end-wrap');
+      const syncGalleryActivityRange = () => {
+        const mode = String(galleryDurationEl?.value || 'same_day');
+        const startDate = toDateOnly(galleryStartDateEl?.value || '');
+        const showCustomEnd = mode === 'custom';
+        if (galleryEndWrapEl) galleryEndWrapEl.classList.toggle('d-none', !showCustomEnd);
+        if (galleryEndDateEl) {
+          if (showCustomEnd) {
+            galleryEndDateEl.removeAttribute('readonly');
+          } else {
+            galleryEndDateEl.setAttribute('readonly', 'readonly');
+            if (startDate) {
+              galleryEndDateEl.value = mode === 'overnight' ? addDays(startDate, 1) : startDate;
+            } else {
+              galleryEndDateEl.value = '';
+            }
+          }
+        }
+      };
+      if (galleryDurationEl) galleryDurationEl.addEventListener('change', syncGalleryActivityRange);
+      if (galleryStartDateEl) galleryStartDateEl.addEventListener('change', syncGalleryActivityRange);
+      if (galleryStartDateEl && !String(galleryStartDateEl.value || '').trim()) {
+        galleryStartDateEl.value = toDateOnly(getTodayString());
+      }
+      syncGalleryActivityRange();
       if (galleryForm.isScheduled) {
         galleryForm.isScheduled.addEventListener('change', () => {
           const publishWrap = document.getElementById('gallery-publish-at-wrap');
@@ -198,106 +406,238 @@
       }
       galleryForm.onsubmit = async (e) => {
         e.preventDefault();
-        const user = getCurrentUser();
-        if (!user) {
-          notifyMessage('로그인이 필요합니다.');
-          return;
+        if (gallerySubmitInFlight) return;
+        gallerySubmitInFlight = true;
+        const submitBtn = galleryForm.querySelector('button[type="submit"]');
+        const originalSubmitText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+          submitBtn.setAttribute('disabled', 'disabled');
+          submitBtn.textContent = '저장 중...';
         }
+        try {
+          ensureGalleryYearOptions(e.target.year?.value || '2026');
+          const user = getCurrentUser();
+          if (!user) {
+            throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
+          }
 
-        syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true, representativeLabel: false });
-        const data = getContent();
-        if (!Array.isArray(data.gallery)) data.gallery = [];
-        const year = Number(e.target.year.value || 2026);
-        const activityId = Number(e.target.activityId?.value || 0);
-        const selectedActivityOption = e.target.activityId?.selectedOptions?.[0] || null;
-        const activityStartAt = activityId > 0 ? String(selectedActivityOption?.dataset?.startAt || '') : '';
-        const editId = Number(e.target.editId.value || 0);
-        const newDate = getTodayString();
-        const editorImages = getEditorImageSources('gallery-editor');
-        const coverImage = editorImages[0] || '';
-        const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
-          ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
-          : '';
-        const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
-        let galleryItem = null;
-        if (editId) {
-          const target = data.gallery.find(g => g.id === editId);
-          if (target) {
-            target.title = e.target.title.value;
-            target.date = target.date || newDate;
-            target.year = year;
-            target.category = `y${year}`;
-            const existingImages = Array.isArray(target.images)
-              ? target.images
-              : (target.image ? [target.image] : []);
-            const nextImages = editorImages.length ? editorImages : existingImages;
-            target.images = [];
-            target.image = coverImage || nextImages[0] || target.image || 'logo.png';
-            if (generatedThumb) {
-              target.thumb_url = generatedThumb;
-              target.thumbnail_url = generatedThumb;
+          syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true, representativeLabel: false });
+          const galleryImageCount = (String(e.target.content.value || '').match(/<img[\s>]/gi) || []).length;
+          if (galleryImageCount > 30) {
+            throw new Error('이미지는 게시글당 최대 30장까지 등록할 수 있습니다.');
+          }
+          const data = getContent();
+          if (!Array.isArray(data.gallery)) data.gallery = [];
+          const year = Number(e.target.year.value || 2026);
+          const editId = Number(e.target.editId.value || 0);
+          const newDate = getTodayString();
+          const activityDuration = String(e.target.activityDuration?.value || 'same_day');
+          const activityStartDate = toDateOnly(e.target.activityStartDate?.value || toDateOnly(getTodayString()));
+          const rawActivityEndDate = toDateOnly(e.target.activityEndDate?.value || '');
+          let activityEndDate = activityStartDate;
+          if (!activityStartDate) {
+            throw new Error('봉사 활동 시작 날짜를 선택해 주세요.');
+          }
+          if (activityDuration === 'overnight') {
+            activityEndDate = addDays(activityStartDate, 1);
+          } else if (activityDuration === 'custom') {
+            activityEndDate = rawActivityEndDate || activityStartDate;
+          }
+          if (activityEndDate < activityStartDate) {
+            throw new Error('봉사 활동 종료일은 시작일보다 빠를 수 없습니다.');
+          }
+          const editorImages = getEditorImageSources('gallery-editor');
+          const coverImage = (typeof getRepresentativeEditorImageSource === 'function'
+            ? getRepresentativeEditorImageSource('gallery-editor')
+            : (editorImages[0] || ''));
+          const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
+            ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
+            : '';
+          const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+          const normalizedGalleryContent = await compressHtmlInlineImages(e.target.content.value || '', 180 * 1024);
+          const preferServerUpload = !editId && typeof apiRequest === 'function' && navigator.onLine !== false;
+          let serverResolvedContent = normalizedGalleryContent;
+          let serverResolvedCover = coverImage;
+          let serverResolvedThumb = generatedThumb || coverImage || '';
+          let serverPostId = 0;
+          if (preferServerUpload) {
+            const { htmlWithTokens, tokenItems } = extractInlineImageTokens(normalizedGalleryContent);
+            try {
+              const created = await apiRequest('/posts', {
+                method: 'POST',
+                body: {
+                  category: 'gallery',
+                  title: e.target.title.value,
+                  content: htmlWithTokens,
+                  publish_at: publishAt || ''
+                }
+              });
+              serverPostId = Number(created?.post_id || created?.postId || 0);
+              if (serverPostId > 0 && tokenItems.length) {
+                const uploaded = await uploadGalleryInlineImagesToServer(serverPostId, tokenItems, coverImage);
+                serverResolvedContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
+                serverResolvedCover = String(uploaded.representativeUrl || serverResolvedCover || '').trim();
+                serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
+                await apiRequest(`/posts/${serverPostId}`, {
+                  method: 'PUT',
+                  body: {
+                    category: 'gallery',
+                    title: e.target.title.value,
+                    content: serverResolvedContent,
+                    publish_at: publishAt || ''
+                  }
+                });
+              }
+            } catch (serverError) {
+              notifyMessage(`서버 이미지 업로드를 완료하지 못해 로컬 저장 모드로 전환합니다. (${serverError?.message || '오류'})`);
+              serverPostId = 0;
+              serverResolvedContent = normalizedGalleryContent;
+              serverResolvedCover = coverImage;
+              serverResolvedThumb = generatedThumb || coverImage || '';
             }
-            target.content = e.target.content.value || '';
-            target.publishAt = publishAt || '';
-            if (activityId > 0) {
-              target.activityId = activityId;
-              target.activityStartAt = activityStartAt;
-            } else {
+          }
+          let galleryItem = null;
+          if (editId) {
+            const target = data.gallery.find(g => g.id === editId);
+            if (target) {
+              target.title = e.target.title.value;
+              target.date = target.date || newDate;
+              target.year = year;
+              target.category = `y${year}`;
+              const existingImages = Array.isArray(target.images)
+                ? target.images
+                : (target.image ? [target.image] : []);
+              const nextImages = editorImages.length ? editorImages : existingImages;
+              target.images = nextImages;
+              target.image = coverImage || nextImages[0] || target.image || 'logo.png';
+              if (generatedThumb) {
+                target.thumb_url = generatedThumb;
+                target.thumbnail_url = generatedThumb;
+              } else {
+                target.thumb_url = coverImage || '';
+                target.thumbnail_url = coverImage || '';
+              }
+              target.content = normalizedGalleryContent || '';
+              target.publishAt = publishAt || '';
+              target.activityDuration = activityDuration;
+              target.activityStartDate = activityStartDate;
+              target.activityEndDate = activityEndDate;
               delete target.activityId;
               delete target.activityStartAt;
+              galleryItem = target;
             }
-            galleryItem = target;
+          } else {
+            const newId = getNextNumericId(data.gallery);
+            const resolvedImages = getImageSourcesFromHtml(serverResolvedContent);
+            const nextImages = serverPostId > 0
+              ? (resolvedImages.length ? resolvedImages : [])
+              : (editorImages.length ? editorImages : []);
+            galleryItem = {
+              id: serverPostId > 0 ? serverPostId : newId,
+              title: e.target.title.value,
+              date: newDate,
+              year,
+              category: `y${year}`,
+              image: serverResolvedCover || coverImage || nextImages[0] || 'logo.png',
+              thumb_url: serverResolvedThumb || generatedThumb || coverImage || '',
+              thumbnail_url: serverResolvedThumb || generatedThumb || coverImage || '',
+              images: nextImages,
+              content: serverResolvedContent || normalizedGalleryContent || '',
+              publishAt: publishAt || '',
+              author: user.nickname || user.username || user.name,
+              views: 0,
+              activityDuration,
+              activityStartDate,
+              activityEndDate
+            };
+            data.gallery.unshift(galleryItem);
           }
-        } else {
-          const newId = Math.max(...data.gallery.map(x => Number(x.id) || 0), 0) + 1;
-          const nextImages = editorImages.length ? editorImages : [];
-          galleryItem = {
-            id: newId,
-            title: e.target.title.value,
-            date: newDate,
-            year,
-            category: `y${year}`,
-            image: coverImage || nextImages[0] || 'logo.png',
-            thumb_url: generatedThumb || '',
-            thumbnail_url: generatedThumb || '',
-            images: [],
-            content: e.target.content.value || '',
-            publishAt: publishAt || '',
-            author: user.nickname || user.username || user.name,
-            views: 0,
-            activityId: activityId > 0 ? activityId : undefined,
-            activityStartAt: activityId > 0 ? activityStartAt : undefined
-          };
-          data.gallery.unshift(galleryItem);
-        }
-        // 봉사 기간(활동) 선택 시 캘린더 일정 추가
-        if (activityId > 0 && activityStartAt) {
-          // 일정 추가 API 호출 (예시, 실제 API 엔드포인트에 맞게 수정 필요)
-          fetch('/activities', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: galleryItem.title,
-              startAt: activityStartAt,
-              endAt: activityStartAt,
-              place: '-',
-              manager: user.nickname || user.username || user.name,
-              sourceType: 'gallery',
-              sourceGalleryId: galleryItem.id
-            })
-          }).then(() => {
-            // 일정 추가 후 캘린더 새로고침
-            if (typeof loadActivitiesCalendar === 'function') {
-              loadActivitiesCalendar();
+          const compactGalleryItemForQuota = async (targetItem) => {
+            if (!targetItem || typeof targetItem !== 'object') return;
+            if (typeof targetItem.content === 'string') {
+              targetItem.content = await compressHtmlInlineImages(targetItem.content, 120 * 1024);
             }
-          });
+            if (Array.isArray(targetItem.images) && typeof resizeImageDataUrlToMaxBytes === 'function') {
+              const compressedImages = [];
+              for (const src of targetItem.images) {
+                if (typeof src !== 'string' || !src.startsWith('data:image/')) {
+                  compressedImages.push(src);
+                  continue;
+                }
+                try {
+                  compressedImages.push(await resizeImageDataUrlToMaxBytes(src, 120 * 1024));
+                } catch (_) {
+                  compressedImages.push(src);
+                }
+              }
+              targetItem.images = compressedImages;
+            }
+            const safeImage = typeof targetItem.image === 'string' ? targetItem.image : '';
+            if (safeImage.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+              try {
+                targetItem.image = await resizeImageDataUrlToMaxBytes(safeImage, 140 * 1024);
+              } catch (_) {}
+            }
+            const safeThumb = typeof targetItem.thumb_url === 'string' ? targetItem.thumb_url : '';
+            const safeThumb2 = typeof targetItem.thumbnail_url === 'string' ? targetItem.thumbnail_url : '';
+            if (safeThumb.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+              try {
+                targetItem.thumb_url = await resizeImageDataUrlToMaxBytes(safeThumb, 70 * 1024);
+              } catch (_) {}
+            }
+            if (safeThumb2.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+              try {
+                targetItem.thumbnail_url = await resizeImageDataUrlToMaxBytes(safeThumb2, 70 * 1024);
+              } catch (_) {}
+            }
+          };
+          try {
+            saveContent(data);
+          } catch (saveError) {
+            const quotaLike = /quota|storage|space/i.test(String(saveError?.message || ''))
+              || String(saveError?.name || '').toLowerCase().includes('quota');
+            if (!quotaLike) throw saveError;
+            await compactGalleryItemForQuota(galleryItem);
+            try {
+              saveContent(data);
+              notifyMessage('이미지 용량이 커서 자동 압축 후 저장했습니다.');
+            } catch (secondError) {
+              if (!quotaLike) throw secondError;
+              throw new Error('이미지 용량이 커서 저장할 수 없습니다. 이미지 개수를 줄이거나 더 작은 파일로 다시 시도해주세요.');
+            }
+          }
+          galleryCurrentFilter = `y${year}`;
+          galleryCurrentPage = 1;
+          if (typeof syncGalleryRouteState === 'function') syncGalleryRouteState();
+          renderGallery();
+          resetWriteForms();
+          ensureGalleryYearOptions();
+          movePanel('gallery');
+          notifyMessage(editId ? '갤러리가 수정되었습니다!' : '갤러리가 추가되었습니다!');
+        } catch (error) {
+          const errorText = String(error?.message || '갤러리 저장 중 오류가 발생했습니다.').trim();
+          const detailParts = [];
+          if (/quota|storage|space|용량/.test(errorText.toLowerCase())) {
+            detailParts.push('원인: 브라우저 저장소 용량 초과 가능성이 있습니다.');
+            detailParts.push('해결: 이미지 개수를 줄이거나 JPG/WebP로 변환 후 다시 시도해 주세요.');
+          } else if (/heic|heif/.test(errorText.toLowerCase())) {
+            detailParts.push('원인: HEIC/HEIF 변환 실패입니다.');
+            detailParts.push('해결: iPhone 사진을 JPG/PNG로 변환 후 업로드해 주세요.');
+          } else if (/network|fetch|오프라인|연결/.test(errorText.toLowerCase())) {
+            detailParts.push('원인: 네트워크 연결 또는 서버 응답 오류입니다.');
+            detailParts.push('해결: 네트워크 확인 후 다시 시도해 주세요.');
+          } else {
+            detailParts.push('원인: 저장 처리 중 예외가 발생했습니다.');
+            detailParts.push('해결: 동일 입력으로 재시도 후 계속 실패하면 문의해 주세요.');
+          }
+          showGallerySubmitError(errorText, detailParts.join('\n'));
+        } finally {
+          gallerySubmitInFlight = false;
+          if (submitBtn) {
+            submitBtn.removeAttribute('disabled');
+            submitBtn.textContent = originalSubmitText || '갤러리 추가';
+          }
         }
-        saveContent(data);
-        renderGallery();
-        resetWriteForms();
-        ensureGalleryYearOptions();
-        movePanel('gallery');
-        notifyMessage(editId ? '갤러리가 수정되었습니다!' : '갤러리가 추가되었습니다!');
       };
     }
 
@@ -481,8 +821,13 @@
     const qnaSearchBtn = document.getElementById('qna-search-btn');
     const gallerySearchInput = document.getElementById('gallery-search');
     const gallerySearchBtn = document.getElementById('gallery-search-btn');
+    const newsSortSelect = document.getElementById('news-sort');
+    const gallerySortSelect = document.getElementById('gallery-sort');
+    const galleryViewOneBtn = document.getElementById('gallery-view-1col');
+    const galleryViewTwoBtn = document.getElementById('gallery-view-2col');
     const eventsRefreshBtn = document.getElementById('events-refresh-btn');
     const eventDetailBackBtn = document.getElementById('event-detail-back-btn');
+    const joinHonorBtn = document.getElementById('join-honor-btn');
     const joinInquiryBtn = document.getElementById('join-inquiry-btn');
     const joinSponsorBtn = document.getElementById('join-sponsor-btn');
     const copyDonationAccountBtn = document.getElementById('copy-donation-account-btn');
@@ -576,6 +921,47 @@
       });
     }
 
+    if (joinHonorBtn) {
+      joinHonorBtn.addEventListener('click', () => {
+        setJoinActionPanel('honor');
+      });
+    }
+    if (newsSortSelect) {
+      newsSortSelect.addEventListener('change', () => {
+        newsSortMode = String(newsSortSelect.value || 'latest');
+        newsCurrentPage = 1;
+        renderNews();
+      });
+    }
+    if (gallerySortSelect) {
+      gallerySortSelect.addEventListener('change', () => {
+        gallerySortMode = String(gallerySortSelect.value || 'latest');
+        galleryCurrentPage = 1;
+        renderGallery();
+      });
+    }
+    const applyGalleryMobileViewMode = (mode) => {
+      const normalized = mode === '1' ? '1' : '2';
+      const galleryGrid = document.getElementById('gallery-grid');
+      if (!galleryGrid) return;
+      galleryGrid.classList.toggle('mobile-cols-1', normalized === '1');
+      galleryGrid.classList.toggle('mobile-cols-2', normalized !== '1');
+      if (galleryViewOneBtn) galleryViewOneBtn.classList.toggle('active', normalized === '1');
+      if (galleryViewTwoBtn) galleryViewTwoBtn.classList.toggle('active', normalized !== '1');
+      try {
+        localStorage.setItem('weave_gallery_mobile_cols', normalized);
+      } catch (_) {}
+    };
+    if (galleryViewOneBtn && galleryViewTwoBtn) {
+      const storedViewMode = String(localStorage.getItem('weave_gallery_mobile_cols') || '2');
+      applyGalleryMobileViewMode(storedViewMode);
+      galleryViewOneBtn.addEventListener('click', () => applyGalleryMobileViewMode('1'));
+      galleryViewTwoBtn.addEventListener('click', () => applyGalleryMobileViewMode('2'));
+      window.addEventListener('resize', () => {
+        const mode = String(localStorage.getItem('weave_gallery_mobile_cols') || '2');
+        applyGalleryMobileViewMode(mode);
+      });
+    }
     if (joinInquiryBtn) {
       joinInquiryBtn.addEventListener('click', () => {
         setJoinActionPanel('inquiry');
@@ -1035,15 +1421,20 @@
     }
 
     // Initial render
-    renderNews();
-    renderFaq();
-    renderQna();
-    renderGallery();
+    (async () => {
+      if (typeof hydrateContentFromServerIfEmpty === 'function') {
+        await hydrateContentFromServerIfEmpty();
+      }
+      renderNews();
+      renderFaq();
+      renderQna();
+      renderGallery();
+    })();
     renderHomeHeroConfig();
     renderStats();
     initSiteContentEditor();
     setNewsWriteButtons();
-    setJoinActionPanel('inquiry');
+    setJoinActionPanel('honor');
     loadVolunteerEvents().catch(() => {});
 
     const activitiesOverviewTabBtn = document.getElementById('activities-overview-tab-btn');
@@ -1156,4 +1547,7 @@
 
     loadActivitiesCalendar().catch(() => {});
   });
+
+
+
 

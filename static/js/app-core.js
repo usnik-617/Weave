@@ -236,6 +236,54 @@ window.notifyInfo = notifyInfo;
 window.notifyError = notifyError;
 window.notifyMessage = notifyMessage;
 
+function showErrorPopup(title, message, detail = '') {
+  const popupId = 'weave-error-popup-modal';
+  let modalEl = document.getElementById(popupId);
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = popupId;
+    modalEl.className = 'modal fade';
+    modalEl.tabIndex = -1;
+    modalEl.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header border-0">
+            <h5 class="modal-title" id="weave-error-popup-title">오류</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2" id="weave-error-popup-message"></p>
+            <div class="alert alert-light border small mb-0 d-none" id="weave-error-popup-detail"></div>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">확인</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalEl);
+  }
+  const titleEl = document.getElementById('weave-error-popup-title');
+  const messageEl = document.getElementById('weave-error-popup-message');
+  const detailEl = document.getElementById('weave-error-popup-detail');
+  if (titleEl) titleEl.textContent = String(title || '오류');
+  if (messageEl) messageEl.textContent = String(message || '요청 처리 중 오류가 발생했습니다.');
+  if (detailEl) {
+    const safeDetail = String(detail || '').trim();
+    detailEl.textContent = safeDetail;
+    detailEl.classList.toggle('d-none', !safeDetail);
+  }
+  if (window.bootstrap?.Modal) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  } else {
+    const fallback = `${String(title || '오류')}: ${String(message || '')}${detail ? ` (${String(detail)})` : ''}`;
+    notifyError(fallback);
+  }
+}
+
+window.showErrorPopup = showErrorPopup;
+
 let myNotificationFilter = 'all';
 let myNotificationsCache = [];
 
@@ -441,9 +489,58 @@ async function renderMyNotifications() {
   });
 }
 
+async function renderMyActivitySummary() {
+  const wrap = document.getElementById('my-activity-summary');
+  const appliedEl = document.getElementById('my-activity-applied-count');
+  const attendedEl = document.getElementById('my-activity-attended-count');
+  const cancelledEl = document.getElementById('my-activity-cancelled-count');
+  if (!wrap || !appliedEl || !attendedEl || !cancelledEl) return;
+  const user = getCurrentUser();
+  if (!user) {
+    wrap.classList.add('d-none');
+    appliedEl.textContent = '0';
+    attendedEl.textContent = '0';
+    cancelledEl.textContent = '0';
+    return;
+  }
+  wrap.classList.remove('d-none');
+  let items = [];
+  try {
+    const res = await apiRequest('/me/history', { method: 'GET', suppressSessionModal: true });
+    items = Array.isArray(res?.items) ? res.items : [];
+  } catch (_) {
+    items = [];
+  }
+  const toKey = (value) => String(value || '').trim().toLowerCase();
+  const appliedSet = new Set(['waiting', 'pending', 'confirmed', 'applied', 'approved']);
+  const attendedSet = new Set(['attended', 'completed', 'done', 'participated']);
+  const cancelledSet = new Set(['cancelled', 'canceled', 'noshow', 'rejected']);
+  let applied = 0;
+  let attended = 0;
+  let cancelled = 0;
+  items.forEach((item) => {
+    const key = toKey(item?.status);
+    if (attendedSet.has(key)) {
+      attended += 1;
+      return;
+    }
+    if (cancelledSet.has(key)) {
+      cancelled += 1;
+      return;
+    }
+    if (appliedSet.has(key)) {
+      applied += 1;
+    }
+  });
+  appliedEl.textContent = String(applied);
+  attendedEl.textContent = String(attended);
+  cancelledEl.textContent = String(cancelled);
+}
+
 window.pushInAppNotification = pushInAppNotification;
 window.renderMyNotifications = renderMyNotifications;
 window.markCurrentUserNotificationsRead = markCurrentUserNotificationsRead;
+window.renderMyActivitySummary = renderMyActivitySummary;
 
 document.addEventListener('click', async (event) => {
   const target = event.target instanceof HTMLElement ? event.target.closest('[data-my-notification-action]') : null;
@@ -909,6 +1006,7 @@ function updateAuthUI() {
   const profileDetailsEl = document.getElementById('profile-details');
   const profileJoinDateEl = document.getElementById('profile-joindate');
   const mobileMyInfoLink = document.getElementById('mobile-menu-myinfo-link');
+  const mobileNotificationTab = document.getElementById('mobile-notification-tab');
   const mobileSignupBtn = document.getElementById('mobile-menu-signup-btn');
   const mobileLoginBtn = document.getElementById('mobile-menu-login-btn');
 
@@ -947,6 +1045,10 @@ function updateAuthUI() {
     if (qnaWriteBtn) qnaWriteBtn.classList.toggle('d-none', !activeMember);
     if (galleryWriteBtn) galleryWriteBtn.classList.toggle('d-none', !(activeMember && isStaffUser(user)));
     if (mobileMyInfoLink) mobileMyInfoLink.classList.remove('d-none');
+    if (mobileNotificationTab) {
+      mobileNotificationTab.classList.add('d-none');
+      mobileNotificationTab.setAttribute('aria-hidden', 'true');
+    }
     if (mobileSignupBtn) mobileSignupBtn.classList.add('d-none');
     if (mobileLoginBtn) mobileLoginBtn.textContent = '내 정보';
   } else {
@@ -961,6 +1063,10 @@ function updateAuthUI() {
     if (galleryWriteBtn) galleryWriteBtn.classList.add('d-none');
     if (opsDashboardBtn) opsDashboardBtn.classList.add('d-none');
     if (mobileMyInfoLink) mobileMyInfoLink.classList.add('d-none');
+    if (mobileNotificationTab) {
+      mobileNotificationTab.classList.add('d-none');
+      mobileNotificationTab.setAttribute('aria-hidden', 'true');
+    }
     if (mobileSignupBtn) mobileSignupBtn.classList.remove('d-none');
     if (mobileLoginBtn) mobileLoginBtn.textContent = '로그인';
   }
@@ -971,6 +1077,7 @@ function updateAuthUI() {
   if (typeof updateHomeHeroAdminControls === 'function') updateHomeHeroAdminControls();
   if (typeof updateSiteEditorControls === 'function') updateSiteEditorControls();
   if (typeof renderMyNotifications === 'function') renderMyNotifications();
+  if (typeof renderMyActivitySummary === 'function') renderMyActivitySummary();
 }
 
 function isValidBirthDate(value) {
