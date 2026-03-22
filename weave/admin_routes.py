@@ -14,6 +14,7 @@ from weave.responses import (
     user_row_to_dict,
 )
 from weave.time_utils import now_iso
+from weave.notice_calendar_integrity import run_notice_calendar_integrity
 
 
 def admin_pending_users():
@@ -312,3 +313,38 @@ def get_audit_logs():
             },
         }
     )
+
+
+def admin_run_notice_calendar_integrity():
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "EXECUTIVE"):
+        conn.close()
+        return error_response("운영진 이상만 실행할 수 있습니다.", 403)
+
+    summary = None
+    try:
+        summary = run_notice_calendar_integrity(conn)
+        log_audit(
+            me["id"],
+            "notice_calendar_integrity_run",
+            "system",
+            0,
+            {"summary": summary},
+        )
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        return error_response("무결성 점검 실행 중 오류가 발생했습니다.", 500, {"reason": str(exc)})
+    finally:
+        conn.close()
+    write_app_log(
+        "info",
+        "notice_calendar_integrity_run",
+        user_id=me["id"],
+        extra=summary,
+    )
+    return success_response({"ok": True, "summary": summary})

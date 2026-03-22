@@ -58,6 +58,11 @@ bp.add_url_rule(
 )
 bp.add_url_rule("/api/admin/stats", view_func=ar.admin_stats, methods=["GET"])
 bp.add_url_rule("/api/admin/audit-logs", view_func=ar.get_audit_logs, methods=["GET"])
+bp.add_url_rule(
+    "/api/admin/maintenance/notice-calendar-integrity",
+    view_func=ar.admin_run_notice_calendar_integrity,
+    methods=["POST"],
+)
 
 bp.add_url_rule(
     "/api/admin/role-requests", view_func=ur.list_role_requests, methods=["GET"]

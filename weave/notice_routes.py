@@ -6,6 +6,11 @@ from weave.core import (
 )
 from weave.responses import error_response, success_response
 from weave.time_utils import now_iso, parse_iso_datetime
+from weave.notice_calendar_integrity import (
+    _delete_activity_with_relations,
+    _delete_event_with_relations,
+    sync_notice_linked_calendar,
+)
 
 
 def create_notice_post(payload, conn, me, post_visibility_status):
@@ -100,7 +105,8 @@ def update_notice_post(post_id, payload, conn, me, post_visibility_status):
     conn.execute(
         """
         UPDATE posts
-        SET category = ?, title = ?, content = ?, is_pinned = ?, is_important = ?, publish_at = ?, status = ?, updated_at = ?
+        SET category = ?, title = ?, content = ?, is_pinned = ?, is_important = ?, publish_at = ?, status = ?,
+            volunteer_start_date = ?, volunteer_end_date = ?, updated_at = ?
         WHERE id = ?
         """,
         (
@@ -113,10 +119,33 @@ def update_notice_post(post_id, payload, conn, me, post_visibility_status):
             else 0,
             publish_at,
             status,
+            str(
+                payload.get(
+                    "volunteerStartDate",
+                    post["volunteer_start_date"] or "",
+                )
+            ).strip()
+            or None,
+            str(
+                payload.get(
+                    "volunteerEndDate",
+                    post["volunteer_end_date"] or "",
+                )
+            ).strip()
+            or str(
+                payload.get(
+                    "volunteerStartDate",
+                    post["volunteer_start_date"] or "",
+                )
+            ).strip()
+            or None,
             now_iso(),
             post_id,
         ),
     )
+    refreshed = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if refreshed:
+        sync_notice_linked_calendar(conn, refreshed)
     log_audit(conn, "update_post", "post", post_id, me["id"])
     return None
 
@@ -140,8 +169,18 @@ def delete_notice_post(post_id, conn, me):
         conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
         delete_file_if_unreferenced(conn, file_row["stored_path"])
     remove_file_safely(upload_url_to_path(post["thumb_url"]))
-    conn.execute("DELETE FROM events WHERE notice_post_id = ?", (post_id,))
-    conn.execute("DELETE FROM activities WHERE notice_post_id = ?", (post_id,))
+    linked_event_rows = conn.execute(
+        "SELECT id FROM events WHERE notice_post_id = ?",
+        (post_id,),
+    ).fetchall()
+    linked_activity_rows = conn.execute(
+        "SELECT id FROM activities WHERE notice_post_id = ?",
+        (post_id,),
+    ).fetchall()
+    for row in linked_event_rows:
+        _delete_event_with_relations(conn, int(row["id"]))
+    for row in linked_activity_rows:
+        _delete_activity_with_relations(conn, int(row["id"]))
 
     # Backward compatibility cleanup for older notice-linked activities without notice_post_id.
     volunteer_start = str(post["volunteer_start_date"] or "").strip()
@@ -167,7 +206,7 @@ def delete_notice_post(post_id, conn, me):
                 continue
             if volunteer_end and not end_at.startswith(volunteer_end):
                 continue
-            conn.execute("DELETE FROM activities WHERE id = ?", (row["id"],))
+            _delete_activity_with_relations(conn, int(row["id"]))
 
     conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     log_audit(
