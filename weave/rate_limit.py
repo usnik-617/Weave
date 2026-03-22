@@ -56,14 +56,18 @@ def validate_endpoint_rate_limit():
                 "회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429
             )
 
-    if method == "POST" and re.fullmatch(r"/api/posts/\d+/files", path or ""):
+    if method == "POST" and re.fullmatch(r"/api/posts/\d+/files(?:/batch)?", path or ""):
         user_id = core.session.get("user_id")
         if user_id:
             key = f"rl:upload:{user_id}"
         else:
             key = f"rl:upload-ip:{core.get_client_ip()}"
 
-        if not _allow_rate_limit(key, 10, 60):
+        if not _allow_rate_limit(
+            key,
+            max(1, int(core.UPLOAD_RATE_LIMIT_COUNT)),
+            max(1, int(core.UPLOAD_RATE_LIMIT_WINDOW_SEC)),
+        ):
             return core.error_response(
                 "업로드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", 429
             )

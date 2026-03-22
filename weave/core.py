@@ -78,8 +78,18 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "no-reply@weave.local")
 SMTP_TLS = os.environ.get("SMTP_TLS", "true").lower() == "true"
 
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "5"))
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+POST_TOTAL_UPLOAD_MB = int(os.environ.get("POST_TOTAL_UPLOAD_MB", "300"))
+POST_TOTAL_UPLOAD_BYTES = POST_TOTAL_UPLOAD_MB * 1024 * 1024
+UPLOAD_RATE_LIMIT_COUNT = int(os.environ.get("UPLOAD_RATE_LIMIT_COUNT", "240"))
+UPLOAD_RATE_LIMIT_WINDOW_SEC = int(os.environ.get("UPLOAD_RATE_LIMIT_WINDOW_SEC", "60"))
+UPLOAD_BATCH_MAX_FILES = int(os.environ.get("UPLOAD_BATCH_MAX_FILES", "12"))
+UPLOAD_GALLERY_THUMBNAIL_MODE = (
+    str(os.environ.get("UPLOAD_GALLERY_THUMBNAIL_MODE", "cover_only")).strip().lower()
+)
+MEDIA_QUEUE_BACKEND = str(os.environ.get("WEAVE_MEDIA_QUEUE_BACKEND", "rq")).strip().lower()
+MEDIA_WORKER_COUNT = int(os.environ.get("WEAVE_MEDIA_WORKER_COUNT", "2"))
 ALLOWED_UPLOAD_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"}
 ALLOWED_UPLOAD_MIME = {
     "image/jpeg",
@@ -341,6 +351,9 @@ def ensure_attendance_migration(cur):
 def init_db():
     from weave import core_db_bootstrap
 
+    if str(DATABASE_URL).strip().lower().startswith("postgres"):
+        logger.info("postgres_runtime_mode enabled: skip sqlite bootstrap on startup")
+        return None
     return core_db_bootstrap.init_db(DEFAULT_ADMIN_PASSWORD)
 
 

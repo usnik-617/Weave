@@ -71,6 +71,127 @@ function safeUrl(value) {
   return '';
 }
 
+function buildVolunteerMetaHtml({ buttonId, volunteerText, buttonText = '캘린더로 이동' }) {
+  const label = String(volunteerText || '').trim();
+  if (!label) return '';
+  const safeLabel = safeText(label);
+  const safeButtonId = safeText(buttonId || '');
+  const safeButtonText = safeText(buttonText || '캘린더로 이동');
+  return `
+    <div class="detail-volunteer-inline">
+      <button type="button" class="btn btn-sm btn-outline-primary detail-volunteer-calendar-btn" id="${safeButtonId}">${safeButtonText}</button>
+      <span class="detail-meta-key">봉사 일자 :</span>
+      <span class="detail-meta-value">${safeLabel}</span>
+    </div>
+  `;
+}
+
+function toDateOnlyValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseDateOnly(value) {
+  const dateOnly = toDateOnlyValue(value);
+  if (!dateOnly) return null;
+  const parsed = new Date(`${dateOnly}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addDateDays(baseDate, days) {
+  if (!(baseDate instanceof Date)) return null;
+  const copied = new Date(baseDate.getTime());
+  copied.setDate(copied.getDate() + Number(days || 0));
+  return copied;
+}
+
+function sameDate(a, b) {
+  if (!(a instanceof Date) || !(b instanceof Date)) return false;
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
+function sameMonth(a, b) {
+  if (!(a instanceof Date) || !(b instanceof Date)) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function formatMonthLabel(dateObj) {
+  if (!(dateObj instanceof Date)) return '';
+  return `${dateObj.getFullYear()}년 ${dateObj.getMonth() + 1}월`;
+}
+
+function buildMiniCalendarMonth(monthDate, startDate, endDate) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const startOffset = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+  let html = `
+    <div class="gallery-mini-month">
+      <div class="gallery-mini-month-title">${safeText(formatMonthLabel(monthDate))}</div>
+      <div class="gallery-mini-weekdays">
+        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+      </div>
+      <div class="gallery-mini-grid">
+  `;
+  for (let i = 0; i < startOffset; i += 1) {
+    html += '<span class="gallery-mini-day is-empty" aria-hidden="true"></span>';
+  }
+  for (let day = 1; day <= totalDays; day += 1) {
+    const current = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+    const inRange = current >= startDate && current <= endDate;
+    const isStart = sameDate(current, startDate);
+    const isEnd = sameDate(current, endDate);
+    const classNames = ['gallery-mini-day'];
+    if (inRange) classNames.push('is-range');
+    if (isStart) classNames.push('is-start');
+    if (isEnd) classNames.push('is-end');
+    html += `<span class="${classNames.join(' ')}">${day}</span>`;
+  }
+  html += `
+      </div>
+    </div>
+  `;
+  return html;
+}
+
+function renderGalleryDetailMiniCalendar(item) {
+  const container = document.getElementById('gallery-detail-mini-calendar');
+  if (!container) return;
+  const start = parseDateOnly(item?.activityStartDate);
+  const end = parseDateOnly(item?.activityEndDate) || start;
+  if (!start || !end) {
+    container.classList.add('d-none');
+    container.innerHTML = '';
+    return;
+  }
+  const normalizedStart = start <= end ? start : end;
+  const normalizedEnd = end >= start ? end : start;
+  const months = [new Date(normalizedStart.getFullYear(), normalizedStart.getMonth(), 1)];
+  if (!sameMonth(normalizedStart, normalizedEnd)) {
+    months.push(new Date(normalizedEnd.getFullYear(), normalizedEnd.getMonth(), 1));
+  }
+  const periodText = `${formatKoreanDate(toDateOnlyValue(normalizedStart))}${!sameDate(normalizedStart, normalizedEnd) ? ` ~ ${formatKoreanDate(toDateOnlyValue(normalizedEnd))}` : ''}`;
+  container.innerHTML = `
+    <div class="gallery-mini-calendar-header">
+      <strong>활동 기간</strong>
+      <span>${safeText(periodText)}</span>
+    </div>
+    <div class="gallery-mini-months ${months.length > 1 ? 'is-multi' : ''}">
+      ${months.map((month) => buildMiniCalendarMonth(month, normalizedStart, normalizedEnd)).join('')}
+    </div>
+  `;
+  container.classList.remove('d-none');
+}
+
 function highlightKeywordText(text, keyword) {
   const source = String(text ?? '');
   const key = String(keyword ?? '').trim();
@@ -148,6 +269,35 @@ function enableContentImagePreview(containerId) {
   });
 }
 
+function normalizeDetailContentHtml(rawHtml) {
+  const source = String(rawHtml || '').trim();
+  if (!source || typeof DOMParser === 'undefined') return source;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="__weave_detail_root">${source}</div>`, 'text/html');
+    const root = doc.getElementById('__weave_detail_root');
+    if (!root) return source;
+    root.querySelectorAll('.gallery-image-pin-btn, .gallery-image-delete-btn, .editor-image-delete-btn, .representative-label').forEach((el) => el.remove());
+    root.querySelectorAll('img').forEach((img) => {
+      img.removeAttribute('width');
+      img.removeAttribute('height');
+      img.style.display = 'block';
+      img.style.width = '100%';
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+      img.style.objectFit = img.style.objectFit || 'contain';
+    });
+    root.querySelectorAll('.editor-inline-image-wrap').forEach((wrap) => {
+      wrap.style.display = 'block';
+      wrap.style.width = '100%';
+      wrap.style.maxWidth = '100%';
+    });
+    return root.innerHTML;
+  } catch (_) {
+    return source;
+  }
+}
+
 function getFirstImageFromHtml(html) {
   const text = String(html || '');
   if (!text) return '';
@@ -176,21 +326,21 @@ function renderNews() {
 
   const user = getCurrentUser();
   const isAdmin = !!(user && (user.isAdmin || (typeof isAdminUser === 'function' && isAdminUser(user))));
-  // 愿由??ㅻ뜑 ?좉?
+  // 관리자 헤더 표시
   const adminTh = document.getElementById('news-admin-th');
   if (adminTh) adminTh.style.display = isAdmin ? '' : 'none';
 
   pageItems.forEach((item) => {
     const newsId = normalizeId(item?.id);
     const recommendCount = getRecommendCount(getPostKey('news', newsId));
-    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">?덉빟</span>' : '';
+    const scheduledBadge = isFutureScheduled(item) ? '<span class="news-title-badge">예약</span>' : '';
     const deadlineBadge = renderDeadlineBadge(item?.volunteerStartDate || item?.volunteerDate || '');
-    const safeTitle = safeText(item?.title || '?쒕ぉ ?놁쓬');
+    const safeTitle = safeText(item?.title || '제목 없음');
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><a href="#" onclick="openNotice(${newsId}); return false;">${safeTitle}</a>${scheduledBadge}${deadlineBadge}</td>
-      <td>${formatAuthorDisplay(item?.author || '愿由ъ옄', getCurrentUser())}</td>
+      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
       <td>${safeDate}</td>
       <td>${item.views || 0}</td>
       <td>${recommendCount}</td>
@@ -261,12 +411,12 @@ function renderFaq() {
   tbody.innerHTML = '';
   pageItems.forEach((item) => {
     const faqId = normalizeId(item?.id);
-    const safeTitle = highlightKeywordText(item?.title || '吏덈Ц ?놁쓬', faqSearchKeyword);
+    const safeTitle = highlightKeywordText(item?.title || '질문 없음', faqSearchKeyword);
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><a href="#" onclick="openFaqDetail(${faqId}); return false;">${safeTitle}</a></td>
-      <td>${formatAuthorDisplay(item?.author || '愿由ъ옄', getCurrentUser())}</td>
+      <td>${formatAuthorDisplay(item?.author || '관리자', getCurrentUser())}</td>
       <td>${safeDate}</td>
     `;
     tbody.appendChild(tr);
@@ -332,11 +482,11 @@ function renderQna() {
   pageItems.forEach((item) => {
     const qnaId = normalizeId(item?.id);
     const canRead = !item?.isSecret || admin;
-    const safeTitle = highlightKeywordText(item?.title || '吏덈Ц ?놁쓬', qnaSearchKeyword);
+    const safeTitle = highlightKeywordText(item?.title || '질문 없음', qnaSearchKeyword);
     const safeDate = safeText(item?.date || '');
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' ?뵏' : ''}</a>` : '鍮꾨?湲 ?뵏'}</td>
+      <td>${canRead ? `<a href=\"#\" onclick=\"openQnaDetail(${qnaId}); return false;\">${safeTitle}${item?.isSecret ? ' 🔒' : ''}</a>` : '비밀글 🔒'}</td>
       <td>${formatAuthorDisplay(item?.author || '', getCurrentUser())}</td>
       <td>${safeDate}</td>
     `;
@@ -408,7 +558,7 @@ function openFaqDetail(id) {
 
   document.getElementById('news-detail-title').textContent = item.title;
   updateDetailMeta('news', {
-    author: formatAuthorDisplay(item.author || '愿由ъ옄', getCurrentUser()),
+    author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
     date: formatDetailDateTime(item.date),
     volunteer: '',
     views: item.views || 0,
@@ -456,16 +606,16 @@ function openQnaDetail(id, options = {}) {
   const item = (data.qna || []).find((q) => normalizeId(q.id) === normalizedId);
   if (!item) return;
   if (item.isSecret && !operator) {
-    notifyMessage('鍮꾨?湲? ?댁쁺?먮쭔 ?대엺?????덉뒿?덈떎.');
+    notifyMessage('비밀글은 운영자만 열람할 수 있습니다.');
     return;
   }
 
   document.getElementById('qna-detail-title').textContent = item.title;
-  document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 鍮꾨?湲' : ''}`;
+  document.getElementById('qna-detail-meta').textContent = `${formatAuthorDisplay(item.author || '', getCurrentUser())} | ${item.date || ''}${item.isSecret ? ' | 비밀글' : ''}`;
   const questionEl = document.getElementById('qna-detail-question');
   const answerEl = document.getElementById('qna-detail-answer');
   if (questionEl) questionEl.innerHTML = item.content || '';
-  if (answerEl) answerEl.innerHTML = item.answer || '?꾩쭅 ?듬????깅줉?섏? ?딆븯?듬땲??';
+  if (answerEl) answerEl.innerHTML = item.answer || '아직 답변이 등록되지 않았습니다.';
   const answerBtn = document.getElementById('qna-answer-btn');
   if (answerBtn) {
     answerBtn.classList.toggle('d-none', !operator);
@@ -545,18 +695,23 @@ function openNotice(id) {
   const volunteerStart = notice.volunteerStartDate || notice.volunteerDate || '';
   const volunteerEnd = notice.volunteerEndDate || notice.volunteerDate || '';
   const deadlineInfo = typeof getDdayInfo === 'function' ? getDdayInfo(volunteerStart) : { label: '' };
-  const volunteerMeta = volunteerStart
-    ? `遊됱궗 ?좎쭨 ${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}${deadlineInfo.label ? ` (${deadlineInfo.label})` : ''}`
+  const volunteerMetaText = volunteerStart
+    ? `${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}${deadlineInfo.label ? ` (${deadlineInfo.label})` : ''}`
+    : '';
+  const volunteerMetaHtml = volunteerStart
+    ? buildVolunteerMetaHtml({ buttonId: 'notice-go-calendar-btn', volunteerText: volunteerMetaText })
     : '';
   updateDetailMeta('news', {
-    author: formatAuthorDisplay(notice.author || '愿由ъ옄', getCurrentUser()),
+    author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
     date: formatDetailDateTime(notice.date),
-    volunteer: volunteerMeta,
+    volunteer: volunteerMetaText,
+    volunteerHtml: volunteerMetaHtml,
     views: notice.views || 0,
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  contentEl.innerHTML = notice.content || '';
+  contentEl.innerHTML = normalizeDetailContentHtml(notice.content || '');
+  enableContentImagePreview('news-detail-content');
   if (actionsEl) {
     const attachments = Array.isArray(notice.attachments)
       ? notice.attachments
@@ -572,9 +727,9 @@ function openNotice(id) {
       const downloadUrl = safeUrl(file.download_url || file.downloadUrl || fileUrl) || '#';
       const previewUrl = safeUrl(file.preview_url || file.inline_url || appendInlineQuery(fileUrl)) || '#';
       const mimeType = String(file.mime_type || '').toLowerCase();
-      const fileName = String(file.original_name || file.name || '泥⑤??뚯씪');
+      const fileName = String(file.original_name || file.name || '첨부파일');
       const fileSize = Number(file.size || 0);
-      const sizeText = fileSize > 0 ? ` 쨌 ${(fileSize / 1024).toFixed(1)}KB` : '';
+      const sizeText = fileSize > 0 ? ` · ${(fileSize / 1024).toFixed(1)}KB` : '';
       const lowerName = fileName.toLowerCase();
       const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
       const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName);
@@ -599,11 +754,7 @@ function openNotice(id) {
       `;
     }).join('');
 
-    const calendarButton = volunteerStart
-      ? `<button class="btn btn-sm btn-outline-primary" id="notice-go-calendar-btn">캘린더로 이동</button>`
-      : '';
-
-    actionsEl.innerHTML = `${calendarButton}${attachmentHtml ? `<div class="mt-2 notice-attachment-actions">${attachmentHtml}</div>` : ''}`;
+    actionsEl.innerHTML = `${attachmentHtml ? `<div class="notice-attachment-actions">${attachmentHtml}</div>` : ''}`;
     const btn = document.getElementById('notice-go-calendar-btn');
     if (btn) {
       btn.onclick = async () => {
@@ -628,15 +779,24 @@ function openNotice(id) {
   }
   if (canManage) {
     deleteBtn.classList.remove('d-none');
-    deleteBtn.onclick = () => {
+    deleteBtn.onclick = async () => {
       if (!confirm('공지 글을 삭제하시겠습니까?')) return;
+      try {
+        await apiRequest(`/posts/${normalizedId}`, { method: 'DELETE' });
+      } catch (error) {
+        notifyMessage(error?.message || '공지 삭제 중 오류가 발생했습니다.');
+        return;
+      }
       const next = getContent();
       next.news = (next.news || []).filter((n) => normalizeId(n.id) !== normalizedId);
       saveContent(next);
       deleteBtn.classList.add('d-none');
       document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
       document.getElementById('news')?.classList.add('panel-active');
-      renderNews();
+      await renderNews();
+      if (typeof loadActivitiesCalendar === 'function') {
+        await loadActivitiesCalendar();
+      }
     };
   } else {
     deleteBtn.classList.add('d-none');
@@ -651,9 +811,10 @@ function openNotice(id) {
         recommendCountEl.textContent = String(getRecommendCount(itemKey));
         setRecommendButtonState(recommendBtn, hasRecommendation(itemKey));
         updateDetailMeta('news', {
-          author: formatAuthorDisplay(notice.author || '愿由ъ옄', getCurrentUser()),
+          author: formatAuthorDisplay(notice.author || '관리자', getCurrentUser()),
           date: formatDetailDateTime(notice.date),
-          volunteer: volunteerMeta,
+          volunteer: volunteerMetaText,
+          volunteerHtml: volunteerMetaHtml,
           views: notice.views || 0,
           recommends: getRecommendCount(itemKey),
           comments: getCommentCount(itemKey)
@@ -710,7 +871,19 @@ function getFilteredGalleryItems() {
       return bLikes - aLikes;
     });
   } else {
-    filtered.sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0));
+    const toTime = (item) => {
+      const activityStart = String(item?.activityStartDate || '').trim();
+      const fallbackDate = String(item?.date || '').trim();
+      const raw = activityStart || fallbackDate;
+      const parsed = raw ? new Date(raw) : null;
+      const ms = parsed && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+      return ms;
+    };
+    filtered.sort((a, b) => {
+      const diff = toTime(b) - toTime(a);
+      if (diff !== 0) return diff;
+      return Number(b?.id || 0) - Number(a?.id || 0);
+    });
   }
   return filtered;
 }
@@ -737,39 +910,43 @@ function renderGallery() {
     grid.innerHTML = '';
 
     if (pageItems.length === 0) {
-      // 湲???놁쑝硫??꾨Т寃껊룄 ?몄텧?섏? ?딆쓬
+      // 글이 없으면 카드 섹션에 아무 것도 노출하지 않음
       return;
     }
 
     pageItems.forEach((item) => {
-      const user = getCurrentUser();
       const galleryId = normalizeId(item?.id);
-      const canEdit = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email) || item?.author === user.username || item?.author === user.name));
       const recommendCount = getRecommendCount(getPostKey('gallery', galleryId));
       const firstBodyImage = getFirstImageFromHtml(item.content || '');
-      const thumbImage = item.thumb_url
+      const thumbImage = item.image
+        || item.image_url
+        || item.thumb_url
         || item.thumbnail_url
         || item.thumb
-        || firstBodyImage
-        || item.image_url
         || (Array.isArray(item.images) ? item.images[0] : '')
-        || item.image
+        || firstBodyImage
         || 'logo.png';
       const safeThumb = safeUrl(thumbImage) || 'logo.png';
-      const safeTitle = safeText(item?.title || '?쒕ぉ ?놁쓬');
+      const safeTitle = safeText(item?.title || '제목 없음');
+      const activityStart = String(item?.activityStartDate || '').trim();
+      const activityEnd = String(item?.activityEndDate || '').trim();
+      const activityDateText = activityStart
+        ? `${formatKoreanDate(activityStart)}${activityEnd && activityEnd !== activityStart ? ` ~ ${formatKoreanDate(activityEnd)}` : ''}`
+        : '';
       const safeDate = safeText(item?.date || '');
       const safeYear = safeText(item?.year || '');
       const categoryClass = safeCategoryClass(item?.category);
       const div = document.createElement('div');
       div.className = `col-md-6 col-lg-4 gallery-item ${categoryClass}`;
       div.innerHTML = `
-        <div class="gallery-card position-relative overflow-hidden rounded-3" role="button" tabindex="0" aria-label="${safeTitle} ?곸꽭 蹂닿린">
-          <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
+        <div class="gallery-card is-loading position-relative overflow-hidden rounded-3" role="button" tabindex="0" aria-label="${safeTitle} 상세 보기">
+          <div class="gallery-card-media">
+            <img class="gallery-card-image" src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" width="640" height="480">
+          </div>
           <div class="gallery-caption p-3 bg-white border-top">
             <h6 class="mb-1">${safeTitle}</h6>
-            <small class="text-muted">${safeDate} 쨌 ${safeYear}</small>
-            <div class="small text-muted">議고쉶 ${(item.views || 0)} 쨌 異붿쿇 ${recommendCount}</div>
-            ${canEdit ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-gallery-edit-id="${galleryId}">?섏젙</button></div>` : ''}
+            <small class="text-muted">${activityDateText ? `봉사 ${safeText(activityDateText)}` : `${safeDate} · ${safeYear}`}</small>
+            <div class="small text-muted">조회 ${item.views || 0} · 추천 ${recommendCount}</div>
           </div>
           <div class="gallery-overlay">
             <i class="fas fa-search-plus"></i>
@@ -777,6 +954,22 @@ function renderGallery() {
         </div>
       `;
       const cardEl = div.querySelector('.gallery-card');
+      const cardImageEl = div.querySelector('.gallery-card-image');
+      if (cardEl && cardImageEl) {
+        const onImageReady = () => {
+          cardImageEl.classList.add('is-ready');
+          cardEl.classList.remove('is-loading');
+        };
+        if (cardImageEl.complete && cardImageEl.naturalWidth > 0) {
+          onImageReady();
+        } else {
+          cardImageEl.addEventListener('load', onImageReady, { once: true });
+          cardImageEl.addEventListener('error', () => {
+            cardEl.classList.remove('is-loading');
+            cardImageEl.classList.add('is-ready');
+          }, { once: true });
+        }
+      }
       if (cardEl) {
         cardEl.addEventListener('click', () => openGalleryDetail(galleryId));
         cardEl.addEventListener('keydown', (event) => {
@@ -784,13 +977,6 @@ function renderGallery() {
             event.preventDefault();
             openGalleryDetail(galleryId);
           }
-        });
-      }
-      const editBtn = div.querySelector(`[data-gallery-edit-id="${galleryId}"]`);
-      if (editBtn) {
-        editBtn.addEventListener('click', (event) => {
-          event.stopPropagation();
-          startEditGallery(galleryId);
         });
       }
       grid.appendChild(div);
@@ -880,30 +1066,21 @@ function openGalleryDetail(id) {
   if (!titleEl || !contentEl) return;
   titleEl.innerText = item.title;
   updateDetailMeta('gallery', {
-    author: formatAuthorDisplay(item.author || '?묒꽦??誘몄긽', getCurrentUser()),
+    author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
     date: formatDetailDateTime(item.date),
-    volunteer: item.year ? `${item.year}???쒕룞` : '',
+    volunteer: item.activityStartDate
+      ? `${formatKoreanDate(item.activityStartDate)}${item.activityEndDate && item.activityEndDate !== item.activityStartDate ? ` ~ ${formatKoreanDate(item.activityEndDate)}` : ''}`
+      : (item.year ? `${item.year}년 활동` : ''),
     views: item.views || 0,
     recommends: getRecommendCount(itemKey),
     comments: getCommentCount(itemKey)
   });
-  contentEl.innerHTML = String(item.content || '') || '?댁슜???놁뒿?덈떎.';
+  renderGalleryDetailMiniCalendar(item);
+  contentEl.innerHTML = normalizeDetailContentHtml(String(item.content || '')) || '내용이 없습니다.';
   enableContentImagePreview('gallery-detail-content');
   const actionsEl = document.getElementById('gallery-detail-actions');
   if (actionsEl) {
-    const linkedActivityId = Number(item.activityId || item.activity_id || 0);
-    const hasLinkedActivity = Number.isFinite(linkedActivityId) && linkedActivityId > 0;
-    actionsEl.innerHTML = `${hasLinkedActivity ? '<button class="btn btn-sm btn-outline-primary" id="gallery-go-calendar-btn">캘린더로 이동</button>' : ''}`;
-    const goCalendarBtn = document.getElementById('gallery-go-calendar-btn');
-    if (goCalendarBtn) {
-      goCalendarBtn.onclick = async () => {
-        if (typeof openCalendarActivityFromGallery === 'function') {
-          await openCalendarActivityFromGallery(linkedActivityId, item.activityStartAt || item.date || '');
-          return;
-        }
-        if (item.date) await focusCalendarDate(item.date);
-      };
-    }
+    actionsEl.innerHTML = '';
   }
 
   const editBtn = document.getElementById('gallery-detail-edit-btn');
@@ -913,7 +1090,7 @@ function openGalleryDetail(id) {
     if (deleteBtn) deleteBtn.classList.remove('d-none');
     if (editBtn) editBtn.onclick = () => startEditGallery(normalizedId);
     if (deleteBtn) deleteBtn.onclick = () => {
-      if (!confirm('??湲????젣?섏떆寃좎뒿?덇퉴?')) return;
+      if (!confirm('이 글을 삭제하시겠습니까?')) return;
       const data = getContent();
       data.gallery = (data.gallery || []).filter((g) => normalizeId(g.id) !== normalizedId);
       saveContent(data);
@@ -938,9 +1115,10 @@ function openGalleryDetail(id) {
         recommendCountEl.textContent = String(getRecommendCount(itemKey));
         setRecommendButtonState(recommendBtn, hasRecommendation(itemKey));
         updateDetailMeta('gallery', {
-          author: formatAuthorDisplay(item.author || '?묒꽦??誘몄긽', getCurrentUser()),
+          author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
           date: formatDetailDateTime(item.date),
-          volunteer: item.year ? `${item.year}???쒕룞` : '',
+          volunteer: item.year ? `${item.year}년 활동` : '',
+          volunteerHtml: '',
           views: item.views || 0,
           recommends: getRecommendCount(itemKey),
           comments: getCommentCount(itemKey)
@@ -985,7 +1163,7 @@ function openGalleryDetail(id) {
 
 function startEditNews(id) {
   const user = getCurrentUser();
-  if (!user) return notifyMessage('濡쒓렇?몄씠 ?꾩슂?⑸땲??');
+  if (!user) return notifyMessage('로그인이 필요합니다.');
   const type = arguments[1] || 'notice';
   const data = getContent();
   const source = type === 'faq' ? (data.faq || []) : (type === 'qna' ? (data.qna || []) : data.news);
@@ -1026,7 +1204,7 @@ function startEditNews(id) {
 
 function startEditGallery(id) {
   const user = getCurrentUser();
-  if (!user) return notifyMessage('濡쒓렇?몄씠 ?꾩슂?⑸땲??');
+  if (!user) return notifyMessage('로그인이 필요합니다.');
   const data = getContent();
   const item = data.gallery.find(g => g.id === id);
   if (!item) return;
@@ -1042,18 +1220,19 @@ function startEditGallery(id) {
   }
   form.year.value = String(item.year || 2026);
   ensureGalleryYearOptions(String(item.year || 2026));
-  if (form.activityId) {
-    const linkedActivityId = String(item.activityId || item.activity_id || '');
-    form.activityId.value = linkedActivityId;
-    if (typeof loadGalleryActivityOptions === 'function') {
-      loadGalleryActivityOptions(linkedActivityId);
-    }
+  if (form.activityDuration) form.activityDuration.value = String(item.activityDuration || 'same_day');
+  if (form.activityStartDate) form.activityStartDate.value = String(item.activityStartDate || '');
+  if (form.activityEndDate) form.activityEndDate.value = String(item.activityEndDate || '');
+  if (typeof form.activityDuration?.dispatchEvent === 'function') {
+    form.activityDuration.dispatchEvent(new Event('change', { bubbles: true }));
   }
   if (form.imagesData) form.imagesData.value = '[]';
   if (form.imageData) form.imageData.value = '';
   setImagePreview('gallery-image-preview', '');
   form.content.value = item.content || '';
   setEditorHtml('gallery-editor', item.content || '');
+  if (typeof ensureGalleryEditorGrid === 'function') ensureGalleryEditorGrid('gallery-editor');
   openWritePanel('gallery-admin');
 }
+
 

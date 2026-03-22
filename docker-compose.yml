@@ -8,10 +8,62 @@ services:
       - WEAVE_ENV=production
       - WEAVE_SECRET_KEY=change-me
       - WEAVE_DB_PATH=/data/weave.db
+      - WEAVE_MEDIA_QUEUE_BACKEND=rq
+      - WEAVE_MEDIA_WORKER_COUNT=3
+      - WEAVE_STORAGE_BACKEND=local
+      - WEAVE_CDN_BASE_URL=
+      - WEAVE_REDIS_URL=redis://redis:6379/0
+      - WEAVE_MEDIA_QUEUE_NAME=weave-media
+      # PostgreSQL 전환 준비값(런타임 즉시 전환 전, 마이그레이션/검증용)
+      - DATABASE_URL=sqlite:////data/weave.db
     volumes:
       - weave_data:/data
       - weave_logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+      - minio
+
+  worker:
+    build: .
+    command: python scripts/run_rq_worker.py
+    environment:
+      - WEAVE_REDIS_URL=redis://redis:6379/0
+      - WEAVE_MEDIA_QUEUE_NAME=weave-media
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=weave
+      - POSTGRES_USER=weave
+      - POSTGRES_PASSWORD=weave
+    ports:
+      - "5432:5432"
+    volumes:
+      - weave_pg:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - weave_minio:/data
 
 volumes:
   weave_data:
   weave_logs:
+  weave_pg:
+  weave_minio:

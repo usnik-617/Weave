@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import uuid
 
 import pytest
 
 
 @pytest.fixture()
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    db_path = tmp_path / "test_smoke.db"
+def client(monkeypatch: pytest.MonkeyPatch):
+    root = Path(__file__).resolve().parents[1]
+    test_root = root / "instance" / "pytest_runtime" / f"smoke_{uuid.uuid4().hex}"
+    test_root.mkdir(parents=True, exist_ok=True)
+    db_path = test_root / "test_smoke.db"
     monkeypatch.setenv("WEAVE_DB_PATH", str(db_path))
     monkeypatch.delenv("WEAVE_HEALTH_TOKEN", raising=False)
     monkeypatch.delenv("WEAVE_HEALTH_ALLOW_IPS", raising=False)
@@ -21,8 +26,11 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     app = create_app()
     app.config.update(TESTING=True)
 
-    with app.test_client() as test_client:
-        yield test_client
+    try:
+        with app.test_client() as test_client:
+            yield test_client
+    finally:
+        shutil.rmtree(test_root, ignore_errors=True)
 
 
 def _has_index_marker(text: str) -> bool:

@@ -39,6 +39,9 @@ jobs:
       - name: Brand contrast check
         run: npm run check:brand-contrast
 
+      - name: Cache strategy contract check
+        run: npm run check:cache-strategy
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium webkit
 
@@ -53,3 +56,6 @@ jobs:
 
       - name: Playwright smoke (api errors)
         run: npx playwright test tests/api-error-cases.spec.js --project=chromium --reporter=line
+
+      - name: Playwright smoke (service worker refresh)
+        run: npx playwright test tests/sw-cache-refresh.spec.js --project=chromium --reporter=line

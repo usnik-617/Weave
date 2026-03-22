@@ -55,8 +55,8 @@ def create_notice_post(payload, conn, me, post_visibility_status):
             """
             INSERT INTO activities (
                 title, description, start_at, end_at, place, supplies, gather_time,
-                manager_name, recruitment_limit, created_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                manager_name, recruitment_limit, notice_post_id, created_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 title,
@@ -72,6 +72,7 @@ def create_notice_post(payload, conn, me, post_visibility_status):
                     else me["username"]
                 ),
                 int(payload.get("recruitment_limit", 0) or 0),
+                post_id,
                 me["id"],
                 now_iso(),
             ),
@@ -139,6 +140,35 @@ def delete_notice_post(post_id, conn, me):
         conn.execute("DELETE FROM post_files WHERE id = ?", (file_row["id"],))
         delete_file_if_unreferenced(conn, file_row["stored_path"])
     remove_file_safely(upload_url_to_path(post["thumb_url"]))
+    conn.execute("DELETE FROM events WHERE notice_post_id = ?", (post_id,))
+    conn.execute("DELETE FROM activities WHERE notice_post_id = ?", (post_id,))
+
+    # Backward compatibility cleanup for older notice-linked activities without notice_post_id.
+    volunteer_start = str(post["volunteer_start_date"] or "").strip()
+    volunteer_end = str(post["volunteer_end_date"] or volunteer_start or "").strip()
+    if volunteer_start:
+        candidates = conn.execute(
+            """
+            SELECT id, title, place, start_at, end_at, created_by
+            FROM activities
+            WHERE title = ?
+            """,
+            (str(post["title"] or "").strip(),),
+        ).fetchall()
+        for row in candidates:
+            place = str(row["place"] or "").strip()
+            if place and place != "공지사항":
+                continue
+            if int(row["created_by"] or 0) != int(post["author_id"] or 0):
+                continue
+            start_at = str(row["start_at"] or "").strip()
+            end_at = str(row["end_at"] or "").strip()
+            if not start_at.startswith(volunteer_start):
+                continue
+            if volunteer_end and not end_at.startswith(volunteer_end):
+                continue
+            conn.execute("DELETE FROM activities WHERE id = ?", (row["id"],))
+
     conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     log_audit(
         conn, "delete_post", "post", post_id, me["id"], {"category": post["category"]}

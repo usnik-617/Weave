@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 
 
 def test_spa_root_uses_no_store_cache(client):
@@ -13,8 +14,27 @@ def test_static_asset_uses_asset_cache_policy(client):
     response = client.get("/styles.css")
 
     assert response.status_code == 200
+    assert response.headers.get("X-Weave-Asset-Source") in {"static", "root-mirror"}
     cache_control = (response.headers.get("Cache-Control") or "").lower()
     assert "max-age=3600" in cache_control
+
+
+def test_sw_asset_uses_dedicated_cache_policy(client):
+    response = client.get("/sw.js")
+
+    assert response.status_code == 200
+    cache_control = (response.headers.get("Cache-Control") or "").lower()
+    assert "no-store" in cache_control
+
+
+def test_root_injects_asset_version_marker(client):
+    response = client.get("/")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'name="weave-asset-version"' in body
+    assert "app-auth-init.js?v=" in body
+    assert response.headers.get("X-Weave-Asset-Version")
 
 
 def test_spa_proxy_blocks_sensitive_suffix(client):
@@ -69,6 +89,14 @@ def test_spa_proxy_static_alias_can_be_disabled(client):
     assert "no-store" in cache_control
 
 
+def test_spa_proxy_static_alias_is_disabled_by_default(client):
+    response = client.get("/static/styles.css")
+
+    assert response.status_code == 200
+    cache_control = (response.headers.get("Cache-Control") or "").lower()
+    assert "no-store" in cache_control
+
+
 def test_spa_proxy_static_alias_can_be_enabled(client):
     client.application.config["SPA_ALLOW_STATIC_ALIAS"] = True
 
@@ -77,3 +105,26 @@ def test_spa_proxy_static_alias_can_be_enabled(client):
     assert response.status_code == 200
     cache_control = (response.headers.get("Cache-Control") or "").lower()
     assert "max-age=3600" in cache_control
+
+
+def test_csp_report_only_header_is_present(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers.get("Content-Security-Policy")
+    assert response.headers.get("Content-Security-Policy-Report-Only")
+
+
+def test_root_mirror_file_wins_when_newer(client):
+    root_path = os.path.join(client.application.root_path, "..", "js", "app-auth-init.js")
+    root_path = os.path.realpath(root_path)
+
+    root_mtime = os.path.getmtime(root_path)
+    try:
+        os.utime(root_path, (root_mtime + 5, root_mtime + 5))
+        response = client.get("/js/app-auth-init.js")
+        body = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "navigator.serviceWorker.register(swUrl)" in body
+    finally:
+        os.utime(root_path, (root_mtime, root_mtime))

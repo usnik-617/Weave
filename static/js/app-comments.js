@@ -223,23 +223,42 @@ function renderPostComments(containerId, itemKey) {
     if (item) {
       const volunteerStart = item.volunteerStartDate || item.volunteerDate || '';
       const volunteerEnd = item.volunteerEndDate || item.volunteerDate || '';
+      const volunteerText = volunteerStart
+        ? `${formatKoreanDate(volunteerStart)}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${formatKoreanDate(volunteerEnd)}` : ''}`
+        : '';
+      const volunteerHtml = (volunteerStart && typeof buildVolunteerMetaHtml === 'function')
+        ? buildVolunteerMetaHtml({ buttonId: 'notice-go-calendar-btn', volunteerText })
+        : '';
       updateDetailMeta('news', {
         author: formatAuthorDisplay(item.author || '관리자', getCurrentUser()),
         date: formatDetailDateTime(item.date),
-        volunteer: volunteerStart ? `봉사 일자 ${volunteerStart}${volunteerEnd && volunteerEnd !== volunteerStart ? ` ~ ${volunteerEnd}` : ''}` : '',
+        volunteer: volunteerText,
+        volunteerHtml,
         views: item.views || 0,
         recommends: getRecommendCount(itemKey),
         comments: getCommentCount(itemKey)
       });
+      const calendarBtn = document.getElementById('notice-go-calendar-btn');
+      if (calendarBtn && volunteerStart) {
+        calendarBtn.onclick = async () => {
+          if (typeof focusCalendarDate === 'function') {
+            await focusCalendarDate(volunteerStart);
+          }
+        };
+      }
     }
   }
   if (postType === 'gallery' && postId) {
     const item = (data.gallery || []).find(g => g.id === postId);
     if (item) {
+      const volunteerText = item.activityStartDate
+        ? `${formatKoreanDate(item.activityStartDate)}${item.activityEndDate && item.activityEndDate !== item.activityStartDate ? ` ~ ${formatKoreanDate(item.activityEndDate)}` : ''}`
+        : (item.year ? `${item.year}년 활동` : '');
       updateDetailMeta('gallery', {
         author: formatAuthorDisplay(item.author || '작성자 미상', getCurrentUser()),
         date: formatDetailDateTime(item.date),
-        volunteer: item.year ? `${item.year}년 활동` : '',
+        volunteer: volunteerText,
+        volunteerHtml: '',
         views: item.views || 0,
         recommends: getRecommendCount(itemKey),
         comments: getCommentCount(itemKey)

@@ -9,9 +9,12 @@ const STATIC_ASSETS = [
   '/js/app-editor-upload.js',
   '/js/app-site-editor-core.js',
 ];
-const CACHE_REVISION = `${STATIC_ASSETS.length}-${STATIC_ASSETS.join('|').length}`;
-const CACHE_NAME = `weave-static-v4-${CACHE_REVISION}`;
+const SW_VERSION = '20260314a';
+const SCRIPT_URL = new URL(self.location.href);
+const CACHE_VERSION = SCRIPT_URL.searchParams.get('v') || SW_VERSION;
+const CACHE_NAME = `weave-static-${CACHE_VERSION}`;
 let REDUCED_DATA_MODE = false;
+const API_NON_CACHEABLE_PREFIXES = ['/api/auth', '/api/admin', '/api/me', '/api/users'];
 
 self.addEventListener('message', (event) => {
   const payload = event && event.data ? event.data : {};
@@ -42,31 +45,37 @@ self.addEventListener('fetch', (event) => {
 
   const isApi = url.pathname.startsWith('/api/');
   if (isApi) {
+    const nonCacheable = API_NON_CACHEABLE_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          if (!nonCacheable && req.method === 'GET' && res.ok && !REDUCED_DATA_MODE) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match(req).then((cached) => cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } })))
+        .catch(() => new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } }))
     );
+    return;
+  }
+
+  if (url.pathname === '/sw.js') {
     return;
   }
 
   const isStatic = /\.(?:css|js|png|jpg|jpeg|webp|gif|svg|ico)$/.test(url.pathname) || STATIC_ASSETS.includes(url.pathname);
   if (isStatic) {
     event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req).then((res) => {
+      fetch(req)
+        .then((res) => {
           const copy = res.clone();
           if (!REDUCED_DATA_MODE) {
             caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
           }
           return res;
-        });
-      })
+        })
+        .catch(() => caches.match(req))
     );
     return;
   }

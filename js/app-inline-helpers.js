@@ -172,7 +172,6 @@ function initWriteEntryBindingsFromGlobals() {
       const form = document.getElementById('add-gallery-form');
       form.editId.value = '';
       ensureGalleryYearOptions();
-      loadGalleryActivityOptions();
       openWritePanel('gallery-admin');
     });
   }

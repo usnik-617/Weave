@@ -36,6 +36,58 @@
       }
       return root.innerHTML;
     };
+    const compactPostItemForQuota = async (item, options = {}) => {
+      if (!item || typeof item !== 'object') return;
+      const contentLimit = Math.max(60 * 1024, Number(options.contentBytes || 120 * 1024));
+      const imageLimit = Math.max(60 * 1024, Number(options.imageBytes || 120 * 1024));
+      const thumbLimit = Math.max(50 * 1024, Number(options.thumbBytes || 70 * 1024));
+      if (typeof item.content === 'string' && item.content.includes('data:image/')) {
+        item.content = await compressHtmlInlineImages(item.content, contentLimit);
+      }
+      if (Array.isArray(item.images) && typeof resizeImageDataUrlToMaxBytes === 'function') {
+        const compacted = [];
+        for (const src of item.images) {
+          if (typeof src !== 'string' || !src.startsWith('data:image/')) {
+            compacted.push(src);
+            continue;
+          }
+          try {
+            compacted.push(await resizeImageDataUrlToMaxBytes(src, imageLimit));
+          } catch (_) {
+            compacted.push(src);
+          }
+        }
+        item.images = compacted;
+      }
+      const cover = String(item.image || '');
+      if (cover.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+        try {
+          item.image = await resizeImageDataUrlToMaxBytes(cover, imageLimit);
+        } catch (_) {}
+      }
+      const thumb1 = String(item.thumb_url || '');
+      const thumb2 = String(item.thumbnail_url || '');
+      if (thumb1.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+        try {
+          item.thumb_url = await resizeImageDataUrlToMaxBytes(thumb1, thumbLimit);
+        } catch (_) {}
+      }
+      if (thumb2.startsWith('data:image/') && typeof resizeImageDataUrlToMaxBytes === 'function') {
+        try {
+          item.thumbnail_url = await resizeImageDataUrlToMaxBytes(thumb2, thumbLimit);
+        } catch (_) {}
+      }
+    };
+    const compactAllCachedPostsForQuota = async (payload) => {
+      const safePayload = payload && typeof payload === 'object' ? payload : {};
+      const sections = ['news', 'gallery', 'faq', 'qna'];
+      for (const section of sections) {
+        const list = Array.isArray(safePayload[section]) ? safePayload[section] : [];
+        for (const item of list) {
+          await compactPostItemForQuota(item, { contentBytes: 90 * 1024, imageBytes: 90 * 1024, thumbBytes: 60 * 1024 });
+        }
+      }
+    };
     const getNextNumericId = (items = []) => {
       const safeItems = Array.isArray(items) ? items : [];
       const maxId = safeItems.reduce((maxValue, item) => {
@@ -100,10 +152,35 @@
         return String(srcMatch?.[1] || '').trim();
       }).filter(Boolean);
     };
-    const uploadGalleryInlineImagesToServer = async (postId, tokenItems = [], representativeSrc = '') => {
+    const getRepresentativeImageFromHtml = (html) => {
+      const raw = String(html || '').trim();
+      if (!raw || typeof DOMParser === 'undefined') return '';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div id="__weave_inline_root">${raw}</div>`, 'text/html');
+      const root = doc.getElementById('__weave_inline_root');
+      if (!root) return '';
+      const pinned = root.querySelector('img[data-representative="true"]');
+      const pinnedSrc = String(pinned?.getAttribute('src') || '').trim();
+      if (pinnedSrc) return pinnedSrc;
+      const first = root.querySelector('img');
+      return String(first?.getAttribute('src') || '').trim();
+    };
+    const parseCreatedPostId = (payload) => {
+      return Number(
+        payload?.post_id
+        || payload?.postId
+        || payload?.id
+        || payload?.data?.post_id
+        || payload?.data?.postId
+        || payload?.data?.id
+        || 0
+      ) || 0;
+    };
+    const uploadInlineImagesToServer = async (postId, tokenItems = [], representativeSrc = '') => {
       const items = Array.isArray(tokenItems) ? tokenItems : [];
       if (!items.length) return { tokenToUrl: {}, representativeUrl: '' };
-      const MAX_PARALLEL_UPLOADS = 2;
+      const BATCH_SIZE = 8;
+      const MAX_RETRY_BATCH = 1;
       const rep = String(representativeSrc || '').trim();
       const sortable = items.slice().sort((a, b) => {
         const aRep = String(a?.src || '') === rep;
@@ -111,41 +188,119 @@
         if (aRep === bRep) return 0;
         return aRep ? 1 : -1; // 대표 이미지를 마지막 업로드로 보냄(cover 반영)
       });
-      const tokenToFileId = {};
-      const uploadOne = async (item, index) => {
+      const tokenToUrl = {};
+      const failedTokens = [];
+      let representativeUrl = '';
+
+      const uploadSingleFallback = async (item, index, setCover = false) => {
         const blob = await dataUrlToBlob(item.src);
-        if (!blob) return;
+        if (!blob) return null;
         const ext = String(blob.type || '').includes('webp') ? 'webp' : (String(blob.type || '').includes('png') ? 'png' : 'jpg');
         const formData = new FormData();
         formData.append('file', blob, `gallery_${postId}_${index + 1}.${ext}`);
-        const uploaded = await apiRequest(`/posts/${postId}/files`, {
-          method: 'POST',
-          body: formData
-        });
+        if (setCover) formData.append('set_cover', '1');
+        const uploaded = await apiRequest(`/posts/${postId}/files`, { method: 'POST', body: formData });
         const fileId = Number(uploaded?.file_id || uploaded?.fileId || 0);
-        if (fileId > 0) tokenToFileId[item.token] = fileId;
+        if (!(fileId > 0)) return null;
+        const files = await apiRequest(`/posts/${postId}/files`, { method: 'GET', suppressSessionModal: true });
+        const match = (Array.isArray(files?.items) ? files.items : []).find((entry) => Number(entry?.id || 0) === fileId);
+        return String(match?.file_url || '').trim();
       };
-      for (let start = 0; start < sortable.length; start += MAX_PARALLEL_UPLOADS) {
-        const chunk = sortable.slice(start, start + MAX_PARALLEL_UPLOADS);
-        await Promise.all(chunk.map((item, offset) => uploadOne(item, start + offset)));
+
+      for (let start = 0; start < sortable.length; start += BATCH_SIZE) {
+        const chunk = sortable.slice(start, start + BATCH_SIZE);
+        let uploadedBatch = null;
+        let batchError = null;
+        for (let attempt = 0; attempt <= MAX_RETRY_BATCH; attempt += 1) {
+          try {
+            const formData = new FormData();
+            let representativeIndex = -1;
+            for (let i = 0; i < chunk.length; i += 1) {
+              const item = chunk[i];
+              const blob = await dataUrlToBlob(item.src);
+              if (!blob) continue;
+              const ext = String(blob.type || '').includes('webp') ? 'webp' : (String(blob.type || '').includes('png') ? 'png' : 'jpg');
+              formData.append('files', blob, `gallery_${postId}_${start + i + 1}.${ext}`);
+              formData.append('tokens', String(item.token || ''));
+              if (String(item?.src || '') === rep) representativeIndex = i;
+            }
+            if (representativeIndex >= 0) {
+              formData.append('representative_index', String(representativeIndex));
+            }
+            uploadedBatch = await apiRequest(`/posts/${postId}/files/batch`, {
+              method: 'POST',
+              body: formData
+            });
+            batchError = null;
+            break;
+          } catch (error) {
+            batchError = error;
+          }
+        }
+
+        if (!uploadedBatch || batchError) {
+          for (let i = 0; i < chunk.length; i += 1) {
+            const item = chunk[i];
+            const isRep = String(item?.src || '') === rep;
+            try {
+              const fileUrl = await uploadSingleFallback(item, start + i, isRep);
+              if (fileUrl) {
+                tokenToUrl[item.token] = fileUrl;
+                if (isRep) representativeUrl = fileUrl;
+              } else {
+                failedTokens.push({ token: item.token, reason: '업로드 실패' });
+              }
+            } catch (error) {
+              failedTokens.push({
+                token: item.token,
+                reason: String(error?.message || '업로드 실패')
+              });
+            }
+          }
+          continue;
+        }
+
+        const successItems = Array.isArray(uploadedBatch?.items) ? uploadedBatch.items : [];
+        successItems.forEach((entry) => {
+          const token = String(entry?.token || '').trim();
+          const fileUrl = String(entry?.file_url || '').trim();
+          if (token && fileUrl) tokenToUrl[token] = fileUrl;
+          if (entry?.is_cover_updated && fileUrl) representativeUrl = fileUrl;
+        });
+        const failedItems = Array.isArray(uploadedBatch?.failed) ? uploadedBatch.failed : [];
+        for (const entry of failedItems) {
+          const token = String(entry?.token || '').trim();
+          const reason = String(entry?.error || '업로드 실패').trim();
+          const original = chunk.find((item) => String(item?.token || '').trim() === token);
+          if (!original) {
+            failedTokens.push({ token, reason });
+            continue;
+          }
+          const isRep = String(original?.src || '') === rep;
+          try {
+            const fileUrl = await uploadSingleFallback(original, start + Number(entry?.index || 0), isRep);
+            if (fileUrl) {
+              tokenToUrl[original.token] = fileUrl;
+              if (isRep) representativeUrl = fileUrl;
+              continue;
+            }
+          } catch (_) {}
+          failedTokens.push({ token, reason });
+        }
       }
-      const files = await apiRequest(`/posts/${postId}/files`, { method: 'GET', suppressSessionModal: true });
-      const byId = {};
-      (Array.isArray(files?.items) ? files.items : []).forEach((entry) => {
-        const id = Number(entry?.id || 0);
-        if (id > 0) byId[id] = String(entry?.file_url || '').trim();
-      });
-      const tokenToUrl = {};
-      Object.entries(tokenToFileId).forEach(([token, fileId]) => {
-        const fileUrl = String(byId[fileId] || '').trim();
-        if (fileUrl) tokenToUrl[token] = fileUrl;
-      });
-      let representativeUrl = '';
-      sortable.forEach((item) => {
-        if (item.src !== rep) return;
-        representativeUrl = String(tokenToUrl[item.token] || representativeUrl || '');
-      });
+
+      if (!representativeUrl) {
+        const repItem = sortable.find((item) => String(item?.src || '') === rep);
+        if (repItem) representativeUrl = String(tokenToUrl[repItem.token] || '').trim();
+      }
+      if (failedTokens.length) {
+        const reasons = failedTokens.map((entry) => `${entry.token}: ${entry.reason}`).join(', ');
+        throw new Error(`일부 이미지 업로드 실패(${failedTokens.length}개) - ${reasons}`);
+      }
       return { tokenToUrl, representativeUrl };
+    };
+    const uploadGalleryInlineImagesToServer = async (postId, tokenItems = [], representativeSrc = '') => {
+      return uploadInlineImagesToServer(postId, tokenItems, representativeSrc);
     };
 
     initRichEditorToolbars();
@@ -157,7 +312,20 @@
       hiddenName: 'imageData',
       imagesHiddenName: 'imagesData',
       editorId: 'news-editor',
-      stripExifToggleId: 'news-strip-exif'
+      stripExifToggleId: 'news-strip-exif',
+      progressWrapId: 'news-upload-progress-wrap',
+      progressBarId: 'news-upload-progress-bar',
+      progressTextId: 'news-upload-progress-text',
+      progressPercentId: 'news-upload-progress-percent',
+      queueListId: 'news-upload-queue-list',
+      queueSummaryId: 'news-upload-queue-summary',
+      queueRetryBtnId: 'news-upload-retry-btn',
+      totalGaugeBarId: 'news-upload-total-bar',
+      totalGaugeTextId: 'news-upload-total-text',
+      compressionSelectId: 'news-compression-level',
+      limitHintId: 'news-image-limit-hint',
+      limitHintPrefix: '본문 이미지',
+      maxImageBytes: (typeof GALLERY_IMAGE_MAX_BYTES === 'number' ? GALLERY_IMAGE_MAX_BYTES : 360 * 1024)
     });
     bindImageUploader({
       formId: 'add-gallery-form',
@@ -172,13 +340,30 @@
       progressBarId: 'gallery-upload-progress-bar',
       progressTextId: 'gallery-upload-progress-text',
       progressPercentId: 'gallery-upload-progress-percent',
-      maxImageBytes: (typeof GALLERY_IMAGE_MAX_BYTES === 'number' ? GALLERY_IMAGE_MAX_BYTES : 90 * 1024)
+      queueListId: 'gallery-upload-queue-list',
+      queueSummaryId: 'gallery-upload-queue-summary',
+      queueRetryBtnId: 'gallery-upload-retry-btn',
+      totalGaugeBarId: 'gallery-upload-total-bar',
+      totalGaugeTextId: 'gallery-upload-total-text',
+      compressionSelectId: 'gallery-compression-level',
+      maxImageBytes: (typeof GALLERY_IMAGE_MAX_BYTES === 'number' ? GALLERY_IMAGE_MAX_BYTES : 360 * 1024)
     });
     ensureGalleryYearOptions();
+    if (typeof applyWriteRoleVisibility === 'function') {
+      applyWriteRoleVisibility();
+    }
 
     // News Form
     const newsForm = document.getElementById('add-news-form');
     if (newsForm) {
+      const showNewsSubmitError = (reason, detail = '') => {
+        const message = String(reason || '소식 저장 중 오류가 발생했습니다.');
+        notifyMessage(message, { level: 'error', durationMs: 4200 });
+        if (typeof showErrorPopup === 'function') {
+          showErrorPopup('소식 작성 실패', message, detail);
+        }
+      };
+      let newsSubmitInFlight = false;
       if (newsForm.postTab) {
         newsForm.postTab.addEventListener('change', () => updateVolunteerDateFieldVisibility(newsForm));
       }
@@ -192,6 +377,14 @@
       updateVolunteerDateFieldVisibility(newsForm);
       newsForm.onsubmit = async (e) => {
         e.preventDefault();
+        if (newsSubmitInFlight) return;
+        newsSubmitInFlight = true;
+        const submitBtn = newsForm.querySelector('button[type="submit"]');
+        const originalSubmitText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+          submitBtn.setAttribute('disabled', 'disabled');
+          submitBtn.textContent = '저장 중...';
+        }
         try {
           const user = getCurrentUser();
           if (!user) {
@@ -199,134 +392,245 @@
             return;
           }
 
-        syncEditorToInput(e.target, 'news-editor', { markRepresentative: true });
-        const newsImageCount = (String(e.target.content.value || '').match(/<img[\s>]/gi) || []).length;
-        if (newsImageCount > 30) {
-          notifyMessage('이미지는 게시글당 최대 30장까지 등록할 수 있습니다.');
-          return;
-        }
-        const data = getContent();
-        const editId = Number(e.target.editId.value || 0);
-        const newDate = getTodayString();
-        const editorImages = getEditorImageSources('news-editor');
-        const coverImage = editorImages[0] || '';
-        const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
-          ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
-          : '';
-        const tabType = e.target.postTab.value;
-        const isSecret = !!e.target.isSecret.checked;
-        const volunteerStartDate = (e.target.volunteerStartDate?.value || '').trim();
-        const volunteerEndDateRaw = (e.target.volunteerEndDate?.value || '').trim();
-        const volunteerEndDate = volunteerEndDateRaw || volunteerStartDate;
-        const featuredOnHome = tabType === 'notice' ? !!e.target.featuredOnHome?.checked : false;
-        const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
-        let noticeAttachments = null;
-
-        if (tabType === 'notice') {
-          try {
-            noticeAttachments = await buildNoticeAttachments(e.target.noticeAttachmentFiles?.files || []);
-          } catch (error) {
-            notifyMessage(error.message || '첨부 파일 처리 중 오류가 발생했습니다.');
+          syncEditorToInput(e.target, 'news-editor', { markRepresentative: true });
+          const newsImageCount = (String(e.target.content.value || '').match(/<img[\s>]/gi) || []).length;
+          if (newsImageCount > 30) {
+            notifyMessage('이미지는 게시글당 최대 30장까지 등록할 수 있습니다.');
             return;
           }
-        }
+          const data = getContent();
+          const editId = Number(e.target.editId.value || 0);
+          const newDate = getTodayString();
+          const editorImages = getEditorImageSources('news-editor');
+          const hadRepresentativeBeforeSync = /data-representative=["']true["']/i.test(String(document.getElementById('news-editor')?.innerHTML || ''));
+          const tabType = e.target.postTab.value;
+          const isSecret = !!e.target.isSecret.checked;
+          if (!isStaffUser(user) && tabType !== 'qna') {
+            notifyMessage('일반/단원 계정은 Q&A만 작성할 수 있습니다.');
+            return;
+          }
+          const volunteerStartDate = (e.target.volunteerStartDate?.value || '').trim();
+          const volunteerEndDateRaw = (e.target.volunteerEndDate?.value || '').trim();
+          const volunteerEndDate = volunteerEndDateRaw || volunteerStartDate;
+          const featuredOnHome = tabType === 'notice' ? !!e.target.featuredOnHome?.checked : false;
+          const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+          const normalizedNewsContent = await compressHtmlInlineImages(e.target.content.value || '', 180 * 1024);
+          const normalizedCover = getRepresentativeImageFromHtml(normalizedNewsContent);
+          const coverImage = normalizedCover
+            || (typeof getRepresentativeEditorImageSource === 'function'
+              ? getRepresentativeEditorImageSource('news-editor')
+              : '')
+            || editorImages[0]
+            || '';
+          const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
+            ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
+            : '';
+          if (editorImages.length > 0 && !hadRepresentativeBeforeSync) {
+            notifyMessage('대표 이미지가 설정되지 않아 첫 번째 이미지를 대표로 자동 지정했습니다.');
+          }
+          const preferServerUpload = !editId
+            && (tabType === 'notice' || tabType === 'qna')
+            && typeof apiRequest === 'function';
+          let serverCreatedPostId = 0;
+          let serverResolvedContent = normalizedNewsContent;
+          let serverResolvedCover = coverImage;
+          let serverResolvedThumb = generatedThumb || coverImage || '';
+          if (preferServerUpload) {
+            if (navigator.onLine === false) {
+              throw new Error('오프라인 상태에서는 소식 이미지를 업로드할 수 없습니다. 네트워크 연결 후 다시 시도해 주세요.');
+            }
+            const { htmlWithTokens, tokenItems } = extractInlineImageTokens(normalizedNewsContent);
+            try {
+              const created = await apiRequest('/posts', {
+                method: 'POST',
+                body: {
+                  category: tabType,
+                  title: e.target.title.value,
+                  content: htmlWithTokens,
+                  publish_at: publishAt || ''
+                }
+              });
+              serverCreatedPostId = parseCreatedPostId(created);
+              if (serverCreatedPostId <= 0) {
+                throw new Error('소식 게시글 생성에 실패했습니다.');
+              }
+              if (tokenItems.length) {
+                const uploaded = await uploadInlineImagesToServer(serverCreatedPostId, tokenItems, coverImage);
+                serverResolvedContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
+                serverResolvedCover = String(uploaded.representativeUrl || serverResolvedCover || '').trim();
+                serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
+                await apiRequest(`/posts/${serverCreatedPostId}`, {
+                  method: 'PUT',
+                  body: {
+                    category: tabType,
+                    title: e.target.title.value,
+                    content: serverResolvedContent,
+                    publish_at: publishAt || ''
+                  }
+                });
+              } else {
+                serverResolvedContent = htmlWithTokens;
+              }
+            } catch (serverError) {
+              throw new Error(`서버 업로드를 완료하지 못했습니다. ${serverError?.message || '잠시 후 다시 시도해 주세요.'}`);
+            }
+          }
+          let noticeAttachments = null;
 
-        if (tabType === 'notice' && volunteerStartDate && volunteerEndDate && volunteerEndDate < volunteerStartDate) {
-          notifyMessage('봉사 종료일시는 시작일시보다 빠를 수 없습니다.');
-          return;
-        }
+          if (tabType === 'notice') {
+            try {
+              noticeAttachments = await buildNoticeAttachments(e.target.noticeAttachmentFiles?.files || []);
+            } catch (error) {
+              notifyMessage(error.message || '첨부 파일 처리 중 오류가 발생했습니다.');
+              return;
+            }
+          }
 
-        if (tabType === 'faq' && !isAdminUser(user)) {
-          notifyMessage('FAQ 작성은 관리자만 가능합니다.');
-          return;
-        }
+          if (tabType === 'notice' && volunteerStartDate && volunteerEndDate && volunteerEndDate < volunteerStartDate) {
+            notifyMessage('봉사 종료일시는 시작일시보다 빠를 수 없습니다.');
+            return;
+          }
+
+          if (tabType === 'faq' && !isAdminUser(user)) {
+            notifyMessage('FAQ 작성은 관리자만 가능합니다.');
+            return;
+          }
 
           const source = tabType === 'faq'
             ? (data.faq ||= [])
             : (tabType === 'qna' ? (data.qna ||= []) : (data.news ||= []));
+          let newsItem = null;
           if (editId) {
-          const target = source.find(n => n.id === editId);
-          if (target) {
-            target.title = e.target.title.value;
-            target.author = e.target.author.value || user.nickname || user.username || user.name;
-            target.date = target.date || newDate;
-            const existingImages = Array.isArray(target.images)
-              ? target.images
-              : (target.image ? [target.image] : []);
-            const nextImages = editorImages.length ? editorImages : existingImages;
-            target.images = [];
-            target.image = coverImage || nextImages[0] || target.image || '';
-            if (generatedThumb) {
-              target.thumb_url = generatedThumb;
-              target.thumbnail_url = generatedThumb;
-            }
-            target.content = e.target.content.value;
-            target.publishAt = publishAt || '';
-            if (tabType === 'qna') target.isSecret = isSecret;
-            if (tabType === 'qna') {
-              target.authorUserId = Number(target.authorUserId || user.id || 0) || 0;
-              target.authorUsername = target.authorUsername || user.username || '';
-              target.authorNickname = target.authorNickname || user.nickname || '';
-              target.authorEmail = target.authorEmail || user.email || '';
-            }
-            if (tabType === 'notice') {
-              target.featuredOnHome = featuredOnHome;
-              if (Array.isArray(noticeAttachments)) {
-                target.attachments = noticeAttachments;
-                target.files = noticeAttachments;
+            const target = source.find(n => n.id === editId);
+            if (target) {
+              target.title = e.target.title.value;
+              target.author = e.target.author.value || user.nickname || user.username || user.name;
+              target.date = target.date || newDate;
+              const existingImages = Array.isArray(target.images)
+                ? target.images
+                : (target.image ? [target.image] : []);
+              const nextImages = editorImages.length ? editorImages : existingImages;
+              target.images = nextImages;
+              target.image = coverImage || nextImages[0] || target.image || '';
+              if (generatedThumb) {
+                target.thumb_url = generatedThumb;
+                target.thumbnail_url = generatedThumb;
               }
-              target.volunteerStartDate = volunteerStartDate || '';
-              target.volunteerEndDate = volunteerStartDate ? volunteerEndDate : '';
-              if (!target.volunteerStartDate) {
+              target.content = normalizedNewsContent;
+              target.publishAt = publishAt || '';
+              if (tabType === 'qna') target.isSecret = isSecret;
+              if (tabType === 'qna') {
+                target.authorUserId = Number(target.authorUserId || user.id || 0) || 0;
+                target.authorUsername = target.authorUsername || user.username || '';
+                target.authorNickname = target.authorNickname || user.nickname || '';
+                target.authorEmail = target.authorEmail || user.email || '';
+              }
+              if (tabType === 'notice') {
+                target.featuredOnHome = featuredOnHome;
+                if (Array.isArray(noticeAttachments)) {
+                  target.attachments = noticeAttachments;
+                  target.files = noticeAttachments;
+                }
+                target.volunteerStartDate = volunteerStartDate || '';
+                target.volunteerEndDate = volunteerStartDate ? volunteerEndDate : '';
+                if (!target.volunteerStartDate) {
+                  delete target.volunteerStartDate;
+                  delete target.volunteerEndDate;
+                }
+                delete target.volunteerDate;
+              } else {
+                delete target.featuredOnHome;
+                delete target.volunteerDate;
                 delete target.volunteerStartDate;
                 delete target.volunteerEndDate;
               }
-              delete target.volunteerDate;
-            } else {
-              delete target.featuredOnHome;
-              delete target.volunteerDate;
-              delete target.volunteerStartDate;
-              delete target.volunteerEndDate;
+              newsItem = target;
             }
-          }
           } else {
             const newId = getNextNumericId(source);
-          const nextImages = editorImages.length ? editorImages : [];
-          const newItem = {
-            id: newId,
-            title: e.target.title.value,
-            author: e.target.author.value || user.nickname || user.username || user.name,
-            date: newDate,
-            image: coverImage || nextImages[0] || '',
-            thumb_url: generatedThumb || '',
-            thumbnail_url: generatedThumb || '',
-            images: [],
-            content: e.target.content.value,
-            publishAt: publishAt || '',
-            views: 0,
-            isSecret: tabType === 'qna' ? isSecret : false,
-            answer: ''
-          };
-          if (tabType === 'qna') {
-            newItem.authorUserId = Number(user.id || 0) || 0;
-            newItem.authorUsername = user.username || '';
-            newItem.authorNickname = user.nickname || '';
-            newItem.authorEmail = user.email || '';
-          }
-          if (tabType === 'notice') {
-            newItem.featuredOnHome = featuredOnHome;
-            if (Array.isArray(noticeAttachments)) {
-              newItem.attachments = noticeAttachments;
-              newItem.files = noticeAttachments;
+            const resolvedImages = getImageSourcesFromHtml(serverResolvedContent);
+            const nextImages = serverCreatedPostId > 0
+              ? (resolvedImages.length ? resolvedImages : [])
+              : (editorImages.length ? editorImages : []);
+            const newItem = {
+              id: serverCreatedPostId > 0 ? serverCreatedPostId : newId,
+              title: e.target.title.value,
+              author: e.target.author.value || user.nickname || user.username || user.name,
+              date: newDate,
+              image: serverResolvedCover || coverImage || nextImages[0] || '',
+              thumb_url: serverResolvedThumb || generatedThumb || coverImage || '',
+              thumbnail_url: serverResolvedThumb || generatedThumb || coverImage || '',
+              images: nextImages,
+              content: serverResolvedContent || normalizedNewsContent || '',
+              publishAt: publishAt || '',
+              views: 0,
+              isSecret: tabType === 'qna' ? isSecret : false,
+              answer: ''
+            };
+            if (tabType === 'qna') {
+              newItem.authorUserId = Number(user.id || 0) || 0;
+              newItem.authorUsername = user.username || '';
+              newItem.authorNickname = user.nickname || '';
+              newItem.authorEmail = user.email || '';
             }
-            if (volunteerStartDate) {
-              newItem.volunteerStartDate = volunteerStartDate;
-              newItem.volunteerEndDate = volunteerEndDate;
+            if (tabType === 'notice') {
+              newItem.featuredOnHome = featuredOnHome;
+              if (Array.isArray(noticeAttachments)) {
+                newItem.attachments = noticeAttachments;
+                newItem.files = noticeAttachments;
+              }
+              if (volunteerStartDate) {
+                newItem.volunteerStartDate = volunteerStartDate;
+                newItem.volunteerEndDate = volunteerEndDate;
+              }
             }
-          }
             source.unshift(newItem);
+            newsItem = newItem;
           }
-          saveContent(data);
+          try {
+            saveContent(data);
+          } catch (saveError) {
+            const quotaLike = /quota|storage|space/i.test(String(saveError?.message || ''))
+              || String(saveError?.name || '').toLowerCase().includes('quota');
+            if (!quotaLike) throw saveError;
+            if (serverCreatedPostId > 0) {
+              try {
+                localStorage.removeItem(DATA_KEY);
+                if (typeof hydrateContentFromServer === 'function') {
+                  await hydrateContentFromServer({ force: true });
+                } else if (typeof hydrateContentFromServerIfEmpty === 'function') {
+                  await hydrateContentFromServerIfEmpty({ force: true });
+                }
+              } catch (_) {}
+              renderNews();
+              renderFaq();
+              renderQna();
+              resetWriteForms();
+              activateNewsTab(tabType);
+              if (tabType === 'notice' && typeof loadActivitiesCalendar === 'function') {
+                loadActivitiesCalendar().catch(() => {});
+              }
+              movePanel('news');
+              notifyMessage('로컬 저장소를 정리하고 서버 기준으로 저장을 완료했습니다.');
+              return;
+            }
+            await compactPostItemForQuota(newsItem, { contentBytes: 120 * 1024, imageBytes: 120 * 1024, thumbBytes: 70 * 1024 });
+            try {
+              saveContent(data);
+              notifyMessage('이미지 용량이 커서 자동 압축 후 저장했습니다.');
+            } catch (secondError) {
+              const secondQuotaLike = /quota|storage|space/i.test(String(secondError?.message || ''))
+                || String(secondError?.name || '').toLowerCase().includes('quota');
+              if (!secondQuotaLike) throw secondError;
+              await compactAllCachedPostsForQuota(data);
+              try {
+                saveContent(data);
+                notifyMessage('캐시 용량을 최적화해 저장을 완료했습니다.');
+              } catch (_) {
+                throw new Error('브라우저 저장소 용량을 초과했습니다. 압축 수준을 "고압축"으로 변경하거나 이미지 수를 줄인 뒤 다시 시도해 주세요.');
+              }
+            }
+          }
           renderNews();
           renderFaq();
           renderQna();
@@ -338,7 +642,25 @@
           movePanel('news');
           notifyMessage('글이 저장되었습니다!');
         } catch (error) {
-          notifyMessage(error?.message || '글 저장 중 오류가 발생했습니다.');
+          const errorText = String(error?.message || '글 저장 중 오류가 발생했습니다.').trim();
+          const detailParts = [];
+          if (/quota|storage|space|용량/.test(errorText.toLowerCase())) {
+            detailParts.push('원인: 브라우저 저장소 용량 부족 또는 이미지 데이터 과다입니다.');
+            detailParts.push('해결: 압축 수준을 표준/고압축으로 변경 후 다시 시도해 주세요.');
+          } else if (/heic|heif/.test(errorText.toLowerCase())) {
+            detailParts.push('원인: HEIC/HEIF 변환 실패입니다.');
+            detailParts.push('해결: iPhone 카메라 포맷을 "높은 호환성"으로 변경하거나 JPG/PNG로 변환 후 업로드해 주세요.');
+          } else {
+            detailParts.push('원인: 저장 처리 중 예외가 발생했습니다.');
+            detailParts.push('해결: 동일 입력으로 다시 시도해 주세요.');
+          }
+          showNewsSubmitError(errorText, detailParts.join('\n'));
+        } finally {
+          newsSubmitInFlight = false;
+          if (submitBtn) {
+            submitBtn.removeAttribute('disabled');
+            submitBtn.textContent = originalSubmitText || '소식 추가';
+          }
         }
       };
     }
@@ -420,6 +742,9 @@
           if (!user) {
             throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
           }
+          if (!isStaffUser(user)) {
+            throw new Error('일반/단원 계정은 갤러리 글을 작성할 수 없습니다.');
+          }
 
           syncEditorToInput(e.target, 'gallery-editor', { markRepresentative: true, representativeLabel: false });
           const galleryImageCount = (String(e.target.content.value || '').match(/<img[\s>]/gi) || []).length;
@@ -447,20 +772,31 @@
             throw new Error('봉사 활동 종료일은 시작일보다 빠를 수 없습니다.');
           }
           const editorImages = getEditorImageSources('gallery-editor');
-          const coverImage = (typeof getRepresentativeEditorImageSource === 'function'
-            ? getRepresentativeEditorImageSource('gallery-editor')
-            : (editorImages[0] || ''));
+          const hadRepresentativeBeforeSync = /data-representative=["']true["']/i.test(String(document.getElementById('gallery-editor')?.innerHTML || ''));
+          const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
+          const normalizedGalleryContent = await compressHtmlInlineImages(e.target.content.value || '', 180 * 1024);
+          const normalizedCover = getRepresentativeImageFromHtml(normalizedGalleryContent);
+          const coverImage = normalizedCover
+            || (typeof getRepresentativeEditorImageSource === 'function'
+              ? getRepresentativeEditorImageSource('gallery-editor')
+              : '')
+            || editorImages[0]
+            || '';
           const generatedThumb = coverImage && typeof createThumbnailDataUrl === 'function'
             ? await createThumbnailDataUrl(coverImage, { width: 360, height: 220, quality: 0.78 }).catch(() => '')
             : '';
-          const publishAt = e.target.isScheduled?.checked ? (e.target.publishAt?.value || '').trim() : '';
-          const normalizedGalleryContent = await compressHtmlInlineImages(e.target.content.value || '', 180 * 1024);
-          const preferServerUpload = !editId && typeof apiRequest === 'function' && navigator.onLine !== false;
+          if (editorImages.length > 0 && !hadRepresentativeBeforeSync) {
+            notifyMessage('대표 이미지가 설정되지 않아 첫 번째 이미지를 대표로 자동 지정했습니다.');
+          }
+          const preferServerUpload = !editId && typeof apiRequest === 'function';
           let serverResolvedContent = normalizedGalleryContent;
           let serverResolvedCover = coverImage;
           let serverResolvedThumb = generatedThumb || coverImage || '';
           let serverPostId = 0;
           if (preferServerUpload) {
+            if (navigator.onLine === false) {
+              throw new Error('오프라인 상태에서는 갤러리 이미지를 업로드할 수 없습니다. 네트워크 연결 후 다시 시도해 주세요.');
+            }
             const { htmlWithTokens, tokenItems } = extractInlineImageTokens(normalizedGalleryContent);
             try {
               const created = await apiRequest('/posts', {
@@ -473,6 +809,9 @@
                 }
               });
               serverPostId = Number(created?.post_id || created?.postId || 0);
+              if (serverPostId <= 0) {
+                throw new Error('갤러리 게시글 생성에 실패했습니다.');
+              }
               if (serverPostId > 0 && tokenItems.length) {
                 const uploaded = await uploadGalleryInlineImagesToServer(serverPostId, tokenItems, coverImage);
                 serverResolvedContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
@@ -489,11 +828,7 @@
                 });
               }
             } catch (serverError) {
-              notifyMessage(`서버 이미지 업로드를 완료하지 못해 로컬 저장 모드로 전환합니다. (${serverError?.message || '오류'})`);
-              serverPostId = 0;
-              serverResolvedContent = normalizedGalleryContent;
-              serverResolvedCover = coverImage;
-              serverResolvedThumb = generatedThumb || coverImage || '';
+              throw new Error(`서버 업로드를 완료하지 못했습니다. ${serverError?.message || '잠시 후 다시 시도해 주세요.'}`);
             }
           }
           let galleryItem = null;
@@ -597,13 +932,62 @@
             const quotaLike = /quota|storage|space/i.test(String(saveError?.message || ''))
               || String(saveError?.name || '').toLowerCase().includes('quota');
             if (!quotaLike) throw saveError;
+            if (serverPostId > 0) {
+              // 서버 저장이 완료된 경우에는 로컬 캐시만 정리하고 진행한다.
+              try {
+                localStorage.removeItem(DATA_KEY);
+                if (typeof hydrateContentFromServerIfEmpty === 'function') {
+                  await hydrateContentFromServerIfEmpty();
+                }
+                notifyMessage('로컬 저장소 용량이 가득 차 서버 데이터로 자동 재동기화했습니다.');
+                galleryCurrentFilter = `y${year}`;
+                galleryCurrentPage = 1;
+                if (typeof syncGalleryRouteState === 'function') syncGalleryRouteState();
+                renderGallery();
+                resetWriteForms();
+                ensureGalleryYearOptions();
+                movePanel('gallery');
+                notifyMessage(editId ? '갤러리가 수정되었습니다!' : '갤러리가 추가되었습니다!');
+                return;
+              } catch (_) {
+                // 재동기화 실패 시 아래 압축 fallback으로 한 번 더 시도
+              }
+            }
             await compactGalleryItemForQuota(galleryItem);
             try {
               saveContent(data);
               notifyMessage('이미지 용량이 커서 자동 압축 후 저장했습니다.');
             } catch (secondError) {
-              if (!quotaLike) throw secondError;
-              throw new Error('이미지 용량이 커서 저장할 수 없습니다. 이미지 개수를 줄이거나 더 작은 파일로 다시 시도해주세요.');
+              const secondQuotaLike = /quota|storage|space/i.test(String(secondError?.message || ''))
+                || String(secondError?.name || '').toLowerCase().includes('quota');
+              if (!secondQuotaLike) throw secondError;
+              await compactAllCachedPostsForQuota(data);
+              try {
+                saveContent(data);
+                notifyMessage('기존 게시글 이미지 캐시를 정리해 저장을 완료했습니다.');
+              } catch (thirdError) {
+                if (serverPostId > 0) {
+                  try {
+                    localStorage.removeItem(DATA_KEY);
+                    if (typeof hydrateContentFromServer === 'function') {
+                      await hydrateContentFromServer({ force: true });
+                    } else if (typeof hydrateContentFromServerIfEmpty === 'function') {
+                      await hydrateContentFromServerIfEmpty({ force: true });
+                    }
+                    notifyMessage('로컬 캐시 용량을 초과해 서버 기준으로 재동기화했습니다.');
+                  } catch (_) {}
+                  galleryCurrentFilter = `y${year}`;
+                  galleryCurrentPage = 1;
+                  if (typeof syncGalleryRouteState === 'function') syncGalleryRouteState();
+                  renderGallery();
+                  resetWriteForms();
+                  ensureGalleryYearOptions();
+                  movePanel('gallery');
+                  notifyMessage(editId ? '갤러리가 수정되었습니다!' : '갤러리가 추가되었습니다!');
+                  return;
+                }
+                throw new Error('이미지 용량이 커서 저장할 수 없습니다. 이미지 개수를 줄이거나 더 작은 파일로 다시 시도해주세요.');
+              }
             }
           }
           galleryCurrentFilter = `y${year}`;
@@ -618,11 +1002,16 @@
           const errorText = String(error?.message || '갤러리 저장 중 오류가 발생했습니다.').trim();
           const detailParts = [];
           if (/quota|storage|space|용량/.test(errorText.toLowerCase())) {
-            detailParts.push('원인: 브라우저 저장소 용량 초과 가능성이 있습니다.');
-            detailParts.push('해결: 이미지 개수를 줄이거나 JPG/WebP로 변환 후 다시 시도해 주세요.');
+            if (/총 업로드 용량|300mb|게시글당/.test(errorText.toLowerCase())) {
+              detailParts.push('원인: 글당 업로드 총량(300MB)을 초과했습니다.');
+              detailParts.push('해결: 일부 이미지를 줄이거나 압축 수준을 "표준/고압축"으로 변경 후 다시 시도해 주세요.');
+            } else {
+              detailParts.push('원인: 브라우저 저장소 용량 초과 가능성이 있습니다.');
+              detailParts.push('해결: 이미지 개수를 줄이거나 JPG/WebP로 변환 후 다시 시도해 주세요.');
+            }
           } else if (/heic|heif/.test(errorText.toLowerCase())) {
             detailParts.push('원인: HEIC/HEIF 변환 실패입니다.');
-            detailParts.push('해결: iPhone 사진을 JPG/PNG로 변환 후 업로드해 주세요.');
+            detailParts.push('해결: iPhone 카메라 포맷을 "높은 호환성"으로 변경하거나 JPG/PNG로 변환 후 업로드해 주세요.');
           } else if (/network|fetch|오프라인|연결/.test(errorText.toLowerCase())) {
             detailParts.push('원인: 네트워크 연결 또는 서버 응답 오류입니다.');
             detailParts.push('해결: 네트워크 확인 후 다시 시도해 주세요.');

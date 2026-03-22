@@ -9,6 +9,7 @@ Weave is a Flask-based SPA backend/frontend service.
 - Database strategy (chosen): **sqlite3 repository layer**
   - Runtime DB access uses `weave.core.get_db_connection()`
   - Convenience wrapper remains in `weave.db`
+  - PostgreSQL migration utility: `scripts/migrate_sqlite_to_postgres.py`
 
 ## Routing (SPA-safe)
 
@@ -44,12 +45,56 @@ They are **not** the active runtime DB path.
 - Testing guide: `TESTING.md`
 - Legacy response migration: `LEGACY_RESPONSE_MIGRATION.md`
 
+## Scalable Upload Architecture
+
+- Object storage abstraction:
+  - `WEAVE_STORAGE_BACKEND=local|s3|r2|minio`
+  - `WEAVE_S3_BUCKET`, `WEAVE_S3_ENDPOINT_URL`, `WEAVE_S3_REGION`
+  - `WEAVE_S3_ACCESS_KEY_ID`, `WEAVE_S3_SECRET_ACCESS_KEY`
+- CDN edge delivery:
+  - `WEAVE_CDN_BASE_URL=https://cdn.example.com` (gallery/about public assets redirect)
+- Media derivative queue (thumbnail/WebP):
+  - `WEAVE_MEDIA_QUEUE_BACKEND=rq|local|inline`
+  - `WEAVE_MEDIA_WORKER_COUNT=1..8` (for `local`)
+  - `WEAVE_REDIS_URL=redis://...` and `WEAVE_MEDIA_QUEUE_NAME=weave-media` (for `rq`)
+  - dedicated worker: `python scripts/run_rq_worker.py` (Windows: `powershell -File scripts/run_rq_worker.ps1`)
+- Upload throughput knobs:
+  - `UPLOAD_RATE_LIMIT_COUNT` / `UPLOAD_RATE_LIMIT_WINDOW_SEC`
+  - `UPLOAD_BATCH_MAX_FILES`
+  - `UPLOAD_GALLERY_THUMBNAIL_MODE=cover_only|always`
+
+## PostgreSQL Transition (Staged)
+
+- Runtime remains sqlite by default to preserve behavior.
+- Runtime PostgreSQL adapter is available when `DATABASE_URL` starts with `postgres...`:
+  - query placeholder compatibility (`?` -> `%s`) is handled at connection adapter layer
+  - startup sqlite bootstrap is skipped in PostgreSQL mode
+- Use migration utility for data copy:
+  - `python scripts/migrate_sqlite_to_postgres.py --sqlite weave.db --postgres-dsn \"postgresql://weave:weave@localhost:5432/weave\"`
+- Recommended production sequence:
+  1. migrate into PostgreSQL
+  2. run read-only validation and row-count checks
+  3. switch runtime adapter in a dedicated branch after SQL placeholder compatibility migration
+
 ## Frontend Sync Rule
 
 - Canonical frontend source is under `static/`.
 - `scripts/sync_static_root.py` copies `static/*` into root mirror files (`index.html`, `styles.css`, `js/*`).
 - Edit `static/` first, then run `python scripts/sync_static_root.py` (or `npm run sync:static-root`).
 - Use `npm run check:sync-static-root` to detect accidental drift between `static/` and root mirror files.
+- Use `npm run check:static-canonical` to ensure root mirror files were not edited ahead of `static/*`.
+
+## Cache & Service Worker Policy
+
+- `sw.js` is served with `Cache-Control: no-cache, no-store, must-revalidate`.
+- Service worker registration uses a versioned URL (`/sw.js?v=<asset-version>`) derived from server-calculated asset version metadata.
+- Static assets in service worker now use network-first strategy (fallback to cache only when offline) to prevent stale UI after deploy.
+- `/static/*` alias fallback is disabled by default (`WEAVE_SPA_ALLOW_STATIC_ALIAS=false`) and should only be enabled for temporary compatibility.
+
+## CSP Rollout
+
+- `WEAVE_CSP_LEVEL=compat|strict` controls the target CSP policy level.
+- `WEAVE_CSP_REPORT_ONLY=true` enables staged rollout with `Content-Security-Policy-Report-Only` before strict enforcement.
 
 ## Frontend Quality Checks
 

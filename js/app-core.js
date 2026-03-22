@@ -1076,6 +1076,7 @@ function updateAuthUI() {
   if (typeof updateExecutivesAdminControls === 'function') updateExecutivesAdminControls();
   if (typeof updateHomeHeroAdminControls === 'function') updateHomeHeroAdminControls();
   if (typeof updateSiteEditorControls === 'function') updateSiteEditorControls();
+  if (typeof applyWriteRoleVisibility === 'function') applyWriteRoleVisibility();
   if (typeof renderMyNotifications === 'function') renderMyNotifications();
   if (typeof renderMyActivitySummary === 'function') renderMyActivitySummary();
 }

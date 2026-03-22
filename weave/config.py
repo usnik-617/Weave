@@ -41,9 +41,16 @@ def _sanitize_cache_control(raw, fallback):
     return value
 
 
+def _is_truthy(raw, fallback=False):
+    text = str(raw).strip().lower() if raw is not None else ""
+    if not text:
+        return bool(fallback)
+    return text in {"1", "true", "yes", "on"}
+
+
 def load_config(app):
     weave_env = os.environ.get("WEAVE_ENV", "development").lower()
-    max_upload_mb = int(os.environ.get("MAX_UPLOAD_MB", "5"))
+    max_upload_mb = int(os.environ.get("MAX_UPLOAD_MB", "25"))
     app.config["SECRET_KEY"] = os.environ.get(
         "WEAVE_SECRET_KEY", "weave-local-dev-secret-key"
     )
@@ -63,13 +70,30 @@ def load_config(app):
         os.environ.get("WEAVE_SPA_ASSET_CACHE_CONTROL", "public, max-age=3600"),
         "public, max-age=3600",
     )
+    app.config["SPA_SW_CACHE_CONTROL"] = _sanitize_cache_control(
+        os.environ.get(
+            "WEAVE_SPA_SW_CACHE_CONTROL", "no-cache, no-store, must-revalidate"
+        ),
+        "no-cache, no-store, must-revalidate",
+    )
     app.config["SPA_HTML_CACHE_CONTROL"] = _sanitize_cache_control(
         os.environ.get("WEAVE_SPA_HTML_CACHE_CONTROL", "no-store"),
         "no-store",
     )
-    app.config["SPA_ALLOW_STATIC_ALIAS"] = (
-        os.environ.get("WEAVE_SPA_ALLOW_STATIC_ALIAS", "true").strip().lower()
-        in {"1", "true", "yes", "on"}
+    app.config["SPA_ALLOW_STATIC_ALIAS"] = _is_truthy(
+        os.environ.get("WEAVE_SPA_ALLOW_STATIC_ALIAS", "false"),
+        fallback=False,
+    )
+    app.config["WEAVE_DEBUG_CLIENT_CACHE_PANEL"] = _is_truthy(
+        os.environ.get("WEAVE_DEBUG_CLIENT_CACHE_PANEL", "false"),
+        fallback=False,
+    )
+    app.config["WEAVE_CSP_LEVEL"] = str(
+        os.environ.get("WEAVE_CSP_LEVEL", "compat")
+    ).strip().lower() or "compat"
+    app.config["WEAVE_CSP_REPORT_ONLY"] = _is_truthy(
+        os.environ.get("WEAVE_CSP_REPORT_ONLY", "true"),
+        fallback=True,
     )
 
     trusted_hosts = [

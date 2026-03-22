@@ -3,6 +3,13 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+STYLESHEET = ROOT / "static" / "styles.css"
+
 
 def hex_to_rgb(hex_color: str) -> tuple[float, float, float]:
     value = hex_color.strip().lstrip('#')
@@ -33,8 +40,24 @@ def contrast_ratio(color_a: str, color_b: str) -> float:
     return (lighter + 0.05) / (darker + 0.05)
 
 
+def extract_brand_background_color() -> str:
+    css_text = STYLESHEET.read_text(encoding="utf-8")
+    brand_block = re.search(r"\.brand-bg\s*\{(?P<body>[^}]+)\}", css_text, re.S)
+    if brand_block:
+        body = brand_block.group("body")
+        hex_match = re.search(r"#([0-9a-fA-F]{6})", body)
+        if hex_match:
+            return f"#{hex_match.group(1)}"
+
+    var_match = re.search(r"--primary:\s*(#[0-9a-fA-F]{6})", css_text)
+    if var_match:
+        return var_match.group(1)
+
+    return "#31b7ff"
+
+
 def main() -> int:
-    brand_bg = '#31b7ff'
+    brand_bg = extract_brand_background_color()
     white_text = '#ffffff'
     dark_text = '#1a1a1a'
 

@@ -800,8 +800,8 @@ function renderHomeNoticeCarousel() {
   }
 
   dots.innerHTML = homeNoticeItems.map((_, idx) => {
-    const activeClass = idx === homeNoticeIndex ? 'btn-primary' : 'btn-outline-secondary';
-    return `<button type="button" class="btn btn-sm ${activeClass}" data-home-notice-dot="${idx}" aria-label="공지 ${idx + 1}"></button>`;
+    const activeClass = idx === homeNoticeIndex ? 'is-active' : '';
+    return `<button type="button" class="home-notice-dot ${activeClass}" data-home-notice-dot="${idx}" aria-label="공지 ${idx + 1}"></button>`;
   }).join('');
   dots.querySelectorAll('[data-home-notice-dot]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -899,7 +899,19 @@ async function loadOpsDashboard(page = opsPendingPage) {
 
     const monitorListEl = document.getElementById('ops-alert-monitor-list');
     if (monitorListEl) {
-      const monitorItems = Array.isArray(info.alertMonitor) ? info.alertMonitor : [];
+      const monitorItems = Array.isArray(info.alertMonitor) ? info.alertMonitor.slice() : [];
+      const mediaQueue = info.mediaQueue || {};
+      const queueStats = mediaQueue.stats || {};
+      monitorItems.push({
+        title: `업로드 큐 대기 ${Number(mediaQueue.local_queue_depth || 0)} / 워커 ${Number(mediaQueue.local_worker_count || 0)} (${String(mediaQueue.backend || 'unknown')})`,
+        count: Number(queueStats.enqueued || 0),
+        severity: Number(mediaQueue.local_queue_depth || 0) > 50 ? 'high' : 'low'
+      });
+      monitorItems.push({
+        title: `업로드 큐 처리 성공/실패`,
+        count: `${Number(queueStats.processed || 0)} / ${Number(queueStats.failed || 0)}`,
+        severity: Number(queueStats.failed || 0) > 0 ? 'medium' : 'low'
+      });
       if (!monitorItems.length) {
         monitorListEl.innerHTML = '<div class="small text-muted">표시할 알림이 없습니다.</div>';
       } else {
@@ -913,7 +925,7 @@ async function loadOpsDashboard(page = opsPendingPage) {
           return `
             <div class="d-flex justify-content-between align-items-center border rounded p-2">
               <div class="small">${escapeHtml(String(item.title || '알림'))}</div>
-              <span class="badge text-bg-${severityClass}">${Number(item.count || 0)}건</span>
+              <span class="badge text-bg-${severityClass}">${escapeHtml(String(item.count ?? 0))}${typeof item.count === 'number' ? '건' : ''}</span>
             </div>
           `;
         }).join('');

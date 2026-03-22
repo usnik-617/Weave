@@ -1,7 +1,11 @@
 ﻿  // ============ LOGIN / SIGNUP ============
   document.addEventListener('DOMContentLoaded', async function() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      const assetVersion = String(document.querySelector('meta[name="weave-asset-version"]')?.content || '').trim();
+      const swUrl = assetVersion ? `/sw.js?v=${encodeURIComponent(assetVersion)}` : '/sw.js';
+      navigator.serviceWorker.register(swUrl)
+        .then((registration) => registration.update().catch(() => {}))
+        .catch(() => {});
     }
     initModalScrollLock();
     const applyViewportUnitVars = () => {
@@ -377,12 +381,55 @@
       }
     });
 
+    const showLoginCredentialErrorPopup = () => {
+      const popupId = 'weave-login-credential-popup';
+      let modalEl = document.getElementById(popupId);
+      if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = popupId;
+        modalEl.className = 'modal fade';
+        modalEl.tabIndex = -1;
+        modalEl.innerHTML = `
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header border-0">
+                <h5 class="modal-title">로그인 오류</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+              </div>
+              <div class="modal-body">
+                <p class="mb-0">ID나 PW를 확인해주세요</p>
+              </div>
+              <div class="modal-footer border-0">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">닫기</button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modalEl);
+      }
+      if (window.bootstrap?.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } else {
+        notifyMessage('ID나 PW를 확인해주세요');
+      }
+    };
+
+    const getModalInstanceSafe = (id) => {
+      if (!window.bootstrap?.Modal) return null;
+      const el = document.getElementById(id);
+      if (!el) return null;
+      return bootstrap.Modal.getInstance(el);
+    };
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
       loginForm.onsubmit = async (e) => {
         e.preventDefault();
         const identifier = e.target.username.value.trim();
         const password = e.target.password.value;
+        const submitBtn = loginForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
         try {
           const data = await apiRequest('/auth/login', {
             method: 'POST',
@@ -390,7 +437,7 @@
           });
           setCurrentUser(data.user);
           document.dispatchEvent(new CustomEvent('weave:user-state-changed', { detail: { loggedIn: true } }));
-          const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+          const loginModal = getModalInstanceSafe('loginModal');
           if (loginModal) loginModal.hide();
           if (PENDING_RETURN_PANEL) {
             movePanel(PENDING_RETURN_PANEL);
@@ -404,9 +451,143 @@
           e.target.reset();
           notifyMessage(data.pending ? (data.message || '가입 승인 대기 중입니다.') : `${data.user.name}님 환영합니다!`);
         } catch (error) {
-          notifyMessage(error.message || '아이디 또는 비밀번호가 틀렸습니다.');
+          const status = Number(error?.status || 0);
+          if (status === 401 || status === 403 || status === 423) {
+            showLoginCredentialErrorPopup();
+          } else {
+            notifyMessage(error?.message || '로그인 처리 중 오류가 발생했습니다.');
+          }
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
       };
+    }
+
+    const openFindUsernameLink = document.getElementById('open-find-username-link');
+    const openFindPasswordLink = document.getElementById('open-find-password-link');
+    const accountRecoveryBackBtn = document.getElementById('account-recovery-back-btn');
+    const recoverUsernameTabBtn = document.getElementById('recover-username-tab-btn');
+    const recoverPasswordTabBtn = document.getElementById('recover-password-tab-btn');
+    const recoverUsernamePane = document.getElementById('recover-username-pane');
+    const recoverPasswordPane = document.getElementById('recover-password-pane');
+    const recoverUsernameForm = document.getElementById('recover-username-form');
+    const recoverPasswordForm = document.getElementById('recover-password-form');
+    const recoverUsernameResult = document.getElementById('recover-username-result');
+    const recoverPasswordResult = document.getElementById('recover-password-result');
+    const accountRecoveryTitle = document.getElementById('account-recovery-title');
+    const accountRecoverySubtitle = document.getElementById('account-recovery-subtitle');
+
+    const switchRecoveryTab = (tab) => {
+      const isUsername = tab !== 'password';
+      recoverUsernameTabBtn?.classList.toggle('active', isUsername);
+      recoverPasswordTabBtn?.classList.toggle('active', !isUsername);
+      recoverUsernamePane?.classList.toggle('d-none', !isUsername);
+      recoverPasswordPane?.classList.toggle('d-none', isUsername);
+      if (accountRecoveryTitle) {
+        accountRecoveryTitle.textContent = isUsername ? '아이디 찾기' : '비밀번호 재설정';
+      }
+      if (accountRecoverySubtitle) {
+        accountRecoverySubtitle.textContent = isUsername
+          ? '가입 시 등록한 이메일 또는 연락처로 아이디를 확인하세요.'
+          : '아이디와 본인 확인 정보로 새 비밀번호를 설정하세요.';
+      }
+      if (recoverUsernameResult) recoverUsernameResult.classList.add('d-none');
+      if (recoverPasswordResult) recoverPasswordResult.classList.add('d-none');
+    };
+
+    if (openFindUsernameLink) {
+      openFindUsernameLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const loginModal = getModalInstanceSafe('loginModal');
+        if (loginModal) loginModal.hide();
+        switchRecoveryTab('username');
+        movePanel('account-recovery');
+      });
+    }
+    if (openFindPasswordLink) {
+      openFindPasswordLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const loginModal = getModalInstanceSafe('loginModal');
+        if (loginModal) loginModal.hide();
+        switchRecoveryTab('password');
+        movePanel('account-recovery');
+      });
+    }
+    if (recoverUsernameTabBtn) {
+      recoverUsernameTabBtn.addEventListener('click', () => switchRecoveryTab('username'));
+    }
+    if (recoverPasswordTabBtn) {
+      recoverPasswordTabBtn.addEventListener('click', () => switchRecoveryTab('password'));
+    }
+    if (accountRecoveryBackBtn) {
+      accountRecoveryBackBtn.addEventListener('click', () => {
+        movePanel('home');
+      });
+    }
+    switchRecoveryTab('username');
+    if (recoverUsernameForm) {
+      recoverUsernameForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const contact = String(e.target.contact?.value || '').trim();
+        if (!contact) return;
+        try {
+          const data = await apiRequest('/auth/find-username', {
+            method: 'POST',
+            body: JSON.stringify({ contact })
+          });
+          if (recoverUsernameResult) {
+            recoverUsernameResult.classList.remove('d-none');
+            recoverUsernameResult.textContent = `가입된 아이디: ${data.username || '-'}`;
+            recoverUsernameResult.classList.remove('alert-danger');
+            recoverUsernameResult.classList.add('alert-info');
+          }
+        } catch (error) {
+          if (recoverUsernameResult) {
+            recoverUsernameResult.classList.remove('d-none');
+            recoverUsernameResult.textContent = error.message || '일치하는 계정을 찾지 못했습니다.';
+            recoverUsernameResult.classList.remove('alert-info');
+            recoverUsernameResult.classList.add('alert-danger');
+          }
+        }
+      });
+    }
+    if (recoverPasswordForm) {
+      recoverPasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = String(e.target.username?.value || '').trim();
+        const contact = String(e.target.contact?.value || '').trim();
+        const newPassword = String(e.target.newPassword?.value || '').trim();
+        const confirmPassword = String(e.target.confirmPassword?.value || '').trim();
+        if (!username || !contact || !newPassword || !confirmPassword) return;
+        if (newPassword !== confirmPassword) {
+          notifyMessage('새 비밀번호와 확인 비밀번호가 일치하지 않습니다.');
+          return;
+        }
+        if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+          notifyMessage('새 비밀번호는 8자 이상이며 대문자/특수문자를 포함해야 합니다.');
+          return;
+        }
+        try {
+          const data = await apiRequest('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ username, contact, newPassword })
+          });
+          if (recoverPasswordResult) {
+            recoverPasswordResult.classList.remove('d-none');
+            recoverPasswordResult.textContent = data.message || '비밀번호가 재설정되었습니다.';
+            recoverPasswordResult.classList.remove('alert-danger');
+            recoverPasswordResult.classList.add('alert-info');
+          }
+          e.target.reset();
+        } catch (error) {
+          if (recoverPasswordResult) {
+            recoverPasswordResult.classList.remove('d-none');
+            recoverPasswordResult.textContent = error.message || '비밀번호 재설정에 실패했습니다.';
+            recoverPasswordResult.classList.remove('alert-info');
+            recoverPasswordResult.classList.add('alert-danger');
+          }
+        }
+      });
     }
 
     const signupForm = document.getElementById('signup-form');
@@ -551,7 +732,7 @@
           });
 
           setCurrentUser(data.user);
-          const signupModal = bootstrap.Modal.getInstance(document.getElementById('signupModal'));
+          const signupModal = getModalInstanceSafe('signupModal');
           if (signupModal) signupModal.hide();
           e.target.reset();
           notifyMessage(data.message || `${name}님, 가입 신청이 완료되었습니다.`);
@@ -571,6 +752,8 @@
         } catch (_) {}
         setCurrentUser(null);
         movePanel('home');
+        if (typeof renderHomeNoticeCarousel === 'function') renderHomeNoticeCarousel();
+        if (typeof loadActivitiesCalendar === 'function') loadActivitiesCalendar().catch(() => {});
         notifyMessage('로그아웃되었습니다.');
       });
     }
@@ -581,6 +764,10 @@
       myInfoBtn.addEventListener('click', (e) => {
         e.preventDefault();
         movePanel('myinfo');
+        if (typeof markCurrentUserNotificationsRead === 'function') {
+          markCurrentUserNotificationsRead();
+        }
+        if (typeof renderMyNotifications === 'function') renderMyNotifications();
       });
     }
 
@@ -624,12 +811,9 @@
           await apiRequest('/auth/logout', { method: 'POST' });
         } catch (_) {}
         setCurrentUser(null);
-        document.querySelectorAll('[class*="panel"]').forEach(p => {
-          p.classList.remove('panel-active');
-        });
-        document.getElementById('home').classList.add('panel-active');
-        const statsSection = document.getElementById('home-stats');
-        if (statsSection) statsSection.style.display = 'block';
+        movePanel('home');
+        if (typeof renderHomeNoticeCarousel === 'function') renderHomeNoticeCarousel();
+        if (typeof loadActivitiesCalendar === 'function') loadActivitiesCalendar().catch(() => {});
         notifyMessage('로그아웃되었습니다.');
       });
     }

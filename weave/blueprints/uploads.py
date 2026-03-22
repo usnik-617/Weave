@@ -10,6 +10,11 @@ bp.add_url_rule(
     "/api/posts/<int:post_id>/files", view_func=pfr.upload_post_file, methods=["POST"]
 )
 bp.add_url_rule(
+    "/api/posts/<int:post_id>/files/batch",
+    view_func=pfr.upload_post_files_batch,
+    methods=["POST"],
+)
+bp.add_url_rule(
     "/api/posts/<int:post_id>/files", view_func=pfr.list_post_files, methods=["GET"]
 )
 bp.add_url_rule(

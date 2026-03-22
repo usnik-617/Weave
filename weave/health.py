@@ -3,6 +3,8 @@ import time
 from datetime import datetime, timedelta
 
 from weave import core
+from weave.media_queue import get_queue_metrics
+from weave.storage_backend import snapshot_storage_stats
 
 
 def _is_health_access_allowed():
@@ -61,6 +63,12 @@ def metrics():
             "active_users_last_hour": active_users_last_hour,
             "total_posts": total_posts,
             "total_comments": total_comments,
+            "media_queue": get_queue_metrics(),
+            "storage": snapshot_storage_stats(),
+            "database_mode": (
+                "sqlite" if str(core.DATABASE_URL).strip().lower().startswith("sqlite")
+                else "postgres_migration_pending"
+            ),
         }
     )
 

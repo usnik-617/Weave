@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import uuid
 
 import pytest
 
 
 @pytest.fixture()
-def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    db_path = tmp_path / "test_weave.db"
-    upload_dir = tmp_path / "uploads"
+def app(monkeypatch: pytest.MonkeyPatch):
+    root = Path(__file__).resolve().parents[1]
+    test_root = root / "instance" / "pytest_runtime" / uuid.uuid4().hex
+    db_path = test_root / "test_weave.db"
+    upload_dir = test_root / "uploads"
+    test_root.mkdir(parents=True, exist_ok=True)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setenv("WEAVE_DB_PATH", str(db_path))
@@ -20,6 +25,12 @@ def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import weave.posts_routes as posts_routes
     from weave import create_app
 
+    old_db_path = core.DB_PATH
+    old_database_url = core.DATABASE_URL
+    old_upload_dir = core.UPLOAD_DIR
+    old_post_files_upload_dir = post_files_routes.UPLOAD_DIR
+    old_posts_upload_dir = posts_routes.UPLOAD_DIR
+
     core.DB_PATH = str(db_path)
     core.DATABASE_URL = f"sqlite:///{db_path}"
     core.UPLOAD_DIR = str(upload_dir)
@@ -30,7 +41,15 @@ def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     app = create_app()
     app.config.update(TESTING=True)
-    return app
+    try:
+        yield app
+    finally:
+        core.DB_PATH = old_db_path
+        core.DATABASE_URL = old_database_url
+        core.UPLOAD_DIR = old_upload_dir
+        post_files_routes.UPLOAD_DIR = old_post_files_upload_dir
+        posts_routes.UPLOAD_DIR = old_posts_upload_dir
+        shutil.rmtree(test_root, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

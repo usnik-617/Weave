@@ -127,17 +127,17 @@ def _validate_hero_background_block(content_html):
         ("backgroundPosX", 0, 100, 50),
         ("backgroundPosY", 0, 100, 45),
     ]
+
     for field_name, minimum, maximum, default_value in rules:
-        ok, value, message = validators.coerce_int_in_range(
-            payload.get(field_name, default_value),
-            field_name,
-            minimum,
-            maximum,
-            default=default_value,
-        )
-        if not ok:
-            return False, message, ""
-        payload[field_name] = value
+        raw_value = payload.get(field_name, default_value)
+        if raw_value is None or str(raw_value).strip() == "":
+            number = int(default_value)
+        else:
+            try:
+                number = int(str(raw_value).strip())
+            except Exception:
+                return False, f"{field_name} 값은 정수여야 합니다.", ""
+        payload[field_name] = max(int(minimum), min(int(maximum), number))
 
     return True, "", json.dumps(payload, ensure_ascii=False)
 

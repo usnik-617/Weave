@@ -1,5 +1,7 @@
 ﻿  // Initialize WOW animations
-  new WOW().init();
+  if (typeof WOW !== 'undefined') {
+    new WOW().init();
+  }
 
   // core state/auth/api helpers moved to static/js/app-core.js
 
@@ -15,11 +17,6 @@
     qna: [],
     gallery: []
   };
-  const WRITE_TEMPLATES_KEY = 'weave_write_templates';
-  const DEFAULT_WRITE_TEMPLATES = {
-    news: '',
-    gallery: ''
-  };
 
   const NEWS_PAGE_SIZE = 10;
   const FAQ_PAGE_SIZE = 10;
@@ -34,9 +31,11 @@
   let faqCurrentPage = 1;
   let qnaCurrentPage = 1;
   let newsSearchKeyword = '';
+  let newsSortMode = 'latest';
   let faqSearchKeyword = '';
   let qnaSearchKeyword = '';
   let gallerySearchKeyword = '';
+  let gallerySortMode = 'latest';
   let currentNewsTab = 'notice';
   const GALLERY_PAGE_SIZE = 9;
   let galleryCurrentPage = 1;
@@ -56,14 +55,7 @@
   let volunteerEvents = [];
 
   function isOperatorGalleryPost(item) {
-    if (!item || typeof item !== 'object') return false;
-    const authorText = typeof item.author === 'string' ? item.author.trim() : '';
-    const authorObjRole = String(item.author?.role || '').toUpperCase();
-    if (authorObjRole && ['EXECUTIVE', 'LEADER', 'VICE_LEADER', 'ADMIN'].includes(authorObjRole)) {
-      return true;
-    }
-    if (authorText) return true;
-    return false;
+    return !!(item && typeof item === 'object');
   }
 
   function normalizeGalleryItems(items) {
@@ -80,16 +72,64 @@
     return safe;
   }
 
-  function getContent() {
-    const data = localStorage.getItem(DATA_KEY);
-    if (!data) return normalizeContent(DEFAULT_DATA);
+  function cloneContent(data) {
     try {
-      const parsed = JSON.parse(data);
+      return JSON.parse(JSON.stringify(normalizeContent(data)));
+    } catch (_) {
+      return normalizeContent(data);
+    }
+  }
+
+  function stripInlineDataImagesFromHtml(html) {
+    const raw = String(html || '');
+    if (!raw || !raw.includes('data:image/')) return raw;
+    return raw.replace(/<img[^>]+src=["']data:image\/[^"']+["'][^>]*>/gi, '');
+  }
+
+  function compactContentForPersistentStorage(data) {
+    const compacted = cloneContent(data);
+    const sections = ['news', 'faq', 'qna', 'gallery'];
+    sections.forEach((section) => {
+      const items = Array.isArray(compacted[section]) ? compacted[section] : [];
+      items.forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        if (typeof item.content === 'string' && item.content.includes('data:image/')) {
+          item.content = stripInlineDataImagesFromHtml(item.content);
+        }
+        if (Array.isArray(item.images)) {
+          item.images = item.images.filter((src) => typeof src === 'string' && !src.startsWith('data:image/'));
+        }
+        if (typeof item.image === 'string' && item.image.startsWith('data:image/')) {
+          item.image = '';
+        }
+        if (typeof item.thumb_url === 'string' && item.thumb_url.startsWith('data:image/')) {
+          item.thumb_url = '';
+        }
+        if (typeof item.thumbnail_url === 'string' && item.thumbnail_url.startsWith('data:image/')) {
+          item.thumbnail_url = '';
+        }
+      });
+    });
+    return compacted;
+  }
+
+  function getContent() {
+    if (window.__WEAVE_RUNTIME_CONTENT && typeof window.__WEAVE_RUNTIME_CONTENT === 'object') {
+      return normalizeContent(window.__WEAVE_RUNTIME_CONTENT);
+    }
+    const data = localStorage.getItem(DATA_KEY);
+    const sessionData = sessionStorage.getItem(DATA_KEY);
+    if (!data && !sessionData) return normalizeContent(DEFAULT_DATA);
+    try {
+      const parsed = JSON.parse(data || sessionData || '{}');
       const normalized = normalizeContent(parsed);
+      window.__WEAVE_RUNTIME_CONTENT = normalized;
       const beforeCount = Array.isArray(parsed?.gallery) ? parsed.gallery.length : 0;
       const afterCount = Array.isArray(normalized?.gallery) ? normalized.gallery.length : 0;
       if (beforeCount !== afterCount) {
-        localStorage.setItem(DATA_KEY, JSON.stringify(normalized));
+        try {
+          localStorage.setItem(DATA_KEY, JSON.stringify(normalized));
+        } catch (_) {}
       }
       return normalized;
     } catch (_) {
@@ -98,32 +138,104 @@
   }
 
   function saveContent(data) {
-    // news에 activityId가 있는 경우 activities에 자동 연동
-    const safeData = normalizeContent(data);
-    if (Array.isArray(safeData.news)) {
-      safeData.activities = Array.isArray(safeData.activities) ? safeData.activities : [];
-      safeData.news.forEach(newsItem => {
-        const activityId = Number(newsItem.activityId || newsItem.activity_id || 0);
-        if (activityId > 0 && newsItem.date) {
-          // 기존 activities에서 동일 id 찾기
-          const idx = safeData.activities.findIndex(a => Number(a.id) === activityId);
-          const newActivity = {
-            id: activityId,
-            title: newsItem.title || '봉사 일정',
-            startAt: newsItem.date,
-            description: newsItem.content || '',
-            linkedNewsId: newsItem.id
-          };
-          if (idx >= 0) {
-            safeData.activities[idx] = { ...safeData.activities[idx], ...newActivity };
-          } else {
-            safeData.activities.push(newActivity);
-          }
-        }
-      });
+    const normalized = normalizeContent(data);
+    window.__WEAVE_RUNTIME_CONTENT = normalized;
+    const compacted = compactContentForPersistentStorage(normalized);
+    const serialized = JSON.stringify(compacted);
+    try {
+      localStorage.setItem(DATA_KEY, serialized);
+      try {
+        sessionStorage.removeItem(DATA_KEY);
+      } catch (_) {}
+      return true;
+    } catch (_) {
+      try {
+        sessionStorage.setItem(DATA_KEY, serialized);
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
-    localStorage.setItem(DATA_KEY, JSON.stringify(safeData));
   }
+
+  async function hydrateContentFromServerIfEmpty(options = {}) {
+    const force = !!options.force;
+    const local = getContent();
+    const localCount =
+      (Array.isArray(local.news) ? local.news.length : 0)
+      + (Array.isArray(local.faq) ? local.faq.length : 0)
+      + (Array.isArray(local.qna) ? local.qna.length : 0)
+      + (Array.isArray(local.gallery) ? local.gallery.length : 0);
+    if ((!force && localCount > 0) || typeof apiRequest !== 'function') return false;
+
+    const mapPostItem = (item) => {
+      const id = Number(item?.id || 0) || Date.now();
+      const createdAt = String(item?.created_at || item?.updated_at || '').trim();
+      const authorObj = item?.author && typeof item.author === 'object' ? item.author : null;
+      const authorName = String(authorObj?.nickname || item?.author_name || '관리자');
+      const isoDate = createdAt ? new Date(createdAt) : new Date();
+      const dateKey = Number.isNaN(isoDate.getTime()) ? getTodayString() : isoDate.toISOString().slice(0, 10);
+      return {
+        id,
+        title: String(item?.title || '제목 없음'),
+        author: authorName,
+        date: dateKey,
+        views: Number(item?.views || 0) || 0,
+        image: String(item?.image_url || item?.thumb_url || 'logo.png'),
+        image_url: String(item?.image_url || ''),
+        thumb_url: String(item?.thumb_url || ''),
+        content: String(item?.content || ''),
+        publishAt: String(item?.publish_at || ''),
+        volunteerStartDate: String(item?.volunteerStartDate || ''),
+        volunteerEndDate: String(item?.volunteerEndDate || '')
+      };
+    };
+
+    try {
+      const [noticeRes, faqRes, qnaRes, galleryRes] = await Promise.all([
+        apiRequest('/posts?category=notice&page=1&pageSize=200', { method: 'GET', suppressSessionModal: true }),
+        apiRequest('/posts?category=faq&page=1&pageSize=200', { method: 'GET', suppressSessionModal: true }),
+        apiRequest('/posts?category=qna&page=1&pageSize=200', { method: 'GET', suppressSessionModal: true }),
+        apiRequest('/posts?category=gallery&page=1&pageSize=200', { method: 'GET', suppressSessionModal: true })
+      ]);
+      const next = {
+        news: (noticeRes?.items || []).map(mapPostItem),
+        faq: (faqRes?.items || []).map(mapPostItem),
+        qna: (qnaRes?.items || []).map((item) => ({
+          ...mapPostItem(item),
+          isSecret: !!item?.is_secret,
+          answer: String(item?.answer || '')
+        })),
+        gallery: (galleryRes?.items || []).map((item) => {
+          const mapped = mapPostItem(item);
+          return {
+            ...mapped,
+            year: new Date(String(item?.created_at || Date.now())).getFullYear(),
+            category: `y${new Date(String(item?.created_at || Date.now())).getFullYear()}`,
+            image: String(item?.image_url || item?.thumb_url || mapped.image || 'logo.png'),
+            thumbnail_url: String(item?.thumb_url || ''),
+            thumb_url: String(item?.thumb_url || '')
+          };
+        })
+      };
+      const fetchedCount =
+        next.news.length + next.faq.length + next.qna.length + next.gallery.length;
+      if (fetchedCount > 0) {
+        try {
+          saveContent(next);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  window.hydrateContentFromServerIfEmpty = hydrateContentFromServerIfEmpty;
+  window.hydrateContentFromServer = (options = {}) => hydrateContentFromServerIfEmpty({ ...options, force: true });
 
   function getTodayString() {
     return new Date().toISOString().slice(0, 10);
@@ -142,50 +254,6 @@
     const hh = String(parsed.getHours()).padStart(2, '0');
     const mm = String(parsed.getMinutes()).padStart(2, '0');
     return `${y}-${m}-${d}T${hh}:${mm}`;
-  }
-
-  function getWriteTemplates() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(WRITE_TEMPLATES_KEY) || '{}');
-      return {
-        news: String(parsed.news || DEFAULT_WRITE_TEMPLATES.news),
-        gallery: String(parsed.gallery || DEFAULT_WRITE_TEMPLATES.gallery)
-      };
-    } catch (_) {
-      return { ...DEFAULT_WRITE_TEMPLATES };
-    }
-  }
-
-  function saveWriteTemplates(next) {
-    const payload = {
-      news: String(next?.news || ''),
-      gallery: String(next?.gallery || '')
-    };
-    localStorage.setItem(WRITE_TEMPLATES_KEY, JSON.stringify(payload));
-  }
-
-  function updateWriteTemplateVisibility() {
-    const wrap = document.getElementById('write-template-admin-wrap');
-    if (!wrap) return;
-    const user = getCurrentUser();
-    const canManage = !!(user && user.status === 'active' && isStaffUser(user));
-    wrap.classList.toggle('d-none', !canManage);
-  }
-
-  function applyTemplateToEditor(editorId, templateType) {
-    const editor = document.getElementById(editorId);
-    if (!editor) return;
-    const templates = getWriteTemplates();
-    const template = String(templates?.[templateType] || '').trim();
-    if (!template) {
-      notifyMessage('저장된 템플릿이 없습니다. 먼저 템플릿을 저장해주세요.');
-      return;
-    }
-    const current = String(editor.innerHTML || '').trim();
-    if (current && !confirm('현재 내용을 템플릿으로 덮어쓸까요?')) {
-      return;
-    }
-    editor.innerHTML = template;
   }
 
   async function loadGalleryActivityOptions(selectedId = '') {
@@ -223,7 +291,12 @@
   function formatKoreanDate(value) {
     if (!value) return '-';
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
+    if (Number.isNaN(date.getTime())) {
+      return String(value)
+        .replace('T', ' ')
+        .replace(/\.\d{1,3}Z?$/, '')
+        .trim();
+    }
     return date.toLocaleString('ko-KR', {
       year: 'numeric',
       month: 'numeric',
@@ -243,7 +316,21 @@
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const hh = String(date.getHours()).padStart(2, '0');
     const mm = String(date.getMinutes()).padStart(2, '0');
-    return `${y}/${d}/${m} ${hh}:${mm}`;
+    return `${y}/${m}/${d} ${hh}:${mm}`;
+  }
+
+  function getDdayInfo(targetValue) {
+    const raw = String(targetValue || '').trim();
+    if (!raw) return { label: '', className: '', diffDays: null };
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return { label: '', className: '', diffDays: null };
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.floor((targetDay.getTime() - startOfToday.getTime()) / 86400000);
+    if (diffDays === 0) return { label: 'D-day', className: 'dday-today', diffDays };
+    if (diffDays > 0) return { label: `D-${diffDays}`, className: 'dday-open', diffDays };
+    return { label: '', className: '', diffDays };
   }
 
   function getAboutVolunteerPhoto() {
@@ -260,8 +347,21 @@
     const volunteerEl = document.getElementById(`${prefix}-detail-volunteer`);
     const statsEl = document.getElementById(`${prefix}-detail-stats`);
     if (authorEl) authorEl.textContent = payload.author || '-';
-    if (dateEl) dateEl.textContent = payload.date || '-';
-    if (volunteerEl) volunteerEl.textContent = payload.volunteer || '';
+    if (dateEl) dateEl.textContent = `작성 일자 : ${payload.date || '-'}`;
+    if (volunteerEl) {
+      if (payload.volunteerHtml) {
+        volunteerEl.innerHTML = payload.volunteerHtml;
+      } else {
+        const existingInline = volunteerEl.querySelector('.detail-volunteer-inline');
+        if (existingInline) {
+          const valueEl = existingInline.querySelector('.detail-meta-value');
+          if (valueEl) valueEl.textContent = payload.volunteer || '';
+          else volunteerEl.textContent = payload.volunteer || '';
+        } else {
+          volunteerEl.textContent = payload.volunteer || '';
+        }
+      }
+    }
     if (statsEl) statsEl.textContent = `[조회수 ${payload.views || 0} 추천 수 ${payload.recommends || 0} 댓글 ${payload.comments || 0}]`;
   }
 

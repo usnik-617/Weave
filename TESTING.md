@@ -169,3 +169,18 @@ npm run check:sync-static-root
 - 1차: 실패한 pytest 파일 단독 재실행
 - 2차: 관련 계약 묶음 재실행
 - 3차: 전체 pytest 및 E2E 재검증
+
+## Cache Freshness Checks
+
+- Service worker freshness smoke:
+```bash
+npx playwright test tests/sw-cache-refresh.spec.js --project=chromium --reporter=line
+```
+- Canonical source check (`static/*` should be edited first):
+```bash
+npm run check:static-canonical
+```
+- Mirror drift check:
+```bash
+npm run check:sync-static-root
+```

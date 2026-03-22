@@ -15,7 +15,12 @@ def _assert_legacy_payload_shape(payload):
 
 
 def success_response(data=None, status_code=200):
-    payload = {"success": True, "data": data}
+    payload = {"ok": True, "success": True, "data": data}
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in {"success", "data"}:
+                continue
+            payload.setdefault(key, value)
     _assert_api_payload_shape(payload, True)
     return jsonify(payload), status_code
 
@@ -32,7 +37,12 @@ def success_response_legacy(data=None, status_code=200):
 
 
 def error_response(message, code=400, details=None, code_key=None):
-    body = {"success": False, "error": str(message)}
+    body = {
+        "ok": False,
+        "success": False,
+        "error": str(message),
+        "message": str(message),
+    }
     if details is not None:
         body["details"] = details
     if code_key:

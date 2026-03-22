@@ -47,6 +47,7 @@ def ensure_activities_migration(cur):
         ("is_cancelled", "INTEGER NOT NULL DEFAULT 0"),
         ("cancelled_at", "TEXT"),
         ("thumb_url", "TEXT DEFAULT ''"),
+        ("notice_post_id", "INTEGER"),
     ]
     for column_name, column_type in migrations:
         if column_name not in existing_cols:
@@ -64,6 +65,9 @@ def ensure_activity_indexes(cur):
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_activities_cancelled ON activities(is_cancelled)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activities_notice_post_id ON activities(notice_post_id)"
     )
 
 
@@ -629,6 +633,15 @@ def init_db(default_admin_password):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_important ON posts(is_important)")
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_post_files_hash ON post_files(hash_sha256)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_files_post_id_id ON post_files(post_id, id DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_files_post_expires ON post_files(post_id, expires_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_files_stored_path ON post_files(stored_path)"
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status)"

@@ -16,7 +16,11 @@ NOTICE_ALLOWED_MIME_TYPES = GALLERY_IMAGE_MIME_TYPES | {"application/pdf"}
 
 
 def stored_path_to_upload_url(stored_path, upload_dir):
-    rel_path = os.path.relpath(stored_path, upload_dir).replace("\\", "/")
+    raw = str(stored_path or "").strip()
+    if raw.startswith("obj://"):
+        key = raw[len("obj://") :].lstrip("/")
+        return f"/uploads/object/{key}"
+    rel_path = os.path.relpath(raw, upload_dir).replace("\\", "/")
     return f"/uploads/{rel_path}"
 
 

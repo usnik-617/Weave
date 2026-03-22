@@ -1,6 +1,13 @@
 ﻿function setEditorHtml(editorId, html) {
   const editor = document.getElementById(editorId);
-  if (editor) editor.innerHTML = html || '';
+  if (!editor) return;
+  editor.innerHTML = html || '';
+  if (editorId === 'gallery-editor') {
+    ensureGalleryEditorGrid(editorId);
+  } else if (editorId === 'news-editor') {
+    ensureInlineEditorImageDeleteUi(editorId);
+  }
+  syncRepresentativePreview(editorId);
 }
 
 function ensureRepresentativeImageLabel(editorId, options = {}) {
@@ -41,6 +48,15 @@ function getRepresentativeEditorImageSource(editorId) {
   return String(first?.getAttribute('src') || '').trim();
 }
 
+function syncRepresentativePreview(editorId) {
+  const src = getRepresentativeEditorImageSource(editorId);
+  if (editorId === 'gallery-editor') {
+    setImagePreview('gallery-image-preview', src);
+  } else if (editorId === 'news-editor') {
+    setImagePreview('news-image-preview', src);
+  }
+}
+
 function syncEditorToInput(form, editorId, options = {}) {
   const editor = document.getElementById(editorId);
   if (!editor) return;
@@ -48,6 +64,7 @@ function syncEditorToInput(form, editorId, options = {}) {
     ensureRepresentativeImageLabel(editorId, {
       showLabel: options.representativeLabel !== false
     });
+    syncRepresentativePreview(editorId);
   }
   form.content.value = editor.innerHTML.trim();
 }
@@ -137,11 +154,127 @@ function bindGalleryGridDnD(grid) {
   });
 }
 
+function ensureEditorImageDeleteConfirmModal() {
+  const modalId = 'editor-image-delete-confirm-modal';
+  let modalEl = document.getElementById(modalId);
+  if (!modalEl) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+      <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">이미지 삭제</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+              <div class="d-flex flex-column gap-2">
+                <img id="editor-image-delete-confirm-thumb" class="editor-delete-confirm-thumb d-none" alt="삭제할 이미지 미리보기">
+                <p class="mb-0" id="editor-image-delete-confirm-text"></p>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" id="editor-image-delete-cancel-btn" data-bs-dismiss="modal">아니오</button>
+              <button type="button" class="btn btn-danger" id="editor-image-delete-confirm-btn">삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrapper.firstElementChild);
+    modalEl = document.getElementById(modalId);
+  }
+  return {
+    modalEl,
+    textEl: document.getElementById('editor-image-delete-confirm-text'),
+    thumbEl: document.getElementById('editor-image-delete-confirm-thumb'),
+    confirmBtn: document.getElementById('editor-image-delete-confirm-btn')
+  };
+}
+
+function askEditorImageDeleteConfirm(message = '선택한 이미지를 삭제할까요?', imageSrc = '') {
+  const safeMessage = String(message || '선택한 이미지를 삭제할까요?').trim();
+  if (!window.bootstrap?.Modal) {
+    return Promise.resolve(window.confirm(safeMessage));
+  }
+  const { modalEl, textEl, thumbEl, confirmBtn } = ensureEditorImageDeleteConfirmModal();
+  if (!modalEl || !confirmBtn) return Promise.resolve(false);
+  if (textEl) textEl.textContent = safeMessage;
+  if (thumbEl) {
+    const safeSrc = String(imageSrc || '').trim();
+    if (safeSrc) {
+      thumbEl.src = safeSrc;
+      thumbEl.classList.remove('d-none');
+    } else {
+      thumbEl.removeAttribute('src');
+      thumbEl.classList.add('d-none');
+    }
+  }
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static' });
+  return new Promise((resolve) => {
+    let finished = false;
+    const complete = (result) => {
+      if (finished) return;
+      finished = true;
+      resolve(!!result);
+    };
+    const handleHidden = () => {
+      modalEl.removeEventListener('hidden.bs.modal', handleHidden);
+      confirmBtn.removeEventListener('click', handleConfirm);
+      complete(false);
+    };
+    const handleConfirm = () => {
+      modalEl.removeEventListener('hidden.bs.modal', handleHidden);
+      confirmBtn.removeEventListener('click', handleConfirm);
+      complete(true);
+      modal.hide();
+    };
+    modalEl.addEventListener('hidden.bs.modal', handleHidden);
+    confirmBtn.addEventListener('click', handleConfirm);
+    modal.show();
+  });
+}
+
+function ensureInlineEditorImageDeleteUi(editorId = 'news-editor') {
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  const images = Array.from(editor.querySelectorAll('img')).filter((img) => !img.closest('.gallery-image-grid-item'));
+  images.forEach((img) => {
+    let wrap = img.closest('.editor-inline-image-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'editor-inline-image-wrap';
+      const parent = img.parentNode;
+      if (parent) {
+        parent.insertBefore(wrap, img);
+        wrap.appendChild(img);
+      }
+    }
+    let deleteBtn = wrap.querySelector('.editor-image-delete-btn');
+    if (!deleteBtn) {
+      deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'editor-image-delete-btn';
+      deleteBtn.textContent = '삭제';
+      deleteBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const ok = await askEditorImageDeleteConfirm('이 이미지를 삭제할까요?', String(img.getAttribute('src') || ''));
+        if (!ok) return;
+        wrap.remove();
+        ensureRepresentativeImageLabel(editorId, { showLabel: true });
+        syncRepresentativePreview(editorId);
+      });
+      wrap.appendChild(deleteBtn);
+    }
+  });
+}
+
 function refreshGalleryGridPinUi(grid) {
   if (!grid) return;
   const items = Array.from(grid.querySelectorAll('.gallery-image-grid-item'));
   items.forEach((item) => {
     let pinBtn = item.querySelector('.gallery-image-pin-btn');
+    let deleteBtn = item.querySelector('.gallery-image-delete-btn');
     const img = item.querySelector('img');
     if (!img) return;
     if (!pinBtn) {
@@ -160,10 +293,33 @@ function refreshGalleryGridPinUi(grid) {
         refreshGalleryGridPinUi(grid);
       });
     }
+    if (!deleteBtn) {
+      deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'gallery-image-delete-btn';
+      deleteBtn.title = '이미지 삭제';
+      deleteBtn.textContent = '삭제';
+      item.appendChild(deleteBtn);
+      deleteBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const ok = await askEditorImageDeleteConfirm('이 이미지를 삭제할까요?', String(img.getAttribute('src') || ''));
+        if (!ok) return;
+        const wasPinned = String(img.getAttribute('data-representative') || '').toLowerCase() === 'true';
+        item.remove();
+        if (wasPinned) {
+          const first = grid.querySelector('.gallery-image-grid-item img');
+          if (first) first.setAttribute('data-representative', 'true');
+        }
+        refreshGalleryGridPinUi(grid);
+        syncRepresentativePreview('gallery-editor');
+      });
+    }
     const pinned = String(img.getAttribute('data-representative') || '').toLowerCase() === 'true';
     item.classList.toggle('is-pinned', pinned);
     pinBtn.classList.toggle('active', pinned);
   });
+  syncRepresentativePreview('gallery-editor');
 }
 
 function ensureGalleryEditorGrid(editorId = 'gallery-editor') {
@@ -202,6 +358,7 @@ function ensureGalleryEditorGrid(editorId = 'gallery-editor') {
     if (first) first.setAttribute('data-representative', 'true');
   }
   refreshGalleryGridPinUi(grid);
+  syncRepresentativePreview(editorId);
   return grid;
 }
 
@@ -263,6 +420,10 @@ function insertImagesToEditor(editorId, imageDataUrls = []) {
       selection.addRange(range);
     }
   });
+  if (editorId === 'news-editor') {
+    ensureInlineEditorImageDeleteUi(editorId);
+  }
+  syncRepresentativePreview(editorId);
   return imageDataUrls.length;
 }
 
@@ -271,12 +432,58 @@ const IMAGE_UPLOAD_MIN_MAX_BYTES = 140 * 1024;
 const IMAGE_UPLOAD_HARD_MAX_BYTES = 820 * 1024;
 const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
 const IMAGE_UPLOAD_MIN_QUALITY = 0.45;
-const IMAGE_UPLOAD_MAX_FILE_BYTES = 15 * 1024 * 1024;
+const IMAGE_UPLOAD_MAX_FILE_BYTES = 25 * 1024 * 1024;
 const POST_IMAGE_MAX_COUNT = 30;
-const GALLERY_IMAGE_MAX_BYTES = 90 * 1024;
+const POST_IMAGE_TOTAL_MAX_BYTES = 300 * 1024 * 1024;
+const IMAGE_UPLOAD_MAX_PARALLEL = 4;
+const GALLERY_IMAGE_MAX_BYTES = 360 * 1024;
 const WRITE_DRAFT_NEWS_KEY = 'weave_draft_news';
 const WRITE_DRAFT_GALLERY_KEY = 'weave_draft_gallery';
 const IMAGE_UPLOAD_STRIP_EXIF_KEY = 'weave_image_strip_exif';
+const IMAGE_COMPRESSION_LEVEL_KEY = 'weave_image_compression_level';
+const IMAGE_COMPRESSION_PROFILES = {
+  original: { label: '원본', maxBytes: 0 },
+  high: { label: '고화질', maxBytes: 560 * 1024 },
+  standard: { label: '표준', maxBytes: 360 * 1024 },
+  compact: { label: '고압축', maxBytes: 220 * 1024 },
+};
+
+function formatBytes(bytes) {
+  const safe = Math.max(0, Number(bytes || 0));
+  if (safe < 1024) return `${safe} B`;
+  const kb = safe / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 100 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)} GB`;
+}
+
+function getCompressionLevelFromSelect(selectId = '') {
+  const select = selectId ? document.getElementById(selectId) : null;
+  if (!(select instanceof HTMLSelectElement)) return 'standard';
+  const value = String(select.value || '').trim().toLowerCase();
+  if (IMAGE_COMPRESSION_PROFILES[value]) return value;
+  return 'standard';
+}
+
+function getCompressionMaxBytes(level = 'standard', fallbackBytes = 0) {
+  const normalized = String(level || '').trim().toLowerCase();
+  if (IMAGE_COMPRESSION_PROFILES[normalized]) {
+    const profileBytes = Number(IMAGE_COMPRESSION_PROFILES[normalized].maxBytes || 0);
+    if (profileBytes > 0) return profileBytes;
+    return Number(fallbackBytes || 0) || 0;
+  }
+  return Number(fallbackBytes || 0) || 0;
+}
+
+function isSupportedImageUploadFile(file) {
+  const mime = String(file?.type || '').toLowerCase();
+  const name = String(file?.name || '').toLowerCase();
+  const byMime = mime.startsWith('image/');
+  const byExt = /\.(jpg|jpeg|png|webp|gif|heic|heif)$/i.test(name);
+  return byMime || byExt;
+}
 
 function getDataUrlByteSize(dataUrl) {
   const text = String(dataUrl || '');
@@ -458,7 +665,7 @@ function persistStripExifPreference() {
 }
 
 function readImageFileToDataUrl(file, onDone, options = {}, onError = null) {
-  if (!file || !file.type.startsWith('image/')) {
+  if (!file || !isSupportedImageUploadFile(file)) {
     const error = new Error('이미지 파일만 업로드할 수 있습니다.');
     notifyMessage(error.message);
     if (typeof onError === 'function') onError(error);
@@ -474,7 +681,7 @@ function readImageFileToDataUrl(file, onDone, options = {}, onError = null) {
       if (isHeicLike) {
         const converted = await readImageFileWithOrientation(file);
         if (!converted || !String(converted).startsWith('data:image/')) {
-          throw new Error('HEIC/HEIF 변환에 실패했습니다. JPG/PNG/WebP로 변환 후 다시 업로드해 주세요.');
+          throw new Error('HEIC/HEIF 변환에 실패했습니다. iPhone 설정에서 카메라 포맷을 "높은 호환성(JPG)"으로 변경하거나 JPG/PNG/WebP로 변환 후 다시 업로드해 주세요.');
         }
         result = converted;
       }
@@ -485,8 +692,13 @@ function readImageFileToDataUrl(file, onDone, options = {}, onError = null) {
         const oriented = await readImageFileWithOrientation(file);
         if (oriented) result = oriented;
       }
-      const perImageLimit = Math.max(70 * 1024, Number(options.maxBytes || 0) || getAdaptiveImageMaxBytes());
-      result = await resizeImageDataUrlToMaxBytes(result, perImageLimit);
+      const configuredMaxBytes = Number(options.maxBytes || 0);
+      const perImageLimit = configuredMaxBytes > 0
+        ? Math.max(70 * 1024, configuredMaxBytes)
+        : 0;
+      if (perImageLimit > 0) {
+        result = await resizeImageDataUrlToMaxBytes(result, perImageLimit);
+      }
       if (!String(result || '').startsWith('data:image/')) {
         throw new Error('이미지 변환 결과가 올바르지 않습니다.');
       }
@@ -597,7 +809,7 @@ function readAnyFileToDataUrl(file) {
 
 function readImageFileToDataUrlAsync(file, options = {}) {
   return new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith('image/')) {
+    if (!file || !isSupportedImageUploadFile(file)) {
       reject(new Error('이미지 파일만 업로드할 수 있습니다.'));
       return;
     }
@@ -623,6 +835,14 @@ function bindImageUploader({
   progressBarId = '',
   progressTextId = '',
   progressPercentId = '',
+  queueListId = '',
+  queueSummaryId = '',
+  queueRetryBtnId = '',
+  totalGaugeBarId = '',
+  totalGaugeTextId = '',
+  compressionSelectId = '',
+  limitHintId = '',
+  limitHintPrefix = '본문 이미지',
   maxImageBytes = 0
 }) {
   const form = document.getElementById(formId);
@@ -633,6 +853,79 @@ function bindImageUploader({
   const progressBar = progressBarId ? document.getElementById(progressBarId) : null;
   const progressText = progressTextId ? document.getElementById(progressTextId) : null;
   const progressPercent = progressPercentId ? document.getElementById(progressPercentId) : null;
+  const queueList = queueListId ? document.getElementById(queueListId) : null;
+  const queueSummary = queueSummaryId ? document.getElementById(queueSummaryId) : null;
+  const queueRetryBtn = queueRetryBtnId ? document.getElementById(queueRetryBtnId) : null;
+  const totalGaugeBar = totalGaugeBarId ? document.getElementById(totalGaugeBarId) : null;
+  const totalGaugeText = totalGaugeTextId ? document.getElementById(totalGaugeTextId) : null;
+  const compressionSelect = compressionSelectId ? document.getElementById(compressionSelectId) : null;
+  let queueItems = [];
+
+  const updateCompressionPreference = () => {
+    const level = getCompressionLevelFromSelect(compressionSelectId);
+    try {
+      localStorage.setItem(IMAGE_COMPRESSION_LEVEL_KEY, level);
+    } catch (_) {}
+  };
+  if (compressionSelect instanceof HTMLSelectElement) {
+    const storedLevel = String(localStorage.getItem(IMAGE_COMPRESSION_LEVEL_KEY) || '').trim().toLowerCase();
+    if (IMAGE_COMPRESSION_PROFILES[storedLevel]) {
+      compressionSelect.value = storedLevel;
+    } else if (!String(compressionSelect.value || '').trim()) {
+      compressionSelect.value = 'standard';
+    }
+    compressionSelect.addEventListener('change', updateCompressionPreference);
+  }
+
+  const setQueueStatus = (itemId, status, reason = '') => {
+    queueItems = queueItems.map((item) => {
+      if (item.id !== itemId) return item;
+      return { ...item, status, reason: reason || item.reason || '' };
+    });
+  };
+  const renderQueue = () => {
+    if (!queueList && !queueSummary && !queueRetryBtn) return;
+    if (queueList) {
+      queueList.innerHTML = queueItems.map((item) => {
+        const cls = `is-${item.status || 'waiting'}`;
+        const safeName = String(item.name || '이름없음');
+        const safeReason = String(item.reason || '').trim();
+        const reasonHtml = safeReason ? `<span class="upload-queue-reason">${safeReason}</span>` : '';
+        return `<li class="upload-queue-item ${cls}" data-queue-id="${item.id}">
+          <span class="upload-queue-name">${safeName}</span>
+          <span class="upload-queue-status">${item.status === 'success' ? '성공' : item.status === 'failed' ? '실패' : item.status === 'processing' ? '처리중' : '대기'}</span>
+          ${reasonHtml}
+        </li>`;
+      }).join('');
+    }
+    const successCount = queueItems.filter((item) => item.status === 'success').length;
+    const failCount = queueItems.filter((item) => item.status === 'failed').length;
+    const waitCount = queueItems.filter((item) => item.status === 'waiting' || item.status === 'processing').length;
+    if (queueSummary) {
+      queueSummary.textContent = `대기 ${waitCount} / 성공 ${successCount} / 실패 ${failCount}`;
+    }
+    if (queueRetryBtn) {
+      queueRetryBtn.classList.toggle('d-none', failCount <= 0);
+    }
+  };
+
+  const updateTotalGauge = (selectedBytes = 0) => {
+    if (!totalGaugeBar && !totalGaugeText) return;
+    let existingBytes = 0;
+    if (editorId) {
+      existingBytes = getEditorImageSources(editorId).reduce((sum, src) => sum + getDataUrlByteSize(src), 0);
+    }
+    const total = Math.max(0, Number(existingBytes + selectedBytes));
+    const ratio = Math.min(100, Math.round((total / POST_IMAGE_TOTAL_MAX_BYTES) * 100));
+    if (totalGaugeBar) {
+      totalGaugeBar.style.width = `${ratio}%`;
+      totalGaugeBar.setAttribute('aria-valuenow', String(ratio));
+    }
+    if (totalGaugeText) {
+      totalGaugeText.textContent = `${formatBytes(total)} / ${formatBytes(POST_IMAGE_TOTAL_MAX_BYTES)}`;
+    }
+  };
+
   const setProgress = (value, label = '') => {
     const safe = Math.max(0, Math.min(100, Number(value || 0)));
     if (progressWrap) progressWrap.classList.remove('d-none');
@@ -657,16 +950,69 @@ function bindImageUploader({
     if (toggle instanceof HTMLInputElement) return !!toggle.checked;
     return shouldStripExifMetadata();
   };
-  const updateGalleryImageLimitHint = () => {
-    if (editorId !== 'gallery-editor') return;
-    const hint = document.getElementById('gallery-image-limit-hint');
+  const updateImageLimitHint = () => {
+    const hint = limitHintId ? document.getElementById(limitHintId) : null;
     if (!hint) return;
-    const count = getEditorImageSources('gallery-editor').length;
-    hint.textContent = `본문 이미지 ${count}/${POST_IMAGE_MAX_COUNT}장`;
+    const count = editorId ? getEditorImageSources(editorId).length : 0;
+    hint.textContent = `${limitHintPrefix} ${count}/${POST_IMAGE_MAX_COUNT}장 · 파일당 최대 25MB · 글당 최대 300MB`;
   };
 
-  const applyFiles = async (files) => {
-    const imageFiles = Array.from(files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
+  const convertOneFile = async (file, options = {}) => {
+    const filename = String(file?.name || '파일');
+    const mime = String(file.type || '').toLowerCase();
+    if (!isSupportedImageUploadFile(file)) {
+      throw new Error('지원되지 않는 형식입니다. 이미지 파일만 업로드 가능합니다.');
+    }
+    if (Number(file.size || 0) > IMAGE_UPLOAD_MAX_FILE_BYTES) {
+      throw new Error('파일 용량이 너무 큽니다. 파일당 25MB 이하 이미지만 업로드 가능합니다.');
+    }
+    if (!mime.startsWith('image/') && !/\.(heic|heif)$/i.test(filename)) {
+      throw new Error('지원되지 않는 이미지 형식입니다.');
+    }
+    const dataUrl = await readImageFileToDataUrlAsync(file, options);
+    if (!String(dataUrl || '').startsWith('data:image/')) {
+      throw new Error('이미지 변환에 실패했습니다. 파일 형식을 확인해주세요.');
+    }
+    return dataUrl;
+  };
+
+  const processFileBatch = async (batchItems, imageOptions, onItemDone) => {
+    const queue = Array.from(batchItems || []);
+    const successes = [];
+    const failures = [];
+    let cursor = 0;
+    const total = queue.length;
+    const worker = async () => {
+      while (cursor < total) {
+        const current = cursor;
+        cursor += 1;
+        const item = queue[current];
+        if (!item) continue;
+        const itemId = item.id;
+        setQueueStatus(itemId, 'processing', '');
+        renderQueue();
+        try {
+          const dataUrl = await convertOneFile(item.file, imageOptions);
+          successes.push({ ...item, dataUrl });
+          setQueueStatus(itemId, 'success', '');
+        } catch (error) {
+          const reason = String(error?.message || '이미지 처리 중 오류가 발생했습니다.');
+          failures.push({ ...item, reason });
+          setQueueStatus(itemId, 'failed', reason);
+        } finally {
+          if (typeof onItemDone === 'function') onItemDone();
+          renderQueue();
+        }
+      }
+    };
+    const workerCount = Math.max(1, Math.min(IMAGE_UPLOAD_MAX_PARALLEL, total));
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return { successes, failures };
+  };
+
+  const applyFiles = async (files, { retryOnly = false } = {}) => {
+    const normalized = Array.from(files || []);
+    const imageFiles = normalized.filter((file) => file && isSupportedImageUploadFile(file));
     if (!imageFiles.length) {
       notifyMessage('이미지 파일만 업로드할 수 있습니다.');
       return;
@@ -681,42 +1027,41 @@ function bindImageUploader({
     if (imageFiles.length > cappedFiles.length) {
       notifyMessage(`이미지는 최대 ${POST_IMAGE_MAX_COUNT}장까지 등록 가능합니다. 초과 ${imageFiles.length - cappedFiles.length}장은 제외됩니다.`);
     }
-    const uploadedImages = [];
-    const failedFiles = [];
+    const selectedBytes = cappedFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0);
+    updateTotalGauge(selectedBytes);
+    const selectedLevel = getCompressionLevelFromSelect(compressionSelectId);
+    const selectedMaxBytes = getCompressionMaxBytes(selectedLevel, maxImageBytes || 0);
+    const imageOptions = {
+      stripExif: resolveStripExif(),
+      maxBytes: selectedMaxBytes
+    };
+    const queueBase = retryOnly
+      ? queueItems.filter((item) => item.status === 'failed' && item.file)
+      : cappedFiles.map((file, index) => ({
+          id: `${Date.now()}_${index}_${Math.random().toString(16).slice(2, 8)}`,
+          file,
+          name: String(file?.name || `파일 ${index + 1}`),
+          status: 'waiting',
+          reason: ''
+        }));
+    if (!retryOnly) {
+      queueItems = queueBase.slice();
+    } else {
+      queueBase.forEach((item) => setQueueStatus(item.id, 'waiting', ''));
+    }
+    renderQueue();
+
     const total = cappedFiles.length;
     setProgress(0, `이미지 ${total}개 업로드 준비중...`);
-    for (let index = 0; index < total; index += 1) {
-      const file = cappedFiles[index];
-      const filename = String(file?.name || `파일 ${index + 1}`);
-      try {
-        const mime = String(file.type || '').toLowerCase();
-        if (!mime.startsWith('image/')) {
-          throw new Error('지원되지 않는 형식입니다. 이미지 파일만 업로드 가능합니다.');
-        }
-        if (Number(file.size || 0) > IMAGE_UPLOAD_MAX_FILE_BYTES) {
-          throw new Error('파일 용량이 너무 큽니다. 15MB 이하 이미지만 업로드 가능합니다.');
-        }
-        const dataUrl = await readImageFileToDataUrlAsync(file, { stripExif: resolveStripExif(), maxBytes: maxImageBytes || 0 });
-        if (!String(dataUrl || '').startsWith('data:image/')) {
-          throw new Error('이미지 변환에 실패했습니다. 파일 형식을 확인해주세요.');
-        }
-        uploadedImages.push(dataUrl);
-      } catch (error) {
-        failedFiles.push(filename);
-        const raw = String(error?.message || '').toLowerCase();
-        if (/network|fetch|연결|오프라인/.test(raw)) {
-          notifyMessage(`${filename}: 네트워크 오류로 업로드에 실패했습니다.`);
-        } else if (/용량|size|15mb/.test(raw)) {
-          notifyMessage(`${filename}: ${error.message || '파일 용량 제한을 초과했습니다.'}`);
-        } else if (/형식|format|mime|이미지 파일만/.test(raw)) {
-          notifyMessage(`${filename}: ${error.message || '지원되지 않는 파일 형식입니다.'}`);
-        } else {
-          notifyMessage(`${filename}: ${error.message || '이미지 업로드 처리 중 오류가 발생했습니다.'}`);
-        }
-      }
-      const progress = Math.round(((index + 1) / total) * 100);
-      setProgress(progress, `${index + 1}/${total} 처리됨`);
-    }
+    let processedCount = 0;
+    const targetItems = retryOnly ? queueBase : queueItems;
+    const result = await processFileBatch(targetItems, imageOptions, () => {
+      processedCount += 1;
+      const progress = total > 0 ? Math.round((processedCount / total) * 100) : 100;
+      setProgress(progress, `${processedCount}/${total} 처리됨`);
+    });
+    const uploadedImages = result.successes.map((item) => item.dataUrl);
+    const failedFiles = result.failures.map((item) => item.name);
 
     finishProgress();
     if (!uploadedImages.length) return;
@@ -746,7 +1091,8 @@ function bindImageUploader({
         if (grid) refreshGalleryGridPinUi(grid);
         const finalCount = getEditorImageSources(editorId).length;
         notifyMessage(`본문 이미지 ${finalCount}/${POST_IMAGE_MAX_COUNT}장`);
-        updateGalleryImageLimitHint();
+        updateImageLimitHint();
+        updateTotalGauge(0);
       }
     }
     if (uploadedImages.length > 1) {
@@ -759,12 +1105,14 @@ function bindImageUploader({
   };
 
   if (input) {
-    input.addEventListener('change', async (e) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        await applyFiles(files);
-      }
-    });
+      input.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+          const selectedBytes = Array.from(files).reduce((sum, file) => sum + Number(file?.size || 0), 0);
+          updateTotalGauge(selectedBytes);
+          await applyFiles(files);
+        }
+      });
   }
   if (!dropzone) return;
   dropzone.addEventListener('click', () => input && input.click());
@@ -778,10 +1126,23 @@ function bindImageUploader({
     dropzone.classList.remove('dragover');
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
+      const selectedBytes = Array.from(files).reduce((sum, file) => sum + Number(file?.size || 0), 0);
+      updateTotalGauge(selectedBytes);
       await applyFiles(files);
     }
   });
-  updateGalleryImageLimitHint();
+  if (queueRetryBtn) {
+    queueRetryBtn.addEventListener('click', async () => {
+      const failedItems = queueItems.filter((item) => item.status === 'failed' && item.file);
+      if (!failedItems.length) {
+        notifyMessage('재시도할 실패 항목이 없습니다.');
+        return;
+      }
+      await applyFiles(failedItems.map((item) => item.file), { retryOnly: true });
+    });
+  }
+  updateImageLimitHint();
+  updateTotalGauge(0);
 }
 
 function insertFileLinkToEditor(editorId, fileName, fileUrl) {
@@ -973,18 +1334,116 @@ function ensureGalleryYearOptions(selectedYear) {
 function showWriteTab(tabId) {
   const trigger = document.querySelector(`[data-bs-target="#${tabId}"]`);
   if (trigger) {
-    const tab = new bootstrap.Tab(trigger);
-    tab.show();
+    if (window.bootstrap?.Tab) {
+      const tab = new bootstrap.Tab(trigger);
+      tab.show();
+    } else {
+      const pane = document.querySelector(`#${tabId}`);
+      const navLinks = document.querySelectorAll('#write .nav-link[data-bs-toggle="tab"]');
+      const panes = document.querySelectorAll('#write .tab-pane');
+      navLinks.forEach((link) => link.classList.remove('active'));
+      panes.forEach((el) => {
+        el.classList.remove('show', 'active');
+        el.classList.add('fade');
+      });
+      trigger.classList.add('active');
+      if (pane) {
+        pane.classList.add('show', 'active');
+        pane.classList.remove('fade');
+      }
+    }
   }
 }
 
+function getAllowedNewsPostTabs(user) {
+  const activeMember = !!(user && user.status === 'active');
+  if (!activeMember) return [];
+  if (isAdminUser(user)) return ['notice', 'faq', 'qna'];
+  if (isStaffUser(user)) return ['notice', 'qna'];
+  return ['qna'];
+}
+
+function applyWriteRoleVisibility() {
+  const user = getCurrentUser();
+  const allowedNewsTabs = getAllowedNewsPostTabs(user);
+  const canUseGalleryManage = !!(user && user.status === 'active' && isStaffUser(user));
+  const canUseStatsManage = !!(user && user.status === 'active' && isStaffUser(user));
+
+  const newsTabBtn = document.getElementById('news-tab');
+  const galleryTabBtn = document.getElementById('gallery-tab');
+  const statsTabBtn = document.getElementById('stats-tab');
+  const galleryPane = document.getElementById('gallery-admin');
+  const statsPane = document.getElementById('stats-admin');
+  const newsPane = document.getElementById('news-admin');
+  const newsForm = document.getElementById('add-news-form');
+  const postTabSelect = newsForm?.postTab || null;
+
+  if (newsTabBtn) {
+    const canUseNews = allowedNewsTabs.length > 0;
+    newsTabBtn.classList.toggle('d-none', !canUseNews);
+    newsTabBtn.setAttribute('aria-hidden', canUseNews ? 'false' : 'true');
+  }
+  if (galleryTabBtn) {
+    galleryTabBtn.classList.toggle('d-none', !canUseGalleryManage);
+    galleryTabBtn.setAttribute('aria-hidden', canUseGalleryManage ? 'false' : 'true');
+  }
+  if (statsTabBtn) {
+    statsTabBtn.classList.toggle('d-none', !canUseStatsManage);
+    statsTabBtn.setAttribute('aria-hidden', canUseStatsManage ? 'false' : 'true');
+  }
+  if (galleryPane) galleryPane.classList.toggle('d-none', !canUseGalleryManage);
+  if (statsPane) statsPane.classList.toggle('d-none', !canUseStatsManage);
+  if (newsPane) newsPane.classList.toggle('d-none', allowedNewsTabs.length === 0);
+
+  if (postTabSelect) {
+    Array.from(postTabSelect.options || []).forEach((opt) => {
+      const value = String(opt.value || '').toLowerCase();
+      const allowed = allowedNewsTabs.includes(value);
+      opt.hidden = !allowed;
+      opt.disabled = !allowed;
+    });
+    const current = String(postTabSelect.value || '').toLowerCase();
+    if (!allowedNewsTabs.includes(current)) {
+      postTabSelect.value = allowedNewsTabs[0] || '';
+    }
+    if (typeof updateVolunteerDateFieldVisibility === 'function') {
+      updateVolunteerDateFieldVisibility(newsForm);
+    }
+  }
+
+  const activeTabBtn = document.querySelector('#write .nav-tabs .nav-link.active');
+  const activeTarget = String(activeTabBtn?.getAttribute('data-bs-target') || '').replace('#', '');
+  if (
+    activeTarget === 'gallery-admin' && !canUseGalleryManage
+    || activeTarget === 'stats-admin' && !canUseStatsManage
+    || activeTarget === 'news-admin' && allowedNewsTabs.length === 0
+  ) {
+    const fallback = allowedNewsTabs.length > 0 ? 'news-admin' : (canUseGalleryManage ? 'gallery-admin' : (canUseStatsManage ? 'stats-admin' : 'news-admin'));
+    showWriteTab(fallback);
+  }
+}
+
+function resolveWriteTabByRole(requestedTabId = 'news-admin') {
+  const user = getCurrentUser();
+  const allowedNewsTabs = getAllowedNewsPostTabs(user);
+  const canUseGalleryManage = !!(user && user.status === 'active' && isStaffUser(user));
+  const canUseStatsManage = !!(user && user.status === 'active' && isStaffUser(user));
+  const requested = String(requestedTabId || 'news-admin');
+  if (requested === 'gallery-admin' && !canUseGalleryManage) return allowedNewsTabs.length > 0 ? 'news-admin' : (canUseStatsManage ? 'stats-admin' : 'news-admin');
+  if (requested === 'stats-admin' && !canUseStatsManage) return allowedNewsTabs.length > 0 ? 'news-admin' : (canUseGalleryManage ? 'gallery-admin' : 'news-admin');
+  if (requested === 'news-admin' && allowedNewsTabs.length === 0) return canUseGalleryManage ? 'gallery-admin' : (canUseStatsManage ? 'stats-admin' : 'news-admin');
+  return requested;
+}
+
 function openWritePanel(tabId = 'news-admin') {
+  applyWriteRoleVisibility();
+  const safeTabId = resolveWriteTabByRole(tabId);
   document.querySelectorAll('[class*="panel"]').forEach(p => p.classList.remove('panel-active'));
   const writePanel = document.getElementById('write');
   if (writePanel) writePanel.classList.add('panel-active');
   const statsSection = document.getElementById('home-stats');
   if (statsSection) statsSection.style.display = 'none';
-  showWriteTab(tabId);
+  showWriteTab(safeTabId);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1032,6 +1491,7 @@ function resetWriteForms() {
 window.ensureGalleryEditorGrid = ensureGalleryEditorGrid;
 window.getRepresentativeEditorImageSource = getRepresentativeEditorImageSource;
 window.GALLERY_IMAGE_MAX_BYTES = GALLERY_IMAGE_MAX_BYTES;
+window.applyWriteRoleVisibility = applyWriteRoleVisibility;
 
 function updateVolunteerDateFieldVisibility(form) {
   if (!form || !form.postTab) return;

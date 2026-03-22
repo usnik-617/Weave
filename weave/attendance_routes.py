@@ -12,6 +12,8 @@ from weave.core import (
     request,
 )
 from weave.responses import error_response, success_response
+from weave.media_queue import get_queue_metrics
+from weave.storage_backend import snapshot_storage_stats
 from weave.time_utils import now_iso, parse_iso_datetime
 
 
@@ -343,6 +345,8 @@ def admin_dashboard():
         """
     ).fetchall()
     conn.close()
+    queue_metrics = get_queue_metrics()
+    storage_metrics = snapshot_storage_stats()
 
     return jsonify(
         {
@@ -365,6 +369,8 @@ def admin_dashboard():
                     }
                     for row in monitor_rows
                 ],
+                "mediaQueue": queue_metrics,
+                "storage": storage_metrics,
             },
         }
     )

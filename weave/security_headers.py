@@ -1,6 +1,8 @@
 import json
 import time
 
+from flask import current_app
+
 from weave.core import (
     APP_METRICS,
     g,
@@ -10,6 +12,27 @@ from weave.core import (
     session,
     touch_user_activity,
 )
+
+
+def _build_csp(level):
+    csp_level = str(level or "compat").strip().lower()
+    if csp_level == "strict":
+        return (
+            "default-src 'self'; "
+            "img-src 'self' data: https://images.unsplash.com; "
+            "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "font-src 'self' data: https://cdnjs.cloudflare.com; "
+            "object-src 'none'"
+        )
+    return (
+        "default-src 'self'; "
+        "img-src 'self' data: https://images.unsplash.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "font-src 'self' data: https://cdnjs.cloudflare.com; "
+        "object-src 'none'"
+    )
 
 
 def set_security_headers(response):
@@ -24,10 +47,12 @@ def set_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault(
-        "Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data: https://images.unsplash.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; object-src 'none'",
-    )
+    csp_value = _build_csp(current_app.config.get("WEAVE_CSP_LEVEL", "compat"))
+    if current_app.config.get("WEAVE_CSP_REPORT_ONLY", True):
+        response.headers.setdefault("Content-Security-Policy", _build_csp("compat"))
+        response.headers.setdefault("Content-Security-Policy-Report-Only", csp_value)
+    else:
+        response.headers.setdefault("Content-Security-Policy", csp_value)
     response.headers.setdefault(
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )

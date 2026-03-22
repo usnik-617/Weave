@@ -1099,9 +1099,9 @@
             <div class="card-body text-start">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <h5 class="fw-bold mb-0">명예의 전당</h5>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 join-honor-search-wrap">
                   <input type="text" class="form-control form-control-sm" id="join-honor-search" placeholder="이름 검색">
-                  <button type="button" class="btn btn-sm btn-primary" id="join-honor-search-btn">검색</button>
+                  <button type="button" class="btn btn-sm btn-primary text-nowrap" id="join-honor-search-btn">검색</button>
                 </div>
               </div>
               <div id="join-honor-admin-tools" class="d-none mb-3">
@@ -1461,12 +1461,50 @@
                   <div class="mb-3">
                     <label class="form-label">이미지 파일 (본문 삽입)</label>
                     <input type="file" class="form-control" name="imageFile" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,image/*" multiple>
-                    <small class="text-muted d-block mt-1">지원 확장자: .jpg .jpeg .png .webp .gif .heic .heif (HEIC/HEIF는 브라우저 변환 지원 시 업로드)</small>
+                    <small class="text-muted d-block mt-1">지원 확장자: .jpg .jpeg .png .webp .gif .heic .heif (HEIC/HEIF 자동 변환 실패 시 JPG로 변환 후 재시도)</small>
+                    <small class="text-muted d-block mt-1">공지/갤러리 공통 정책: 파일당 최대 25MB · 글당 최대 30장 · 총 300MB</small>
+                    <div class="row g-2 align-items-center mt-1">
+                      <div class="col-md-5">
+                        <label class="form-label mb-1 small text-muted" for="news-compression-level">업로드 전 압축 수준</label>
+                        <select id="news-compression-level" class="form-control form-control-sm">
+                          <option value="original">원본</option>
+                          <option value="high">고화질</option>
+                          <option value="standard" selected>표준</option>
+                          <option value="compact">고압축</option>
+                        </select>
+                      </div>
+                    </div>
                     <div class="form-check mt-2">
                       <input class="form-check-input" type="checkbox" id="news-strip-exif" checked>
                       <label class="form-check-label small" for="news-strip-exif">EXIF 제거(위치/기기정보 보호)</label>
                     </div>
-                    <div class="image-dropzone mt-2 d-none" id="news-image-dropzone"></div>
+                    <div class="image-dropzone mt-2" id="news-image-dropzone">여러 이미지를 드래그&드롭해 본문에 한번에 넣을 수 있습니다</div>
+                    <div class="upload-progress-wrap mt-2 d-none" id="news-upload-progress-wrap">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted" id="news-upload-progress-text">업로드 준비중...</small>
+                        <small class="text-muted"><span id="news-upload-progress-percent">0</span>%</small>
+                      </div>
+                      <div class="progress" role="progressbar" aria-label="소식 업로드 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div id="news-upload-progress-bar" class="progress-bar" style="width: 0%"></div>
+                      </div>
+                    </div>
+                    <div class="upload-total-gauge mt-2">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">전체 용량</small>
+                        <small class="text-muted" id="news-upload-total-text">0 B / 300 MB</small>
+                      </div>
+                      <div class="progress" role="progressbar" aria-label="소식 전체 용량" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div id="news-upload-total-bar" class="progress-bar" style="width: 0%"></div>
+                      </div>
+                    </div>
+                    <div class="upload-queue-panel mt-2">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted" id="news-upload-queue-summary">대기 0 / 성공 0 / 실패 0</small>
+                        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="news-upload-retry-btn">실패 재시도</button>
+                      </div>
+                      <ul class="upload-queue-list mt-1" id="news-upload-queue-list"></ul>
+                    </div>
+                    <div class="small text-muted mt-1" id="news-image-limit-hint">본문 이미지 0/30장 · 파일당 최대 25MB · 글당 최대 300MB</div>
                     <img id="news-image-preview" class="img-fluid rounded mt-2 d-none admin-preview-image" alt="소식 이미지 미리보기" width="480" height="270" loading="lazy" decoding="async">
                   </div>
                   <div class="mb-3 d-none" id="news-attachments-wrap">
@@ -1529,7 +1567,21 @@
                   <div class="mb-3">
                     <label class="form-label">이미지 파일 (본문 삽입)</label>
                     <input type="file" class="form-control" name="imageFile" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,image/*" multiple>
-                    <small class="text-muted d-block mt-1">지원 확장자: .jpg .jpeg .png .webp .gif .heic .heif (HEIC/HEIF는 브라우저 변환 지원 시 업로드)</small>
+                    <small class="text-muted d-block mt-1">지원 확장자: .jpg .jpeg .png .webp .gif .heic .heif (HEIC/HEIF 자동 변환 실패 시 JPG로 변환 후 재시도)</small>
+                    <div class="row g-2 align-items-center mt-1">
+                      <div class="col-md-5">
+                        <label class="form-label mb-1 small text-muted" for="gallery-compression-level">업로드 전 압축 수준</label>
+                        <select id="gallery-compression-level" class="form-control form-control-sm">
+                          <option value="original">원본</option>
+                          <option value="high">고화질</option>
+                          <option value="standard" selected>표준</option>
+                          <option value="compact">고압축</option>
+                        </select>
+                      </div>
+                      <div class="col-md-7">
+                        <div class="small text-muted mt-3 mt-md-4">파일당 최대 25MB · 글당 최대 30장 · 총 300MB</div>
+                      </div>
+                    </div>
                     <div class="form-check mt-2">
                       <input class="form-check-input" type="checkbox" id="gallery-strip-exif" checked>
                       <label class="form-check-label small" for="gallery-strip-exif">EXIF 제거(위치/기기정보 보호)</label>
@@ -1543,6 +1595,22 @@
                       <div class="progress" role="progressbar" aria-label="갤러리 업로드 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                         <div id="gallery-upload-progress-bar" class="progress-bar" style="width: 0%"></div>
                       </div>
+                    </div>
+                    <div class="upload-total-gauge mt-2">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">전체 용량</small>
+                        <small class="text-muted" id="gallery-upload-total-text">0 B / 300 MB</small>
+                      </div>
+                      <div class="progress" role="progressbar" aria-label="갤러리 전체 용량" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div id="gallery-upload-total-bar" class="progress-bar" style="width: 0%"></div>
+                      </div>
+                    </div>
+                    <div class="upload-queue-panel mt-2">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted" id="gallery-upload-queue-summary">대기 0 / 성공 0 / 실패 0</small>
+                        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="gallery-upload-retry-btn">실패 재시도</button>
+                      </div>
+                      <ul class="upload-queue-list mt-1" id="gallery-upload-queue-list"></ul>
                     </div>
                     <div class="small text-muted mt-1" id="gallery-image-limit-hint">본문 이미지 0/30장</div>
                     <img id="gallery-image-preview" class="img-fluid rounded mt-2 d-none admin-preview-image" alt="갤러리 이미지 미리보기" width="480" height="270" loading="lazy" decoding="async">

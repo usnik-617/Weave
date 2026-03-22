@@ -7,6 +7,7 @@ from weave import spa
 from weave.blueprints import ALL_BLUEPRINTS
 from weave.config import load_config
 from weave.db import init_db
+from weave.media_queue import ensure_background_workers_started
 from weave.security import register_hooks
 
 
@@ -37,4 +38,5 @@ def create_app():
     )
 
     init_db()
+    ensure_background_workers_started()
     return app

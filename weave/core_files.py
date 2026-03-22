@@ -8,6 +8,7 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 
 from weave import core
+from weave import storage_backend
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ALLOWED_IMAGE_MIME_TYPES = {
@@ -46,10 +47,16 @@ def save_uploaded_file(file_storage):
 
     stored_name = f"{core.uuid.uuid4().hex}{extension}"
     now = datetime.now()
-    subdir = os.path.join(core.UPLOAD_DIR, f"{now.year:04d}", f"{now.month:02d}")
-    os.makedirs(subdir, exist_ok=True)
-    stored_path = os.path.join(subdir, stored_name)
-    file_storage.save(stored_path)
+    if storage_backend.is_object_storage_enabled():
+        object_key = f"{now.year:04d}/{now.month:02d}/{stored_name}"
+        storage_backend.save_filestorage(file_storage, object_key)
+        storage_backend.bump_storage_stat("object_put_count", 1)
+        stored_path = storage_backend.object_ref_from_key(object_key)
+    else:
+        subdir = os.path.join(core.UPLOAD_DIR, f"{now.year:04d}", f"{now.month:02d}")
+        os.makedirs(subdir, exist_ok=True)
+        stored_path = os.path.join(subdir, stored_name)
+        file_storage.save(stored_path)
     return {
         "original_name": original_name,
         "stored_name": stored_name,
@@ -76,6 +83,10 @@ def remove_file_safely(path):
     if not path:
         return
     try:
+        if str(path).startswith("obj://"):
+            storage_backend.delete_object(str(path))
+            storage_backend.bump_storage_stat("object_delete_count", 1)
+            return
         target = os.path.abspath(path)
         root = os.path.abspath(core.UPLOAD_DIR)
         if not target.startswith(root):
@@ -113,6 +124,11 @@ def upload_url_to_path(upload_url):
     rel = os.path.normpath(rel).replace("\\", "/")
     if rel.startswith(".."):
         return None
+    if rel.startswith("object/"):
+        key = rel[len("object/") :].lstrip("/")
+        if not key:
+            return None
+        return storage_backend.object_ref_from_key(key)
     return os.path.abspath(os.path.join(core.UPLOAD_DIR, rel))
 
 

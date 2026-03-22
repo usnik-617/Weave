@@ -41,6 +41,46 @@
     let skeletonStartAt = 0;
     let lastScrollY = 0;
     let navScrollTicking = false;
+    const getBootstrapApi = () => (typeof window !== 'undefined' && window.bootstrap ? window.bootstrap : null);
+    const openLoginModal = () => {
+      const loginModalEl = document.getElementById('loginModal');
+      if (!(loginModalEl instanceof HTMLElement)) return;
+      const bs = getBootstrapApi();
+      if (bs?.Modal) {
+        const loginModal = bs.Modal.getInstance(loginModalEl) || new bs.Modal(loginModalEl);
+        loginModal.show();
+        return;
+      }
+      loginModalEl.classList.add('show');
+      loginModalEl.style.display = 'block';
+      loginModalEl.removeAttribute('aria-hidden');
+    };
+    const openMobileDrawer = () => {
+      const drawerEl = document.getElementById('mobileMenuDrawer');
+      if (!(drawerEl instanceof HTMLElement)) return;
+      const bs = getBootstrapApi();
+      if (bs?.Offcanvas) {
+        const drawer = bs.Offcanvas.getInstance(drawerEl) || new bs.Offcanvas(drawerEl);
+        drawer.show();
+        return;
+      }
+      drawerEl.classList.add('show');
+      drawerEl.style.visibility = 'visible';
+      drawerEl.style.transform = 'translateX(0)';
+    };
+    const hideMobileDrawer = () => {
+      const drawerEl = document.getElementById('mobileMenuDrawer');
+      if (!(drawerEl instanceof HTMLElement)) return;
+      const bs = getBootstrapApi();
+      if (bs?.Offcanvas) {
+        const drawer = bs.Offcanvas.getInstance(drawerEl);
+        if (drawer) drawer.hide();
+        return;
+      }
+      drawerEl.classList.remove('show');
+      drawerEl.style.visibility = 'hidden';
+      drawerEl.style.transform = '';
+    };
 
     const getExpandedState = () => {
       try {
@@ -315,17 +355,30 @@
       const aboutCollapseEl = document.getElementById('mobile-menu-about');
       const newsCollapseEl = document.getElementById('mobile-menu-news');
       const activitiesCollapseEl = document.getElementById('mobile-menu-activities');
+      const bs = getBootstrapApi();
       if (aboutCollapseEl) {
-        const collapse = bootstrap.Collapse.getOrCreateInstance(aboutCollapseEl, { toggle: false });
-        if (aboutExpanded) collapse.show(); else collapse.hide();
+        if (bs?.Collapse) {
+          const collapse = bs.Collapse.getOrCreateInstance(aboutCollapseEl, { toggle: false });
+          if (aboutExpanded) collapse.show(); else collapse.hide();
+        } else {
+          aboutCollapseEl.classList.toggle('show', aboutExpanded);
+        }
       }
       if (newsCollapseEl) {
-        const collapse = bootstrap.Collapse.getOrCreateInstance(newsCollapseEl, { toggle: false });
-        if (newsExpanded) collapse.show(); else collapse.hide();
+        if (bs?.Collapse) {
+          const collapse = bs.Collapse.getOrCreateInstance(newsCollapseEl, { toggle: false });
+          if (newsExpanded) collapse.show(); else collapse.hide();
+        } else {
+          newsCollapseEl.classList.toggle('show', newsExpanded);
+        }
       }
       if (activitiesCollapseEl) {
-        const collapse = bootstrap.Collapse.getOrCreateInstance(activitiesCollapseEl, { toggle: false });
-        if (activitiesExpanded) collapse.show(); else collapse.hide();
+        if (bs?.Collapse) {
+          const collapse = bs.Collapse.getOrCreateInstance(activitiesCollapseEl, { toggle: false });
+          if (activitiesExpanded) collapse.show(); else collapse.hide();
+        } else {
+          activitiesCollapseEl.classList.toggle('show', activitiesExpanded);
+        }
       }
     }
 
@@ -523,13 +576,10 @@
     const sessionCancelBtn = document.getElementById('session-expired-cancel-btn');
     if (sessionLoginBtn) {
       sessionLoginBtn.addEventListener('click', () => {
-        const sessionModal = bootstrap.Modal.getInstance(document.getElementById('sessionExpiredModal'));
+        const bs = getBootstrapApi();
+        const sessionModal = bs?.Modal ? bs.Modal.getInstance(document.getElementById('sessionExpiredModal')) : null;
         if (sessionModal) sessionModal.hide();
-        const loginModalEl = document.getElementById('loginModal');
-        if (loginModalEl) {
-          const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
-          loginModal.show();
-        }
+        openLoginModal();
       });
     }
     if (sessionCancelBtn) {
@@ -548,11 +598,7 @@
       tabBtn.addEventListener('click', async () => {
         const mobileAction = tabBtn.dataset.mobileAction;
         if (mobileAction === 'open-menu') {
-          const drawerEl = document.getElementById('mobileMenuDrawer');
-          if (drawerEl) {
-            const drawer = bootstrap.Offcanvas.getInstance(drawerEl) || new bootstrap.Offcanvas(drawerEl);
-            drawer.show();
-          }
+          openMobileDrawer();
           return;
         }
         const panelId = tabBtn.dataset.panel;
@@ -576,11 +622,7 @@
           return;
         }
         if (panelId === 'myinfo' && !getCurrentUser()) {
-          const loginModalEl = document.getElementById('loginModal');
-          if (loginModalEl) {
-            const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
-            loginModal.show();
-          }
+          openLoginModal();
           return;
         }
         movePanel(panelId);
@@ -605,6 +647,20 @@
     updateOffcanvasActive('home');
     syncMobileMenuQuickActions();
     syncHeaderCompactState();
+    if (offcanvasToggleBtn instanceof HTMLElement) {
+      offcanvasToggleBtn.addEventListener('click', (event) => {
+        if (getBootstrapApi()?.Offcanvas) return;
+        event.preventDefault();
+        openMobileDrawer();
+      });
+    }
+    document.querySelectorAll('[data-bs-dismiss="offcanvas"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        if (getBootstrapApi()?.Offcanvas) return;
+        event.preventDefault();
+        hideMobileDrawer();
+      });
+    });
 
     const initialState = readRouteState();
     if (initialState.newsTab && newsTabLabelMap[initialState.newsTab]) {
@@ -686,34 +742,33 @@
     if (mobileMenuLoginBtn) {
       mobileMenuLoginBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
         if (getCurrentUser()) {
           movePanel('myinfo');
           setActiveNavStates('myinfo');
           updateOffcanvasActive('myinfo');
-          if (drawer) drawer.hide();
+          hideMobileDrawer();
           return;
         }
-        const loginModalEl = document.getElementById('loginModal');
-        if (loginModalEl) {
-          if (drawer) drawer.hide();
-          const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
-          loginModal.show();
-        }
+        hideMobileDrawer();
+        openLoginModal();
       });
     }
     if (mobileMenuSignupBtn) {
       mobileMenuSignupBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (getCurrentUser()) return;
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
         const signupModalEl = document.getElementById('signupModal');
         if (signupModalEl) {
-          if (drawer) drawer.hide();
-          const signupModal = bootstrap.Modal.getInstance(signupModalEl) || new bootstrap.Modal(signupModalEl);
-          signupModal.show();
+          hideMobileDrawer();
+          const bs = getBootstrapApi();
+          if (bs?.Modal) {
+            const signupModal = bs.Modal.getInstance(signupModalEl) || new bs.Modal(signupModalEl);
+            signupModal.show();
+          } else {
+            signupModalEl.classList.add('show');
+            signupModalEl.style.display = 'block';
+            signupModalEl.removeAttribute('aria-hidden');
+          }
         }
       });
     }
@@ -820,9 +875,7 @@
         else if (tab === 'fees') showFees();
         else showHistory();
         activeAboutTab = aboutTabLabelMap[tab] ? tab : 'history';
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
-        if (drawer) drawer.hide();
+        hideMobileDrawer();
         updateOffcanvasActive('about');
         syncRouteState('about', { aboutTab: activeAboutTab });
       });
@@ -837,9 +890,7 @@
         galleryCurrentFilter = item.dataset.galleryFilter;
         galleryCurrentPage = 1;
         renderGallery();
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
-        if (drawer) drawer.hide();
+        hideMobileDrawer();
         updateOffcanvasActive('gallery');
       });
     });
@@ -863,9 +914,7 @@
           if (noticeTabBtn instanceof HTMLElement) noticeTabBtn.click();
           activeNewsTab = 'notice';
         }
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
-        if (drawer) drawer.hide();
+        hideMobileDrawer();
         updateOffcanvasActive('news');
         syncRouteState('news', { newsTab: activeNewsTab });
       });
@@ -902,9 +951,7 @@
           activeActivitiesTab = 'overview';
           openActivitiesOverviewTab();
         }
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
-        if (drawer) drawer.hide();
+        hideMobileDrawer();
         updateOffcanvasActive('activities');
         syncRouteState('activities');
       });
@@ -912,9 +959,7 @@
 
     document.querySelectorAll('#mobileMenuDrawer [data-panel], #mobileMenuDrawer [data-about-tab], #mobileMenuDrawer [data-news-tab], #mobileMenuDrawer [data-activities-tab]').forEach((item) => {
       item.addEventListener('click', () => {
-        const drawerEl = document.getElementById('mobileMenuDrawer');
-        const drawer = drawerEl ? bootstrap.Offcanvas.getInstance(drawerEl) : null;
-        if (drawer) drawer.hide();
+        hideMobileDrawer();
       });
     });
 
