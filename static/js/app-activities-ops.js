@@ -870,6 +870,183 @@ async function openCalendarActivityFromGallery(activityId, fallbackDate = '') {
   openCalendarActivityDetailModal(resolved, user, historyMap[String(resolved.id)] || '');
 }
 
+function getOpsRoleActionOptions(targetUser, actorUser) {
+  const targetRole = String(targetUser?.role || '').toUpperCase();
+  const actorRole = String(actorUser?.role || '').toUpperCase();
+  const actorIsAdmin = !!(actorUser && typeof isAdminUser === 'function' && isAdminUser(actorUser));
+  if (!actorIsAdmin && !['EXECUTIVE', 'LEADER', 'VICE_LEADER', 'ADMIN'].includes(actorRole)) {
+    return [];
+  }
+  if (!actorIsAdmin && !['GENERAL', 'MEMBER'].includes(targetRole)) {
+    return [];
+  }
+  if (targetRole === 'GENERAL') {
+    return [
+      { role: 'MEMBER', label: '단원 승급', style: 'outline-success' },
+      { role: 'EXECUTIVE', label: '임원 승급', style: 'outline-primary' }
+    ];
+  }
+  if (targetRole === 'MEMBER') {
+    return [
+      { role: 'GENERAL', label: '일반 강등', style: 'outline-secondary' },
+      { role: 'EXECUTIVE', label: '임원 승급', style: 'outline-primary' }
+    ];
+  }
+  if (actorIsAdmin && ['EXECUTIVE', 'VICE_LEADER', 'LEADER'].includes(targetRole)) {
+    return [
+      { role: 'GENERAL', label: '일반 강등', style: 'outline-secondary' },
+      { role: 'MEMBER', label: '단원 강등', style: 'outline-warning' }
+    ];
+  }
+  return [];
+}
+
+function ensureOpsRoleConfirmModal() {
+  const modalId = 'ops-role-change-confirm-modal';
+  let modalEl = document.getElementById(modalId);
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = modalId;
+    modalEl.className = 'modal fade';
+    modalEl.tabIndex = -1;
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">회원 등급 변경 확인</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0" id="ops-role-change-confirm-text"></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">아니오</button>
+            <button type="button" class="btn btn-primary" id="ops-role-change-confirm-btn">예</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalEl);
+  }
+  return modalEl;
+}
+
+function openOpsRoleChangeConfirm(actionLabel) {
+  return new Promise((resolve) => {
+    const modalEl = ensureOpsRoleConfirmModal();
+    const textEl = document.getElementById('ops-role-change-confirm-text');
+    const confirmBtn = document.getElementById('ops-role-change-confirm-btn');
+    if (textEl) textEl.textContent = `${String(actionLabel || '등급 변경')}을 진행하시겠습니까?`;
+    if (!window.bootstrap?.Modal || !confirmBtn) {
+      resolve(window.confirm(`${String(actionLabel || '등급 변경')}을 진행하시겠습니까?`));
+      return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const cleanup = () => {
+      confirmBtn.onclick = null;
+      modalEl.removeEventListener('hidden.bs.modal', handleHidden);
+    };
+    const handleHidden = () => {
+      cleanup();
+      resolve(false);
+    };
+    modalEl.addEventListener('hidden.bs.modal', handleHidden, { once: true });
+    confirmBtn.onclick = () => {
+      cleanup();
+      resolve(true);
+      modal.hide();
+    };
+    modal.show();
+  });
+}
+
+function renderOpsRoleSearchResults(items = []) {
+  const resultsEl = document.getElementById('ops-role-search-results');
+  const helpEl = document.getElementById('ops-role-search-help');
+  if (!resultsEl || !helpEl) return;
+  const rows = Array.isArray(items) ? items : [];
+  const actorUser = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (!rows.length) {
+    resultsEl.innerHTML = '';
+    helpEl.textContent = '일치하는 회원 정보가 없습니다.';
+    return;
+  }
+  helpEl.textContent = `검색 결과 ${rows.length}건`;
+  resultsEl.innerHTML = rows.map((user) => {
+    const roleInfo = typeof roleMeta === 'function' ? roleMeta(user.role) : { label: user.role || '일반', icon: '' };
+    const actions = getOpsRoleActionOptions(user, actorUser);
+    return `
+      <div class="border rounded p-3 bg-white">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+          <div>
+            <div class="fw-semibold">${escapeHtml(user.name || '-')} <span class="text-muted">(${escapeHtml(user.username || '-')})</span></div>
+            <div class="small text-muted mt-1">연락처 ${escapeHtml(user.phone || '-')} · 현재 등급 ${escapeHtml(roleInfo.label || user.role || '일반')} · 상태 ${escapeHtml(user.status || '-')}</div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap justify-content-end">
+            ${actions.length ? actions.map((action) => `
+              <button
+                type="button"
+                class="btn btn-sm btn-${escapeHtml(action.style || 'outline-primary')}"
+                data-ops-role-user-id="${toSafeActivityId(user.id)}"
+                data-ops-role-next="${escapeHtml(action.role)}"
+                data-ops-role-label="${escapeHtml(action.label)}"
+              >${escapeHtml(action.label)}</button>
+            `).join('') : '<span class="small text-muted">현재 권한으로 변경 가능한 등급이 없습니다.</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  resultsEl.querySelectorAll('[data-ops-role-user-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const userId = toSafeActivityId(btn.getAttribute('data-ops-role-user-id'));
+      const nextRole = String(btn.getAttribute('data-ops-role-next') || '').trim();
+      const actionLabel = String(btn.getAttribute('data-ops-role-label') || '등급 변경').trim();
+      if (!userId || !nextRole) return;
+      const confirmed = await openOpsRoleChangeConfirm(actionLabel);
+      if (!confirmed) return;
+      try {
+        await apiRequest(`/admin/users/${userId}/role`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role: nextRole })
+        });
+        notifyMessage('회원 등급이 변경되었습니다.', { level: 'success' });
+        await searchOpsUsersByIdentity();
+      } catch (error) {
+        notifyMessage(error.message || '회원 등급 변경에 실패했습니다.');
+      }
+    });
+  });
+}
+
+async function searchOpsUsersByIdentity() {
+  const cardEl = document.getElementById('ops-role-identity-card');
+  const nameInput = document.getElementById('ops-role-search-name');
+  const phoneInput = document.getElementById('ops-role-search-phone');
+  const helpEl = document.getElementById('ops-role-search-help');
+  const resultsEl = document.getElementById('ops-role-search-results');
+  if (!(cardEl instanceof HTMLElement) || cardEl.classList.contains('d-none')) return;
+  const name = String(nameInput?.value || '').trim();
+  const phone = String(phoneInput?.value || '').trim();
+  if (name.length < 2) {
+    notifyMessage('이름(실명)을 2자 이상 입력해주세요.');
+    return;
+  }
+  if (normalizeContact(phone).length < 10) {
+    notifyMessage('전화번호를 정확히 입력해주세요.');
+    return;
+  }
+  if (helpEl) helpEl.textContent = '회원 정보를 조회하는 중입니다...';
+  try {
+    const result = await apiRequest(`/admin/users/search?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`, { method: 'GET' });
+    renderOpsRoleSearchResults(Array.isArray(result?.items) ? result.items : []);
+  } catch (error) {
+    if (helpEl) helpEl.textContent = error.message || '회원 정보를 조회하지 못했습니다.';
+    if (resultsEl) resultsEl.innerHTML = '';
+  }
+}
+
 async function loadOpsDashboard(page = opsPendingPage) {
   opsPendingPage = Math.max(1, Number(page) || 1);
   try {
@@ -942,8 +1119,11 @@ async function loadOpsDashboard(page = opsPendingPage) {
     const sortBy = String(pagination.sortBy || opsPendingSortBy || 'id');
     const sortDir = String(pagination.sortDir || opsPendingSortDir || 'desc');
     const pager = document.getElementById('ops-pending-pagination');
+    const roleCardEl = document.getElementById('ops-role-identity-card');
+    const currentUser = getCurrentUser();
 
     if (count) count.innerText = `${total}건`;
+    if (roleCardEl) roleCardEl.classList.toggle('d-none', !isStaffUser(currentUser));
     opsPendingSortBy = sortBy;
     opsPendingSortDir = sortDir;
     opsPendingPage = pageNo;

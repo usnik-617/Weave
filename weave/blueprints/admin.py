@@ -18,6 +18,16 @@ bp.add_url_rule(
     methods=["POST"],
 )
 bp.add_url_rule(
+    "/api/admin/users/search",
+    view_func=ar.admin_search_users_by_identity,
+    methods=["GET"],
+)
+bp.add_url_rule(
+    "/api/admin/users/<int:user_id>/role",
+    view_func=ar.admin_update_user_role,
+    methods=["PATCH"],
+)
+bp.add_url_rule(
     "/api/admin/users/<int:user_id>/reject",
     view_func=ar.admin_reject_user,
     methods=["POST"],

@@ -41,6 +41,9 @@ function initOpsDashboardBindingsFromGlobals() {
   const opsTelemetryResetBtn = document.getElementById('ops-client-telemetry-reset-btn');
   const opsPendingSearchInput = document.getElementById('ops-pending-search');
   const opsPendingSearchBtn = document.getElementById('ops-pending-search-btn');
+  const opsRoleSearchName = document.getElementById('ops-role-search-name');
+  const opsRoleSearchPhone = document.getElementById('ops-role-search-phone');
+  const opsRoleSearchBtn = document.getElementById('ops-role-search-btn');
   const opsBtn = document.getElementById('ops-dashboard-btn');
 
   if (opsRefreshBtn) {
@@ -108,6 +111,9 @@ function initWriteEntryBindingsFromGlobals() {
   const galleryWriteBtn = document.getElementById('gallery-write-btn');
   const writeBackBtn = document.getElementById('write-back-btn');
   const galleryBackBtn = document.getElementById('gallery-back-btn');
+  const opsRoleSearchName = document.getElementById('ops-role-search-name');
+  const opsRoleSearchPhone = document.getElementById('ops-role-search-phone');
+  const opsRoleSearchBtn = document.getElementById('ops-role-search-btn');
 
   if (newsWriteBtn) {
     newsWriteBtn.addEventListener('click', () => {
@@ -173,6 +179,21 @@ function initWriteEntryBindingsFromGlobals() {
       form.editId.value = '';
       ensureGalleryYearOptions();
       openWritePanel('gallery-admin');
+    });
+  }
+
+  if (opsRoleSearchBtn && opsRoleSearchName && opsRoleSearchPhone) {
+    const runRoleSearch = async () => {
+      if (typeof searchOpsUsersByIdentity === 'function') {
+        await searchOpsUsersByIdentity();
+      }
+    };
+    opsRoleSearchBtn.addEventListener('click', runRoleSearch);
+    [opsRoleSearchName, opsRoleSearchPhone].forEach((inputEl) => {
+      inputEl.addEventListener('keydown', async (event) => {
+        if (event.key !== 'Enter') return;
+        await runRoleSearch();
+      });
     });
   }
 

@@ -80,7 +80,7 @@ def client(app):
 
 @pytest.fixture()
 def create_user(app):
-    def _create_user(role="GENERAL", status="active"):
+    def _create_user(role="GENERAL", status="active", name=None, phone=None, username=None):
         from weave.core import get_db_connection
         from weave.time_utils import now_iso
 
@@ -89,8 +89,8 @@ def create_user(app):
         seed = cur.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM users").fetchone()[
             "n"
         ]
-        username = f"u{seed}_{str(role).lower()}"
-        email = f"{username}@example.com"
+        username_value = username or f"u{seed}_{str(role).lower()}"
+        email = f"{username_value}@example.com"
         now = now_iso()
         cur.execute(
             """
@@ -101,17 +101,17 @@ def create_user(app):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                f"User {seed}",
-                username,
+                name or f"User {seed}",
+                username_value,
                 email,
-                "010-0000-0000",
+                phone or "010-0000-0000",
                 "1990-01-01",
                 "test-hash",
                 now,
                 str(role).upper(),
                 1 if str(role).upper() == "ADMIN" else 0,
                 status,
-                username,
+                username_value,
                 now,
             ),
         )

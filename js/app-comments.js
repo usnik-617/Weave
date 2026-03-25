@@ -131,11 +131,31 @@ function makeSkeletonCards(count = 6) {
   `).join('');
 }
 
+function canCommentForItemKey(itemKey, user) {
+  if (!user || user.status !== 'active') return false;
+  const [postType, rawId] = String(itemKey || '').split('-');
+  const postId = Number(rawId || 0);
+  if (!postId) return false;
+  if (postType === 'gallery') {
+    return ['MEMBER', 'EXECUTIVE', 'VICE_LEADER', 'LEADER', 'ADMIN'].includes(String(user.role || '').toUpperCase());
+  }
+  if (postType === 'news') {
+    const data = getContent();
+    const item = (data.news || []).find((entry) => Number(entry?.id || 0) === postId);
+    if (!item) return false;
+    const category = String(item.category || item.postTab || 'notice').toLowerCase();
+    if (category === 'qna') return true;
+    return ['MEMBER', 'EXECUTIVE', 'VICE_LEADER', 'LEADER', 'ADMIN'].includes(String(user.role || '').toUpperCase());
+  }
+  return false;
+}
+
 function renderPostComments(containerId, itemKey) {
   const wrap = document.getElementById(containerId);
   if (!wrap) return;
   const user = getCurrentUser();
   const isAdmin = !!(user && (user.isAdmin || ADMIN_EMAILS.includes(user.email)));
+  const canWriteComment = canCommentForItemKey(itemKey, user);
   const commentData = getComments(itemKey);
   const comments = Array.isArray(commentData.comments) ? commentData.comments : [];
   const roots = comments.filter(c => !c.parentId);
@@ -158,7 +178,7 @@ function renderPostComments(containerId, itemKey) {
           <span>${new Date(comment.time).toLocaleString('ko-KR')}</span>
           <div class="d-flex gap-1">
             ${user ? `<button class="btn btn-sm ${didRecommend ? 'btn-primary' : 'btn-outline-primary'}" onclick="togglePostCommentRecommendation('${itemKey}', ${comment.id}, '${containerId}')">추천 ${recommendCount}</button>` : `<span class="small text-muted">추천 ${recommendCount}</span>`}
-            ${user ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">답글</button>` : ''}
+            ${canWriteComment ? `<button class="btn btn-sm btn-outline-secondary" onclick="startReplyComment('${itemKey}', ${comment.id}, '${containerId}')">답글</button>` : ''}
             ${canEdit ? `<button class="btn btn-sm btn-outline-primary" onclick="startEditComment('${itemKey}', ${comment.id}, '${containerId}')">수정</button>` : ''}
             ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePostComment('${itemKey}', ${comment.id}, '${containerId}')">삭제</button>` : ''}
           </div>
@@ -191,7 +211,7 @@ function renderPostComments(containerId, itemKey) {
 
   wrap.innerHTML = `
     <h6 class="fw-bold mb-3">댓글 (${count})</h6>
-    <form class="comment-form mb-3" onsubmit="submitPostComment(event, '${itemKey}', '${containerId}')">
+    <form class="comment-form mb-3 ${canWriteComment ? '' : 'd-none'}" onsubmit="submitPostComment(event, '${itemKey}', '${containerId}')">
       <div class="input-group">
         <input type="text" class="form-control" name="comment" placeholder="댓글을 입력하세요" required autocapitalize="off" autocomplete="off" inputmode="text" spellcheck="false">
         <input type="hidden" name="parentId" value="">
@@ -200,6 +220,7 @@ function renderPostComments(containerId, itemKey) {
       </div>
       <div class="invalid-feedback d-block d-none" data-comment-error>댓글을 입력해 주세요.</div>
     </form>
+    ${canWriteComment ? '' : '<div class="small text-muted mb-3">공지/갤러리 댓글은 단원 이상만 작성할 수 있습니다.</div>'}
     <div class="comment-list">
       ${roots.map(c => renderComment(c)).join('') || '<div class="text-muted small">아직 댓글이 없습니다.</div>'}
     </div>
@@ -274,6 +295,10 @@ function submitPostComment(event, itemKey, containerId) {
     notifyMessage('댓글을 작성하려면 로그인이 필요합니다.');
     return;
   }
+  if (!canCommentForItemKey(itemKey, user)) {
+    notifyMessage('공지/갤러리 댓글은 단원 이상만 작성할 수 있습니다.');
+    return;
+  }
   const form = event.target;
   const text = form.comment.value.trim();
   const errorEl = form.querySelector('[data-comment-error]');
@@ -317,6 +342,11 @@ function submitPostComment(event, itemKey, containerId) {
 }
 
 function startReplyComment(itemKey, parentId, containerId) {
+  const user = getCurrentUser();
+  if (!canCommentForItemKey(itemKey, user)) {
+    notifyMessage('공지/갤러리 댓글은 단원 이상만 작성할 수 있습니다.');
+    return;
+  }
   commentReplyDraftState[itemKey] = {
     parentId: Number(parentId),
     text: ''
@@ -343,6 +373,10 @@ function submitInlineReply(event, itemKey, parentId, containerId) {
   const user = getCurrentUser();
   if (!user) {
     notifyMessage('댓글을 작성하려면 로그인이 필요합니다.');
+    return;
+  }
+  if (!canCommentForItemKey(itemKey, user)) {
+    notifyMessage('공지/갤러리 댓글은 단원 이상만 작성할 수 있습니다.');
     return;
   }
   const form = event.target;

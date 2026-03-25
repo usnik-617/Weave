@@ -145,6 +145,72 @@ def admin_approve_user(user_id):
     )
 
 
+def admin_update_user_role(user_id):
+    payload = request.get_json(silent=True) or {}
+    next_role = normalize_role(payload.get("role", "GENERAL"))
+    if next_role not in ("GENERAL", "MEMBER", "EXECUTIVE"):
+        return error_response("변경 가능한 등급은 일반/단원/임원만 지원합니다.", 400)
+
+    conn = get_db_connection()
+    me = get_current_user_row(conn)
+    if not me:
+        conn.close()
+        return error_response("Unauthorized", 401)
+    actor_role = normalize_role(me["role"])
+    if not role_at_least(actor_role, "EXECUTIVE"):
+        conn.close()
+        return error_response("운영진 이상만 회원 등급을 변경할 수 있습니다.", 403)
+
+    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not target:
+        conn.close()
+        return error_response("대상 회원을 찾을 수 없습니다.", 404)
+    if int(target["id"]) == int(me["id"]):
+        conn.close()
+        return error_response("현재 로그인한 관리자 계정의 등급은 여기서 변경할 수 없습니다.", 400)
+
+    current_role = normalize_role(target["role"])
+    if current_role == "ADMIN":
+        conn.close()
+        return error_response("관리자 계정은 이 화면에서 변경할 수 없습니다.", 400)
+    if actor_role != "ADMIN" and current_role not in ("GENERAL", "MEMBER"):
+        conn.close()
+        return error_response("운영진은 일반/단원 계정만 변경할 수 있습니다.", 403)
+    if current_role == next_role:
+        conn.close()
+        return error_response("이미 해당 등급으로 설정되어 있습니다.", 400)
+
+    now = now_iso()
+    conn.execute(
+        """
+        UPDATE users
+           SET role = ?,
+               is_admin = 0,
+               status = CASE WHEN COALESCE(status, '') IN ('', 'pending') THEN 'active' ELSE status END,
+               approved_at = COALESCE(approved_at, ?),
+               approved_by = COALESCE(approved_by, ?)
+         WHERE id = ?
+        """,
+        (next_role, now, me["id"], user_id),
+    )
+    log_audit(
+        me["id"],
+        "admin_change_role_by_identity",
+        "user",
+        user_id,
+        {"from_role": current_role, "to_role": next_role},
+    )
+    conn.commit()
+    updated = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return success_response(
+        {
+            "message": "회원 등급이 변경되었습니다.",
+            "user": user_row_to_dict(updated),
+        }
+    )
+
+
 def admin_reject_user(user_id):
     conn = get_db_connection()
     me = get_current_user_row(conn)
@@ -311,6 +377,48 @@ def get_audit_logs():
                 "pageSize": page_size,
                 "totalPages": max(1, (int(total or 0) + page_size - 1) // page_size),
             },
+        }
+    )
+
+
+def _normalize_phone_digits(value):
+    return "".join(ch for ch in str(value or "").strip() if ch.isdigit())
+
+
+def admin_search_users_by_identity():
+    me = get_current_user_row()
+    if not me:
+        return error_response("Unauthorized", 401)
+    if not role_at_least(me["role"], "EXECUTIVE"):
+        return error_response("운영진 이상만 회원 등급을 조회할 수 있습니다.", 403)
+
+    raw_name = str(request.args.get("name", "") or "").strip()
+    raw_phone = str(request.args.get("phone", "") or "").strip()
+    phone_digits = _normalize_phone_digits(raw_phone)
+    if len(raw_name) < 2:
+        return error_response("이름(실명)을 2자 이상 입력해주세요.", 400)
+    if len(phone_digits) < 10:
+        return error_response("전화번호를 정확히 입력해주세요.", 400)
+
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+          FROM users
+         WHERE TRIM(COALESCE(name, '')) = ?
+           AND REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), '-', ''), ' ', ''), '.', '') = ?
+           AND COALESCE(status, '') != 'deleted'
+         ORDER BY id DESC
+         LIMIT 20
+        """,
+        (raw_name, phone_digits),
+    ).fetchall()
+    conn.close()
+    return success_response(
+        {
+            "items": [user_row_to_dict(row) for row in rows],
+            "total": len(rows),
+            "query": {"name": raw_name, "phone": raw_phone},
         }
     )
 
