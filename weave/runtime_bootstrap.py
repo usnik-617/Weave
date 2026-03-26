@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import shutil
 
 
@@ -15,6 +16,28 @@ def directory_has_files(path: str) -> bool:
         if files:
             return True
     return False
+
+
+def sqlite_db_looks_blank(path: str) -> bool:
+    if not path or not os.path.isfile(path):
+        return True
+    try:
+        conn = sqlite3.connect(path)
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "users" not in tables or "posts" not in tables:
+            conn.close()
+            return True
+        user_count = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0)
+        post_count = int(conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0] or 0)
+        conn.close()
+        return post_count == 0 and user_count <= 1
+    except Exception:
+        return False
 
 
 def bootstrap_runtime_snapshot(
@@ -36,7 +59,8 @@ def bootstrap_runtime_snapshot(
     snapshot_db = os.path.join(snapshot_dir, "weave.db")
     snapshot_uploads = os.path.join(snapshot_dir, "uploads")
 
-    if db_path and os.path.isfile(snapshot_db) and not os.path.exists(db_path):
+    db_missing_or_blank = not os.path.exists(db_path) or sqlite_db_looks_blank(db_path)
+    if db_path and os.path.isfile(snapshot_db) and db_missing_or_blank:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         shutil.copy2(snapshot_db, db_path)
         result["db_copied"] = True

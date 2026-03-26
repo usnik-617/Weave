@@ -87,6 +87,7 @@ They are **not** the active runtime DB path.
 ## Runtime Snapshot Bootstrap
 
 - If `weave.db` or `uploads/` are missing on a fresh PC, startup now restores them from `storage/runtime_snapshot/` automatically.
+- If an empty/blank sqlite runtime DB was already created on another PC, startup replaces that blank DB with the bundled snapshot automatically.
 - Refresh the bundled snapshot from the current runtime with:
   - `python scripts/refresh_runtime_snapshot.py`
 - This keeps a pull-only development PC aligned with the current local homepage state without manual DB/upload copying.

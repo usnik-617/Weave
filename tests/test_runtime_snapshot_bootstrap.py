@@ -75,3 +75,36 @@ def test_bootstrap_runtime_snapshot_does_not_override_existing_runtime_data():
         assert (upload_dir / "keep.txt").read_text(encoding="utf-8") == "live-upload"
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_bootstrap_runtime_snapshot_replaces_blank_runtime_db():
+    root = _make_local_test_root()
+    try:
+        snapshot_dir = root / "snapshot"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        (snapshot_dir / "weave.db").write_bytes(b"seed-db")
+
+        runtime_dir = root / "runtime"
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        db_path = runtime_dir / "weave.db"
+
+        import sqlite3
+
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)")
+        conn.execute("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)")
+        conn.execute("INSERT INTO users (username) VALUES ('admin')")
+        conn.commit()
+        conn.close()
+
+        result = bootstrap_runtime_snapshot(
+            str(db_path),
+            str(runtime_dir / "uploads"),
+            str(snapshot_dir),
+            "sqlite:///runtime.db",
+        )
+
+        assert result["db_copied"] is True
+        assert db_path.read_bytes() == b"seed-db"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
