@@ -84,6 +84,13 @@ They are **not** the active runtime DB path.
 - Use `npm run check:sync-static-root` to detect accidental drift between `static/` and root mirror files.
 - Use `npm run check:static-canonical` to ensure root mirror files were not edited ahead of `static/*`.
 
+## Runtime Snapshot Bootstrap
+
+- If `weave.db` or `uploads/` are missing on a fresh PC, startup now restores them from `storage/runtime_snapshot/` automatically.
+- Refresh the bundled snapshot from the current runtime with:
+  - `python scripts/refresh_runtime_snapshot.py`
+- This keeps a pull-only development PC aligned with the current local homepage state without manual DB/upload copying.
+
 ## Cache & Service Worker Policy
 
 - `sw.js` is served with `Cache-Control: no-cache, no-store, must-revalidate`.

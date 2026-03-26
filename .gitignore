@@ -16,6 +16,10 @@ backups/
 instance/
 storage/uploads/
 uploads/
+!storage/runtime_snapshot/
+!storage/runtime_snapshot/weave.db
+!storage/runtime_snapshot/uploads/
+!storage/runtime_snapshot/uploads/**
 
 # Node
 node_modules/

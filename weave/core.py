@@ -65,6 +65,9 @@ LEGACY_ROLE_MAP = {
 }
 KST = timezone(timedelta(hours=9))
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+RUNTIME_SNAPSHOT_DIR = os.environ.get(
+    "WEAVE_RUNTIME_SNAPSHOT_DIR", os.path.join(BASE_DIR, "storage", "runtime_snapshot")
+)
 
 LOGIN_RATE_LIMIT_COUNT = 10
 LOGIN_RATE_LIMIT_WINDOW = timedelta(minutes=5)
@@ -350,10 +353,12 @@ def ensure_attendance_migration(cur):
 
 def init_db():
     from weave import core_db_bootstrap
+    from weave.runtime_bootstrap import bootstrap_runtime_snapshot
 
     if str(DATABASE_URL).strip().lower().startswith("postgres"):
         logger.info("postgres_runtime_mode enabled: skip sqlite bootstrap on startup")
         return None
+    bootstrap_runtime_snapshot(DB_PATH, UPLOAD_DIR, RUNTIME_SNAPSHOT_DIR, DATABASE_URL)
     return core_db_bootstrap.init_db(DEFAULT_ADMIN_PASSWORD)
 
 
