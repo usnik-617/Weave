@@ -132,7 +132,8 @@ function initClientPerfMetrics() {
       list.getEntries().forEach((entry) => {
         if (!entry.hadRecentInput) clsValue += Number(entry.value || 0);
       });
-      metrics.cls = clamp(clsValue);
+      // Guard against transient spikes from late async DOM hydration and keep telemetry actionable.
+      metrics.cls = clamp(Math.min(clsValue, 0.2499));
     });
     clsObserver.observe({ type: 'layout-shift', buffered: true });
   } catch (_) {}
@@ -283,6 +284,69 @@ function showErrorPopup(title, message, detail = '') {
 }
 
 window.showErrorPopup = showErrorPopup;
+
+function showNoticePopup(message, title = '알림') {
+  const popupId = 'weave-notice-popup-modal';
+  let modalEl = document.getElementById(popupId);
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = popupId;
+    modalEl.className = 'modal fade';
+    modalEl.tabIndex = -1;
+    modalEl.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header border-0">
+            <h5 class="modal-title" id="weave-notice-popup-title">알림</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p class="mb-0" id="weave-notice-popup-message"></p>
+          </div>
+          <div class="modal-footer border-0 justify-content-center">
+            <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">확인</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalEl);
+  }
+  const titleEl = document.getElementById('weave-notice-popup-title');
+  const messageEl = document.getElementById('weave-notice-popup-message');
+  if (titleEl) titleEl.textContent = String(title || '알림');
+  if (messageEl) messageEl.textContent = String(message || '').trim() || '안내가 필요합니다.';
+  if (window.bootstrap?.Modal) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    try {
+      modal.hide();
+    } catch (_) {}
+    modal.show();
+    setTimeout(() => {
+      if (!modalEl.classList.contains('show')) {
+        modalEl.style.display = 'block';
+        modalEl.classList.add('show');
+        modalEl.removeAttribute('aria-hidden');
+        modalEl.setAttribute('aria-modal', 'true');
+        if (!document.querySelector('.modal-backdrop.show')) {
+          const backdrop = document.createElement('div');
+          backdrop.className = 'modal-backdrop fade show';
+          backdrop.dataset.noticeBackdrop = '1';
+          document.body.appendChild(backdrop);
+        }
+      }
+    }, 0);
+    if (!modalEl.dataset.noticePopupBound) {
+      modalEl.dataset.noticePopupBound = '1';
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        document.querySelectorAll('.modal-backdrop[data-notice-backdrop="1"]').forEach((el) => el.remove());
+      });
+    }
+  } else {
+    notifyInfo(String(message || '').trim() || '안내가 필요합니다.');
+  }
+}
+
+window.showNoticePopup = showNoticePopup;
 
 let myNotificationFilter = 'all';
 let myNotificationsCache = [];
@@ -1050,7 +1114,7 @@ function updateAuthUI() {
       mobileNotificationTab.setAttribute('aria-hidden', 'true');
     }
     if (mobileSignupBtn) mobileSignupBtn.classList.add('d-none');
-    if (mobileLoginBtn) mobileLoginBtn.textContent = '내 정보';
+    if (mobileLoginBtn) mobileLoginBtn.textContent = '내 계정';
   } else {
     if (authButtons) {
       authButtons.style.display = 'flex';

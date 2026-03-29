@@ -633,6 +633,36 @@ function initJoinHonorBindings() {
     if (reasonInput) reasonInput.value = '';
     if (nameInput?.dataset?.editId) delete nameInput.dataset.editId;
   };
+  const validateRequiredHonorFields = ({ name, title, tier, order, reason }) => {
+    const showRequiredFieldPopup = () => {
+      if (typeof showNoticePopup === 'function') {
+        showNoticePopup('필수 값(*)을 입력해주세요.');
+      } else {
+        notifyMessage('필수 값(*)을 입력해주세요.');
+      }
+    };
+    if (!String(name || '').trim()) {
+      showRequiredFieldPopup();
+      return false;
+    }
+    if (!String(title || '').trim()) {
+      showRequiredFieldPopup();
+      return false;
+    }
+    if (!['gold', 'silver', 'bronze'].includes(String(tier || '').toLowerCase())) {
+      showRequiredFieldPopup();
+      return false;
+    }
+    if (!Number.isFinite(Number(order)) || Number(order) <= 0) {
+      showRequiredFieldPopup();
+      return false;
+    }
+    if (!String(reason || '').trim()) {
+      showRequiredFieldPopup();
+      return false;
+    }
+    return true;
+  };
 
   const applySearch = () => {
     joinHonorQuery = String(searchInput?.value || '').trim();
@@ -662,16 +692,15 @@ function initJoinHonorBindings() {
       const tier = String(tierSelect?.value || 'bronze').toLowerCase();
       let order = Number(orderInput?.value || 0);
       const reason = String(reasonInput?.value || '').trim();
+      if (!validateRequiredHonorFields({ name, title, tier, order, reason })) {
+        return;
+      }
       if (!isValidHonorName(name)) {
         notifyMessage('이름은 한글/영어만 입력 가능하며 2~20자여야 합니다.');
         return;
       }
       if (!title || title.length > 30) {
         notifyMessage('직함은 1~30자로 입력해주세요.');
-        return;
-      }
-      if (!reason) {
-        notifyMessage('감사 사유를 입력해주세요.');
         return;
       }
       const next = getJoinHonorItems();
@@ -736,16 +765,15 @@ function initJoinHonorBindings() {
       const tier = String(tierSelect?.value || 'bronze').toLowerCase();
       const reason = String(reasonInput?.value || '').trim();
       let order = Number(orderInput?.value || 0);
+      if (!validateRequiredHonorFields({ name, title, tier, order, reason })) {
+        return;
+      }
       if (!isValidHonorName(name)) {
         notifyMessage('이름은 한글/영어만 입력 가능하며 2~20자여야 합니다.');
         return;
       }
       if (!title || title.length > 30) {
         notifyMessage('직함은 1~30자로 입력해주세요.');
-        return;
-      }
-      if (!reason) {
-        notifyMessage('감사 사유를 입력해주세요.');
         return;
       }
       const next = getJoinHonorItems();

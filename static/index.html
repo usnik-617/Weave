@@ -1134,24 +1134,24 @@
               <div id="join-honor-admin-tools" class="d-none mb-3">
                 <div class="row g-2 align-items-end">
                   <div class="col-md-3">
-                    <label class="form-label small mb-1">이름</label>
-                    <input type="text" class="form-control form-control-sm" id="join-honor-name-input" maxlength="20" placeholder="한글/영어만 입력">
+                    <label class="form-label small mb-1">이름*</label>
+                    <input type="text" class="form-control form-control-sm" id="join-honor-name-input" maxlength="20" placeholder="한글/영어만 입력" required>
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label small mb-1">직함</label>
-                    <input type="text" class="form-control form-control-sm" id="join-honor-title-input" maxlength="30" placeholder="예: 위브 단장">
+                    <label class="form-label small mb-1">직함*</label>
+                    <input type="text" class="form-control form-control-sm" id="join-honor-title-input" maxlength="30" placeholder="예: 위브 단장" required>
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small mb-1">등급</label>
-                    <select class="form-select form-select-sm" id="join-honor-tier-select">
+                    <label class="form-label small mb-1">등급*</label>
+                    <select class="form-select form-select-sm" id="join-honor-tier-select" required>
                       <option value="gold">금</option>
                       <option value="silver">은</option>
                       <option value="bronze">동</option>
                     </select>
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small mb-1">순서</label>
-                    <input type="number" class="form-control form-control-sm" id="join-honor-order-input" min="1" max="99" step="1" value="1">
+                    <label class="form-label small mb-1">순서*</label>
+                    <input type="number" class="form-control form-control-sm" id="join-honor-order-input" min="1" max="99" step="1" value="1" required>
                   </div>
                   <div class="col-md-1">
                     <button type="button" class="btn btn-sm btn-outline-primary w-100" id="join-honor-add-btn">추가</button>
@@ -1177,8 +1177,8 @@
                     <input type="text" class="form-control form-control-sm" id="join-honor-tagline-input" maxlength="80" placeholder="예: 지역을 위해 꾸준히 봉사중">
                   </div>
                   <div class="col-12 mt-1">
-                    <label class="form-label small mb-1">감사 사유</label>
-                    <input type="text" class="form-control form-control-sm" id="join-honor-reason-input" maxlength="120" placeholder="등록/수정/삭제 사유를 입력하세요">
+                      <label class="form-label small mb-1">감사 사유*</label>
+                      <input type="text" class="form-control form-control-sm" id="join-honor-reason-input" maxlength="120" placeholder="등록/수정/삭제 사유를 입력하세요" required>
                   </div>
                 </div>
                 <div class="small text-muted mt-1">이름은 한글/영어만 입력 가능 · 최대 노출: 금 6명 / 은 10명 / 동 20명</div>
