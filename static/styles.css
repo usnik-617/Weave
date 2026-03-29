@@ -4122,28 +4122,80 @@ body.reduced-data-mode .gallery-card {
 
 .join-honor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
 }
 
 .join-honor-card {
   border: 1px solid #b9ddff;
   border-radius: 10px;
-  min-height: 62px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 8px 6px;
+  min-height: 90px;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: #f7fcff;
 }
 
 .join-honor-card-name {
   font-weight: 600;
-  font-size: 0.93rem;
+  font-size: 0.94rem;
   color: #0f4d7d;
-  text-align: center;
+  text-align: left;
   line-height: 1.25;
+  word-break: keep-all;
+}
+
+.join-honor-photo-wrap {
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #b8d4ea;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.join-honor-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.join-honor-photo-placeholder {
+  color: #7f9bb2;
+  font-size: 1.15rem;
+}
+
+.join-honor-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.join-honor-card-head {
+  font-weight: 700;
+  color: #0f4d7d;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.join-honor-card-title {
+  font-weight: 500;
+  color: #2f6d9b;
+}
+
+.join-honor-card-tagline {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #4b708c;
+  line-height: 1.35;
   word-break: keep-all;
 }
 
@@ -4152,10 +4204,52 @@ body.reduced-data-mode .gallery-card {
   position: relative;
 }
 
+.join-honor-card:has(.join-honor-card-actions) {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+}
+
 .join-honor-card-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
   gap: 4px;
+  align-items: center;
+  align-self: center;
+  min-width: max-content;
+}
+
+.join-honor-card-actions .btn {
+  white-space: nowrap;
+}
+
+#join-honor-order-input::-webkit-outer-spin-button,
+#join-honor-order-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#join-honor-order-input {
+  -moz-appearance: textfield;
+}
+
+@media (max-width: 575.98px) {
+  .join-honor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .join-honor-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .join-honor-card-actions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: 68px;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
 }
 
 .join-honor-search-wrap {
