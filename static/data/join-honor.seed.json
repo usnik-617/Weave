@@ -1,0 +1,70 @@
+{
+  "items": [
+    {
+      "id": 1774367209073,
+      "name": "홍길동",
+      "title": "위브 운영진",
+      "tagline": "지역사회와 함께 성장합니다",
+      "photo": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20120%20120%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27%2385d5ff%27/%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27%234aa8e8%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%2724%27%20fill%3D%27url(%23g)%27/%3E%3Ccircle%20cx%3D%2760%27%20cy%3D%2746%27%20r%3D%2720%27%20fill%3D%27%23ffffff%27%20fill-opacity%3D%270.96%27/%3E%3Cpath%20d%3D%27M28%2098c6-18%2019-28%2032-28s26%2010%2032%2028%27%20fill%3D%27%23ffffff%27%20fill-opacity%3D%270.96%27/%3E%3Ctext%20x%3D%2760%27%20y%3D%27108%27%20text-anchor%3D%27middle%27%20font-family%3D%27Arial%2C%20sans-serif%27%20font-size%3D%2718%27%20font-weight%3D%27700%27%20fill%3D%27%230f3554%27%3EHONG%3C/text%3E%3C/svg%3E",
+      "tier": "gold",
+      "order": 1,
+      "createdAt": "2026-03-24T15:46:49.073Z"
+    }
+  ],
+  "audit": [
+    {
+      "id": 1774367649596,
+      "action": "delete",
+      "name": "John Doe",
+      "tier": "gold",
+      "reason": "관리자 삭제",
+      "actor": "admin",
+      "at": "2026-03-24T15:54:09.596Z"
+    },
+    {
+      "id": 1774367641430,
+      "action": "create",
+      "name": "John Doe",
+      "tier": "gold",
+      "reason": "space name test",
+      "actor": "admin",
+      "at": "2026-03-24T15:54:01.430Z"
+    },
+    {
+      "id": 1774367235782,
+      "action": "delete",
+      "name": "테스트사용자",
+      "tier": "gold",
+      "reason": "관리자 삭제",
+      "actor": "admin",
+      "at": "2026-03-24T15:47:15.782Z"
+    },
+    {
+      "id": 1774367223508,
+      "action": "update",
+      "name": "테스트사용자",
+      "tier": "gold",
+      "reason": "수정 기능 점검",
+      "actor": "admin",
+      "at": "2026-03-24T15:47:03.508Z"
+    },
+    {
+      "id": 1774367209073,
+      "action": "create",
+      "name": "홍길동",
+      "tier": "gold",
+      "reason": "테스트 URL 사진 추가",
+      "actor": "admin",
+      "at": "2026-03-24T15:46:49.073Z"
+    },
+    {
+      "id": 1774367150689,
+      "action": "create",
+      "name": "테스트사용자",
+      "tier": "gold",
+      "reason": "테스트 추가",
+      "actor": "admin",
+      "at": "2026-03-24T15:45:50.689Z"
+    }
+  ]
+}

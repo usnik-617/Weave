@@ -156,9 +156,18 @@ function setJoinActionPanel(panelName) {
 
 const JOIN_HONOR_KEY = 'weave_join_honor_hall';
 const JOIN_HONOR_AUDIT_KEY = 'weave_join_honor_hall_audit';
+const JOIN_HONOR_SEED_URL = '/data/join-honor.seed.json';
 const JOIN_HONOR_PAGE_SIZE = 24;
+const JOIN_HONOR_TIER_LIMITS = {
+  gold: 6,
+  silver: 10,
+  bronze: 20
+};
 let joinHonorPage = 1;
 let joinHonorQuery = '';
+let joinHonorItemsMemory = [];
+let joinHonorAuditMemory = [];
+let joinHonorSeedPromise = null;
 
 function canManageJoinHonor(user = getCurrentUser()) {
   return !!(
@@ -170,30 +179,108 @@ function canManageJoinHonor(user = getCurrentUser()) {
 
 function getJoinHonorItems() {
   const parsed = safeJsonParse(safeStorageGet(JOIN_HONOR_KEY, '[]'), []);
-  const rows = Array.isArray(parsed) ? parsed : [];
-  return rows.filter((row) => row && typeof row === 'object').map((row) => ({
-    id: Number(row.id || 0) || Date.now(),
+  const rows = Array.isArray(parsed) && parsed.length ? parsed : (Array.isArray(joinHonorItemsMemory) ? joinHonorItemsMemory : []);
+  return rows.filter((row) => row && typeof row === 'object').map((row, idx) => ({
+    id: Number(row.id || 0) || Date.now() + idx,
     name: String(row.name || '').trim(),
+    title: String(row.title || '').trim(),
+    tagline: String(row.tagline || '').trim(),
+    photo: String(row.photo || '').trim(),
     tier: ['gold', 'silver', 'bronze'].includes(String(row.tier || '').toLowerCase())
       ? String(row.tier || '').toLowerCase()
       : 'bronze',
+    order: Number(row.order || 0) > 0 ? Number(row.order || 0) : (idx + 1),
     createdAt: String(row.createdAt || new Date().toISOString())
   }));
 }
 
 function saveJoinHonorItems(items) {
   const safe = Array.isArray(items) ? items.slice(0, 500) : [];
-  safeStorageSet(JOIN_HONOR_KEY, JSON.stringify(safe));
+  const byTier = {
+    gold: safe.filter((item) => item?.tier === 'gold').sort((a, b) => Number(a.order || 0) - Number(b.order || 0)),
+    silver: safe.filter((item) => item?.tier === 'silver').sort((a, b) => Number(a.order || 0) - Number(b.order || 0)),
+    bronze: safe.filter((item) => item?.tier === 'bronze').sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+  };
+  Object.keys(byTier).forEach((tier) => {
+    byTier[tier].forEach((item, idx) => {
+      item.order = idx + 1;
+    });
+  });
+  const flattened = [...byTier.gold, ...byTier.silver, ...byTier.bronze];
+  joinHonorItemsMemory = flattened;
+  return !!safeStorageSet(JOIN_HONOR_KEY, JSON.stringify(flattened));
 }
 
 function getJoinHonorAuditLogs() {
   const parsed = safeJsonParse(safeStorageGet(JOIN_HONOR_AUDIT_KEY, '[]'), []);
-  return Array.isArray(parsed) ? parsed : [];
+  if (Array.isArray(parsed) && parsed.length) return parsed;
+  return Array.isArray(joinHonorAuditMemory) ? joinHonorAuditMemory : [];
 }
 
 function saveJoinHonorAuditLogs(items) {
   const safe = Array.isArray(items) ? items.slice(0, 1000) : [];
-  safeStorageSet(JOIN_HONOR_AUDIT_KEY, JSON.stringify(safe));
+  joinHonorAuditMemory = safe;
+  return !!safeStorageSet(JOIN_HONOR_AUDIT_KEY, JSON.stringify(safe));
+}
+
+function hasStoredJoinHonorItems() {
+  const parsed = safeJsonParse(safeStorageGet(JOIN_HONOR_KEY, '[]'), []);
+  return Array.isArray(parsed) && parsed.length > 0;
+}
+
+function hasStoredJoinHonorAuditLogs() {
+  const parsed = safeJsonParse(safeStorageGet(JOIN_HONOR_AUDIT_KEY, '[]'), []);
+  return Array.isArray(parsed) && parsed.length > 0;
+}
+
+function getJoinHonorSeedRequestUrl() {
+  const assetVersion = String(document.querySelector('meta[name="weave-asset-version"]')?.content || '').trim();
+  if (!assetVersion) return JOIN_HONOR_SEED_URL;
+  const separator = JOIN_HONOR_SEED_URL.includes('?') ? '&' : '?';
+  return `${JOIN_HONOR_SEED_URL}${separator}v=${encodeURIComponent(assetVersion)}`;
+}
+
+async function loadJoinHonorSeed() {
+  const response = await fetch(getJoinHonorSeedRequestUrl(), {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store'
+  });
+  if (!response.ok) {
+    throw new Error(`명예의 전당 시드 로딩 실패 (${response.status})`);
+  }
+  const payload = await response.json();
+  return {
+    items: Array.isArray(payload?.items) ? payload.items : [],
+    audit: Array.isArray(payload?.audit) ? payload.audit : []
+  };
+}
+
+async function ensureJoinHonorSeedHydrated() {
+  const hasItems = hasStoredJoinHonorItems() || (Array.isArray(joinHonorItemsMemory) && joinHonorItemsMemory.length > 0);
+  const hasAudit = hasStoredJoinHonorAuditLogs() || (Array.isArray(joinHonorAuditMemory) && joinHonorAuditMemory.length > 0);
+  if (hasItems || hasAudit) return;
+  if (joinHonorSeedPromise) return joinHonorSeedPromise;
+
+  joinHonorSeedPromise = (async () => {
+    try {
+      const seed = await loadJoinHonorSeed();
+      if (!hasStoredJoinHonorItems() && Array.isArray(seed.items) && seed.items.length) {
+        joinHonorItemsMemory = seed.items;
+        safeStorageSet(JOIN_HONOR_KEY, JSON.stringify(seed.items));
+      }
+      if (!hasStoredJoinHonorAuditLogs() && Array.isArray(seed.audit) && seed.audit.length) {
+        joinHonorAuditMemory = seed.audit;
+        safeStorageSet(JOIN_HONOR_AUDIT_KEY, JSON.stringify(seed.audit));
+      }
+    } catch (error) {
+      console.warn('[Weave] honor hall seed hydration failed:', error);
+    } finally {
+      joinHonorSeedPromise = null;
+    }
+  })();
+
+  return joinHonorSeedPromise;
 }
 
 function addJoinHonorAuditLog(action, item, reason = '') {
@@ -214,14 +301,20 @@ function addJoinHonorAuditLog(action, item, reason = '') {
 function isValidHonorName(name) {
   const text = String(name || '').trim();
   if (!text || text.length < 2 || text.length > 20) return false;
-  return /^[A-Za-z가-힣]+$/.test(text);
+  return /^[A-Za-z가-힣]+(?:\s+[A-Za-z가-힣]+)*$/.test(text);
 }
 
 function getFilteredHonorItems() {
   const list = getJoinHonorItems();
   const q = String(joinHonorQuery || '').trim().toLowerCase();
-  const filtered = !q ? list : list.filter((item) => String(item.name || '').toLowerCase().includes(q));
-  return filtered.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko-KR', { sensitivity: 'base' }));
+  const filtered = !q
+    ? list
+    : list.filter((item) => (
+      String(item.name || '').toLowerCase().includes(q)
+      || String(item.title || '').toLowerCase().includes(q)
+      || String(item.tagline || '').toLowerCase().includes(q)
+    ));
+  return filtered.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 }
 
 function buildHonorTierSection(tier, items, canManage = false) {
@@ -231,11 +324,22 @@ function buildHonorTierSection(tier, items, canManage = false) {
     silver: { label: '은', medal: 'fa-medal', color: '#9aa6b2', boxBg: '#eef2f7' },
     bronze: { label: '동', medal: 'fa-medal', color: '#b87942', boxBg: '#f8eee4' }
   }[tier] || { label: '동', medal: 'fa-medal', color: '#b87942', boxBg: '#f8eee4' };
-  const cards = items.map((item) => `
-    <div class="join-honor-card" style="background:#dff3ff;">
-      <span class="join-honor-card-name">${escapeHtml(item.name || '')}</span>
+  const cards = items.map((item, index) => `
+    <div class="join-honor-card">
+      <div class="join-honor-photo-wrap">
+        ${item.photo ? `<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name || '명예의 전당')}" class="join-honor-photo">` : '<div class="join-honor-photo-placeholder"><i class="fas fa-user"></i></div>'}
+      </div>
+      <div class="join-honor-info">
+        <div class="join-honor-card-head">
+          <span class="join-honor-card-name">${escapeHtml(item.name || '')}</span>
+          <span class="join-honor-card-title">| ${escapeHtml(item.title || '위브 단원')}</span>
+        </div>
+        <div class="join-honor-card-tagline">${escapeHtml(item.tagline || '')}</div>
+      </div>
       ${canManage ? `
       <div class="join-honor-card-actions">
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-honor-move-id="${Number(item.id || 0)}" data-honor-move-dir="up" ${index === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-honor-move-id="${Number(item.id || 0)}" data-honor-move-dir="down" ${index === items.length - 1 ? 'disabled' : ''}>↓</button>
         <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-honor-edit-id="${Number(item.id || 0)}">수정</button>
         <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-honor-delete-id="${Number(item.id || 0)}">삭제</button>
       </div>` : ''}
@@ -333,35 +437,69 @@ function updateJoinHonorAdminVisibility() {
 function renderJoinHonorHall() {
   const listEl = document.getElementById('join-honor-list');
   const emptyEl = document.getElementById('join-honor-empty');
+  const pagerEl = document.getElementById('join-honor-pagination');
   if (!listEl || !emptyEl) return;
   updateJoinHonorAdminVisibility();
 
   const filtered = getFilteredHonorItems();
   const user = getCurrentUser();
   const canManage = canManageJoinHonor(user);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / JOIN_HONOR_PAGE_SIZE));
-  if (joinHonorPage > totalPages) joinHonorPage = totalPages;
-  const start = (joinHonorPage - 1) * JOIN_HONOR_PAGE_SIZE;
-  const pageItems = filtered.slice(start, start + JOIN_HONOR_PAGE_SIZE);
+  const pageItems = filtered;
   const grouped = {
-    gold: pageItems.filter((item) => item.tier === 'gold'),
-    silver: pageItems.filter((item) => item.tier === 'silver'),
-    bronze: pageItems.filter((item) => item.tier === 'bronze')
+    gold: pageItems.filter((item) => item.tier === 'gold').sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).slice(0, JOIN_HONOR_TIER_LIMITS.gold),
+    silver: pageItems.filter((item) => item.tier === 'silver').sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).slice(0, JOIN_HONOR_TIER_LIMITS.silver),
+    bronze: pageItems.filter((item) => item.tier === 'bronze').sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).slice(0, JOIN_HONOR_TIER_LIMITS.bronze)
   };
   listEl.innerHTML = `${buildHonorTierSection('gold', grouped.gold, canManage)}${buildHonorTierSection('silver', grouped.silver, canManage)}${buildHonorTierSection('bronze', grouped.bronze, canManage)}`;
-  emptyEl.classList.toggle('d-none', pageItems.length > 0);
-  renderJoinHonorPagination(totalPages);
+  const totalVisible = grouped.gold.length + grouped.silver.length + grouped.bronze.length;
+  emptyEl.classList.toggle('d-none', totalVisible > 0);
+  if (pagerEl) pagerEl.innerHTML = '';
   renderJoinHonorAuditLogs();
   if (canManage) {
+    listEl.querySelectorAll('[data-honor-move-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-honor-move-id') || 0);
+        const direction = String(btn.getAttribute('data-honor-move-dir') || '').toLowerCase();
+        const items = getJoinHonorItems();
+        const target = items.find((row) => Number(row.id || 0) === id);
+        if (!target) return;
+        const siblings = items
+          .filter((row) => row.tier === target.tier)
+          .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+        const index = siblings.findIndex((row) => Number(row.id || 0) === id);
+        if (index < 0) return;
+        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        if (swapIndex < 0 || swapIndex >= siblings.length) return;
+        const swapTarget = siblings[swapIndex];
+        const currentOrder = Number(target.order || 0);
+        target.order = Number(swapTarget.order || 0);
+        swapTarget.order = currentOrder;
+        const ok = saveJoinHonorItems(items);
+        if (!ok) {
+          notifyMessage('브라우저 저장소가 가득 차 저장에 실패했습니다. 사진 용량을 줄여주세요.');
+          return;
+        }
+        addJoinHonorAuditLog('update', target, `순서 변경 (${direction === 'up' ? '위로' : '아래로'})`);
+        renderJoinHonorHall();
+      });
+    });
     listEl.querySelectorAll('[data-honor-edit-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = Number(btn.getAttribute('data-honor-edit-id') || 0);
         const items = getJoinHonorItems();
         const target = items.find((row) => Number(row.id || 0) === id);
         const nameInput = document.getElementById('join-honor-name-input');
+        const titleInput = document.getElementById('join-honor-title-input');
+        const taglineInput = document.getElementById('join-honor-tagline-input');
+        const photoUrlInput = document.getElementById('join-honor-photo-url-input');
+        const orderInput = document.getElementById('join-honor-order-input');
         const tierSelect = document.getElementById('join-honor-tier-select');
         if (!target || !(nameInput instanceof HTMLInputElement) || !(tierSelect instanceof HTMLSelectElement)) return;
         nameInput.value = target.name || '';
+        if (titleInput instanceof HTMLInputElement) titleInput.value = target.title || '';
+        if (taglineInput instanceof HTMLInputElement) taglineInput.value = target.tagline || '';
+        if (photoUrlInput instanceof HTMLInputElement) photoUrlInput.value = target.photo || '';
+        if (orderInput instanceof HTMLInputElement) orderInput.value = String(Number(target.order || 1));
         tierSelect.value = target.tier || 'bronze';
         nameInput.dataset.editId = String(id);
         nameInput.focus();
@@ -377,7 +515,11 @@ function renderJoinHonorHall() {
         if (!target) return;
         openJoinHonorDeleteConfirm(target, () => {
           const next = items.filter((row) => Number(row.id || 0) !== id);
-          saveJoinHonorItems(next);
+          const ok = saveJoinHonorItems(next);
+          if (!ok) {
+            notifyMessage('브라우저 저장소가 가득 차 저장에 실패했습니다. 사진 용량을 줄여주세요.');
+            return;
+          }
           addJoinHonorAuditLog('delete', target, reason);
           renderJoinHonorHall();
           notifyMessage('명예의 전당 항목이 삭제되었습니다.');
@@ -417,10 +559,80 @@ function initJoinHonorBindings() {
   const searchInput = document.getElementById('join-honor-search');
   const searchBtn = document.getElementById('join-honor-search-btn');
   const addBtn = document.getElementById('join-honor-add-btn');
+  const updateBtn = document.getElementById('join-honor-update-btn');
   const resetBtn = document.getElementById('join-honor-reset-btn');
   const nameInput = document.getElementById('join-honor-name-input');
+  const titleInput = document.getElementById('join-honor-title-input');
+  const taglineInput = document.getElementById('join-honor-tagline-input');
+  const photoInput = document.getElementById('join-honor-photo-input');
+  const photoUrlInput = document.getElementById('join-honor-photo-url-input');
+  const orderInput = document.getElementById('join-honor-order-input');
   const tierSelect = document.getElementById('join-honor-tier-select');
   const reasonInput = document.getElementById('join-honor-reason-input');
+  const readPhotoData = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const source = String(reader.result || '');
+        const image = new Image();
+        image.onload = () => {
+          try {
+            const width = Number(image.naturalWidth || image.width || 0);
+            const height = Number(image.naturalHeight || image.height || 0);
+            if (!width || !height) {
+              resolve(source);
+              return;
+            }
+            const maxSide = 256;
+            const ratio = Math.min(1, maxSide / Math.max(width, height));
+            const targetW = Math.max(1, Math.round(width * ratio));
+            const targetH = Math.max(1, Math.round(height * ratio));
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW;
+            canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(source);
+              return;
+            }
+            ctx.drawImage(image, 0, 0, targetW, targetH);
+            let result = canvas.toDataURL('image/webp', 0.82);
+            if (!result || result.length < 32) result = canvas.toDataURL('image/jpeg', 0.82);
+            resolve(String(result || source));
+          } catch (_e) {
+            resolve(source);
+          }
+        };
+        image.onerror = () => resolve(source);
+        image.src = source;
+      } catch (_e) {
+        reject(new Error('이미지를 읽을 수 없습니다.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.'));
+    reader.readAsDataURL(file);
+  });
+  const countTierItems = (items, tier, excludeId = 0) => items.filter((row) => (
+    row.tier === tier && Number(row.id || 0) !== Number(excludeId || 0)
+  )).length;
+  const resolvePhotoValue = async (fallbackValue = '') => {
+    let photoValue = String(photoUrlInput?.value || '').trim() || String(fallbackValue || '');
+    const file = photoInput instanceof HTMLInputElement && photoInput.files ? photoInput.files[0] : null;
+    if (file) {
+      photoValue = await readPhotoData(file);
+    }
+    return photoValue;
+  };
+  const clearHonorForm = () => {
+    if (nameInput) nameInput.value = '';
+    if (titleInput) titleInput.value = '';
+    if (taglineInput) taglineInput.value = '';
+    if (photoUrlInput) photoUrlInput.value = '';
+    if (photoInput instanceof HTMLInputElement) photoInput.value = '';
+    if (orderInput instanceof HTMLInputElement) orderInput.value = '1';
+    if (reasonInput) reasonInput.value = '';
+    if (nameInput?.dataset?.editId) delete nameInput.dataset.editId;
+  };
 
   const applySearch = () => {
     joinHonorQuery = String(searchInput?.value || '').trim();
@@ -438,17 +650,24 @@ function initJoinHonorBindings() {
     });
   }
   if (addBtn) {
-    addBtn.addEventListener('click', () => {
+    addBtn.addEventListener('click', async () => {
       const user = getCurrentUser();
       if (!canManageJoinHonor(user)) {
         notifyMessage('관리자 또는 운영자 권한이 필요합니다.');
         return;
       }
       const name = String(nameInput?.value || '').trim();
+      const title = String(titleInput?.value || '').trim();
+      const tagline = String(taglineInput?.value || '').trim().slice(0, 80);
       const tier = String(tierSelect?.value || 'bronze').toLowerCase();
+      let order = Number(orderInput?.value || 0);
       const reason = String(reasonInput?.value || '').trim();
       if (!isValidHonorName(name)) {
         notifyMessage('이름은 한글/영어만 입력 가능하며 2~20자여야 합니다.');
+        return;
+      }
+      if (!title || title.length > 30) {
+        notifyMessage('직함은 1~30자로 입력해주세요.');
         return;
       }
       if (!reason) {
@@ -457,40 +676,119 @@ function initJoinHonorBindings() {
       }
       const next = getJoinHonorItems();
       const editId = Number(nameInput?.dataset?.editId || 0);
-      if (editId > 0) {
-        const target = next.find((row) => Number(row.id || 0) === editId);
-        if (!target) {
-          notifyMessage('수정 대상을 찾을 수 없습니다.');
-          return;
-        }
-        target.name = name;
-        target.tier = ['gold', 'silver', 'bronze'].includes(tier) ? tier : 'bronze';
-        addJoinHonorAuditLog('update', target, reason);
-        delete nameInput.dataset.editId;
-      } else {
-        const created = {
-          id: Date.now(),
-          name,
-          tier: ['gold', 'silver', 'bronze'].includes(tier) ? tier : 'bronze',
-          createdAt: new Date().toISOString()
-        };
-        next.unshift(created);
-        addJoinHonorAuditLog('create', created, reason);
+      const tierLimit = Number(JOIN_HONOR_TIER_LIMITS[tier] || 0);
+      if (countTierItems(next, tier, editId) >= tierLimit) {
+        notifyMessage(`${tier === 'gold' ? '금' : tier === 'silver' ? '은' : '동'} 그룹은 최대 ${tierLimit}명까지 등록할 수 있습니다.`);
+        return;
       }
-      saveJoinHonorItems(next);
-      if (nameInput) nameInput.value = '';
-      if (reasonInput) reasonInput.value = '';
+      if (editId > 0) {
+        notifyMessage('수정은 [수정] 버튼을 사용해주세요.');
+        return;
+      }
+      const sameTier = next.filter((row) => row.tier === tier);
+      const maxOrder = sameTier.reduce((acc, row) => Math.max(acc, Number(row.order || 0)), 0);
+      if (!Number.isFinite(order) || order <= 0) order = maxOrder + 1;
+      let photoValue = '';
+      try {
+        photoValue = await resolvePhotoValue('');
+      } catch (error) {
+        notifyMessage(error.message || '사진을 불러오는 중 오류가 발생했습니다.');
+        return;
+      }
+      const created = {
+        id: Date.now(),
+        name,
+        title,
+        tagline,
+        photo: photoValue,
+        tier: ['gold', 'silver', 'bronze'].includes(tier) ? tier : 'bronze',
+        order: Math.min(99, order),
+        createdAt: new Date().toISOString()
+      };
+      next.unshift(created);
+      addJoinHonorAuditLog('create', created, reason);
+      const ok = saveJoinHonorItems(next);
+      if (!ok) {
+        notifyMessage('브라우저 저장소가 가득 차 저장에 실패했습니다. 사진 용량을 줄여주세요.');
+        return;
+      }
+      clearHonorForm();
       joinHonorPage = 1;
       renderJoinHonorHall();
       notifyMessage('명예의 전당 항목이 저장되었습니다.');
     });
   }
+  if (updateBtn) {
+    updateBtn.addEventListener('click', async () => {
+      const user = getCurrentUser();
+      if (!canManageJoinHonor(user)) {
+        notifyMessage('관리자 또는 운영자 권한이 필요합니다.');
+        return;
+      }
+      const editId = Number(nameInput?.dataset?.editId || 0);
+      if (editId <= 0) {
+        notifyMessage('먼저 수정할 항목의 [수정] 버튼을 눌러 선택해주세요.');
+        return;
+      }
+      const name = String(nameInput?.value || '').trim();
+      const title = String(titleInput?.value || '').trim();
+      const tagline = String(taglineInput?.value || '').trim().slice(0, 80);
+      const tier = String(tierSelect?.value || 'bronze').toLowerCase();
+      const reason = String(reasonInput?.value || '').trim();
+      let order = Number(orderInput?.value || 0);
+      if (!isValidHonorName(name)) {
+        notifyMessage('이름은 한글/영어만 입력 가능하며 2~20자여야 합니다.');
+        return;
+      }
+      if (!title || title.length > 30) {
+        notifyMessage('직함은 1~30자로 입력해주세요.');
+        return;
+      }
+      if (!reason) {
+        notifyMessage('감사 사유를 입력해주세요.');
+        return;
+      }
+      const next = getJoinHonorItems();
+      const target = next.find((row) => Number(row.id || 0) === editId);
+      if (!target) {
+        notifyMessage('수정 대상을 찾을 수 없습니다.');
+        return;
+      }
+      const tierLimit = Number(JOIN_HONOR_TIER_LIMITS[tier] || 0);
+      if (countTierItems(next, tier, editId) >= tierLimit) {
+        notifyMessage(`${tier === 'gold' ? '금' : tier === 'silver' ? '은' : '동'} 그룹은 최대 ${tierLimit}명까지 등록할 수 있습니다.`);
+        return;
+      }
+      if (!Number.isFinite(order) || order <= 0) order = Number(target.order || 1);
+      let photoValue = target.photo || '';
+      try {
+        photoValue = await resolvePhotoValue(target.photo || '');
+      } catch (error) {
+        notifyMessage(error.message || '사진을 불러오는 중 오류가 발생했습니다.');
+        return;
+      }
+      target.name = name;
+      target.title = title;
+      target.tagline = tagline;
+      target.photo = photoValue || '';
+      target.tier = ['gold', 'silver', 'bronze'].includes(tier) ? tier : 'bronze';
+      target.order = Math.min(99, Number(order || 1));
+      addJoinHonorAuditLog('update', target, reason);
+      const ok = saveJoinHonorItems(next);
+      if (!ok) {
+        notifyMessage('브라우저 저장소가 가득 차 저장에 실패했습니다. 사진 용량을 줄여주세요.');
+        return;
+      }
+      clearHonorForm();
+      joinHonorPage = 1;
+      renderJoinHonorHall();
+      notifyMessage('명예의 전당 항목이 수정되었습니다.');
+    });
+  }
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      if (nameInput) nameInput.value = '';
+      clearHonorForm();
       if (tierSelect) tierSelect.value = 'gold';
-      if (reasonInput) reasonInput.value = '';
-      if (nameInput?.dataset?.editId) delete nameInput.dataset.editId;
       if (searchInput) searchInput.value = '';
       joinHonorQuery = '';
       joinHonorPage = 1;
@@ -501,12 +799,16 @@ function initJoinHonorBindings() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initJoinHonorBindings();
-  renderJoinHonorHall();
+  ensureJoinHonorSeedHydrated().finally(() => {
+    renderJoinHonorHall();
+  });
 });
 
 document.addEventListener('weave:user-state-changed', () => {
   updateJoinHonorAdminVisibility();
-  renderJoinHonorHall();
+  ensureJoinHonorSeedHydrated().finally(() => {
+    renderJoinHonorHall();
+  });
 });
 
 window.renderJoinHonorHall = renderJoinHonorHall;
