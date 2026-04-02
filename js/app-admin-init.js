@@ -302,6 +302,77 @@
     const uploadGalleryInlineImagesToServer = async (postId, tokenItems = [], representativeSrc = '') => {
       return uploadInlineImagesToServer(postId, tokenItems, representativeSrc);
     };
+    const persistRichPostToServer = async ({
+      existingPostId = 0,
+      category = '',
+      title = '',
+      content = '',
+      publishAt = '',
+      representativeSrc = '',
+      bodyExtras = {}
+    } = {}) => {
+      if (typeof apiRequest !== 'function') {
+        return {
+          postId: Number(existingPostId || 0) || 0,
+          content: String(content || ''),
+          coverUrl: ''
+        };
+      }
+      if (navigator.onLine === false) {
+        throw new Error('오프라인 상태에서는 서버 저장을 진행할 수 없습니다. 네트워크 연결 후 다시 시도해 주세요.');
+      }
+
+      const normalizedCategory = String(category || '').trim().toLowerCase();
+      const safeTitle = String(title || '').trim();
+      const safePublishAt = String(publishAt || '').trim();
+      const safeExtras = bodyExtras && typeof bodyExtras === 'object' ? { ...bodyExtras } : {};
+      const { htmlWithTokens, tokenItems } = extractInlineImageTokens(content);
+      let postId = Number(existingPostId || 0) || 0;
+      const baseBody = {
+        category: normalizedCategory,
+        title: safeTitle,
+        content: htmlWithTokens,
+        publish_at: safePublishAt,
+        ...safeExtras
+      };
+
+      if (postId > 0) {
+        await apiRequest(`/posts/${postId}`, {
+          method: 'PUT',
+          body: baseBody
+        });
+      } else {
+        const created = await apiRequest('/posts', {
+          method: 'POST',
+          body: baseBody
+        });
+        postId = parseCreatedPostId(created);
+        if (postId <= 0) {
+          throw new Error('게시글 생성에 실패했습니다.');
+        }
+      }
+
+      let finalContent = htmlWithTokens;
+      let coverUrl = '';
+      if (tokenItems.length) {
+        const uploaded = await uploadInlineImagesToServer(postId, tokenItems, representativeSrc);
+        finalContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
+        coverUrl = String(uploaded.representativeUrl || '').trim();
+        await apiRequest(`/posts/${postId}`, {
+          method: 'PUT',
+          body: {
+            ...baseBody,
+            content: finalContent
+          }
+        });
+      }
+
+      return {
+        postId,
+        content: finalContent,
+        coverUrl
+      };
+    };
 
     initRichEditorToolbars();
     bindImageUploader({
@@ -428,61 +499,42 @@
           if (editorImages.length > 0 && !hadRepresentativeBeforeSync) {
             notifyMessage('대표 이미지가 설정되지 않아 첫 번째 이미지를 대표로 자동 지정했습니다.');
           }
-          const preferServerUpload = !editId
-            && (tabType === 'notice' || tabType === 'qna')
-            && typeof apiRequest === 'function';
-          let serverCreatedPostId = 0;
-          let serverResolvedContent = normalizedNewsContent;
-          let serverResolvedCover = coverImage;
-          let serverResolvedThumb = generatedThumb || coverImage || '';
-          if (preferServerUpload) {
-            if (navigator.onLine === false) {
-              throw new Error('오프라인 상태에서는 소식 이미지를 업로드할 수 없습니다. 네트워크 연결 후 다시 시도해 주세요.');
-            }
-            const { htmlWithTokens, tokenItems } = extractInlineImageTokens(normalizedNewsContent);
-            try {
-              const created = await apiRequest('/posts', {
-                method: 'POST',
-                body: {
-                  category: tabType,
-                  title: e.target.title.value,
-                  content: htmlWithTokens,
-                  publish_at: publishAt || ''
-                }
-              });
-              serverCreatedPostId = parseCreatedPostId(created);
-              if (serverCreatedPostId <= 0) {
-                throw new Error('소식 게시글 생성에 실패했습니다.');
-              }
-              if (tokenItems.length) {
-                const uploaded = await uploadInlineImagesToServer(serverCreatedPostId, tokenItems, coverImage);
-                serverResolvedContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
-                serverResolvedCover = String(uploaded.representativeUrl || serverResolvedCover || '').trim();
-                serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
-                await apiRequest(`/posts/${serverCreatedPostId}`, {
-                  method: 'PUT',
-                  body: {
-                    category: tabType,
-                    title: e.target.title.value,
-                    content: serverResolvedContent,
-                    publish_at: publishAt || ''
-                  }
-                });
-              } else {
-                serverResolvedContent = htmlWithTokens;
-              }
-            } catch (serverError) {
-              throw new Error(`서버 업로드를 완료하지 못했습니다. ${serverError?.message || '잠시 후 다시 시도해 주세요.'}`);
-            }
-          }
           let noticeAttachments = null;
-
           if (tabType === 'notice') {
             try {
               noticeAttachments = await buildNoticeAttachments(e.target.noticeAttachmentFiles?.files || []);
             } catch (error) {
               notifyMessage(error.message || '첨부 파일 처리 중 오류가 발생했습니다.');
               return;
+            }
+          }
+          const preferServerUpload = typeof apiRequest === 'function';
+          let serverBackedPostId = Number(editId || 0) || 0;
+          let serverResolvedContent = normalizedNewsContent;
+          let serverResolvedCover = coverImage;
+          let serverResolvedThumb = generatedThumb || coverImage || '';
+          if (preferServerUpload) {
+            try {
+              const persisted = await persistRichPostToServer({
+                existingPostId: editId,
+                category: tabType,
+                title: e.target.title.value,
+                content: normalizedNewsContent,
+                publishAt,
+                representativeSrc: coverImage,
+                bodyExtras: tabType === 'notice'
+                  ? {
+                      volunteerStartDate: volunteerStartDate || '',
+                      volunteerEndDate: volunteerStartDate ? volunteerEndDate : ''
+                    }
+                  : {}
+              });
+              serverBackedPostId = Number(persisted.postId || 0) || 0;
+              serverResolvedContent = String(persisted.content || normalizedNewsContent);
+              serverResolvedCover = String(persisted.coverUrl || serverResolvedCover || '').trim();
+              serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
+            } catch (serverError) {
+              throw new Error(`서버 업로드를 완료하지 못했습니다. ${serverError?.message || '잠시 후 다시 시도해 주세요.'}`);
             }
           }
 
@@ -501,22 +553,26 @@
             : (tabType === 'qna' ? (data.qna ||= []) : (data.news ||= []));
           let newsItem = null;
           if (editId) {
-            const target = source.find(n => n.id === editId);
+            const targetId = Number(serverBackedPostId || editId || 0) || 0;
+            const target = source.find(n => Number(n?.id || 0) === targetId);
             if (target) {
               target.title = e.target.title.value;
               target.author = e.target.author.value || user.nickname || user.username || user.name;
               target.date = target.date || newDate;
+              const resolvedImages = getImageSourcesFromHtml(serverResolvedContent);
               const existingImages = Array.isArray(target.images)
                 ? target.images
                 : (target.image ? [target.image] : []);
-              const nextImages = editorImages.length ? editorImages : existingImages;
+              const nextImages = resolvedImages.length
+                ? resolvedImages
+                : (editorImages.length ? editorImages : existingImages);
               target.images = nextImages;
-              target.image = coverImage || nextImages[0] || target.image || '';
-              if (generatedThumb) {
-                target.thumb_url = generatedThumb;
-                target.thumbnail_url = generatedThumb;
+              target.image = serverResolvedCover || coverImage || nextImages[0] || target.image || '';
+              if (serverResolvedThumb || generatedThumb) {
+                target.thumb_url = serverResolvedThumb || generatedThumb;
+                target.thumbnail_url = serverResolvedThumb || generatedThumb;
               }
-              target.content = normalizedNewsContent;
+              target.content = serverResolvedContent || normalizedNewsContent;
               target.publishAt = publishAt || '';
               if (tabType === 'qna') target.isSecret = isSecret;
               if (tabType === 'qna') {
@@ -549,11 +605,11 @@
           } else {
             const newId = getNextNumericId(source);
             const resolvedImages = getImageSourcesFromHtml(serverResolvedContent);
-            const nextImages = serverCreatedPostId > 0
+            const nextImages = serverBackedPostId > 0
               ? (resolvedImages.length ? resolvedImages : [])
               : (editorImages.length ? editorImages : []);
             const newItem = {
-              id: serverCreatedPostId > 0 ? serverCreatedPostId : newId,
+              id: serverBackedPostId > 0 ? serverBackedPostId : newId,
               title: e.target.title.value,
               author: e.target.author.value || user.nickname || user.username || user.name,
               date: newDate,
@@ -593,7 +649,9 @@
             const quotaLike = /quota|storage|space/i.test(String(saveError?.message || ''))
               || String(saveError?.name || '').toLowerCase().includes('quota');
             if (!quotaLike) throw saveError;
-            if (serverCreatedPostId > 0) {
+            const canRefreshFromServer = serverBackedPostId > 0
+              && !(tabType === 'notice' && (featuredOnHome || (Array.isArray(noticeAttachments) && noticeAttachments.length)));
+            if (canRefreshFromServer) {
               try {
                 localStorage.removeItem(DATA_KEY);
                 if (typeof hydrateContentFromServer === 'function') {
@@ -788,71 +846,61 @@
           if (editorImages.length > 0 && !hadRepresentativeBeforeSync) {
             notifyMessage('대표 이미지가 설정되지 않아 첫 번째 이미지를 대표로 자동 지정했습니다.');
           }
-          const preferServerUpload = !editId && typeof apiRequest === 'function';
+          const preferServerUpload = typeof apiRequest === 'function';
           let serverResolvedContent = normalizedGalleryContent;
           let serverResolvedCover = coverImage;
           let serverResolvedThumb = generatedThumb || coverImage || '';
-          let serverPostId = 0;
+          let serverPostId = Number(editId || 0) || 0;
           if (preferServerUpload) {
-            if (navigator.onLine === false) {
-              throw new Error('오프라인 상태에서는 갤러리 이미지를 업로드할 수 없습니다. 네트워크 연결 후 다시 시도해 주세요.');
-            }
-            const { htmlWithTokens, tokenItems } = extractInlineImageTokens(normalizedGalleryContent);
             try {
-              const created = await apiRequest('/posts', {
-                method: 'POST',
-                body: {
-                  category: 'gallery',
-                  title: e.target.title.value,
-                  content: htmlWithTokens,
-                  publish_at: publishAt || ''
+              const persisted = await persistRichPostToServer({
+                existingPostId: editId,
+                category: 'gallery',
+                title: e.target.title.value,
+                content: normalizedGalleryContent,
+                publishAt,
+                representativeSrc: coverImage,
+                bodyExtras: {
+                  activityStartDate,
+                  activityEndDate,
+                  volunteerStartDate: activityStartDate,
+                  volunteerEndDate: activityEndDate
                 }
               });
-              serverPostId = Number(created?.post_id || created?.postId || 0);
-              if (serverPostId <= 0) {
-                throw new Error('갤러리 게시글 생성에 실패했습니다.');
-              }
-              if (serverPostId > 0 && tokenItems.length) {
-                const uploaded = await uploadGalleryInlineImagesToServer(serverPostId, tokenItems, coverImage);
-                serverResolvedContent = replaceInlineImageTokens(htmlWithTokens, uploaded.tokenToUrl);
-                serverResolvedCover = String(uploaded.representativeUrl || serverResolvedCover || '').trim();
-                serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
-                await apiRequest(`/posts/${serverPostId}`, {
-                  method: 'PUT',
-                  body: {
-                    category: 'gallery',
-                    title: e.target.title.value,
-                    content: serverResolvedContent,
-                    publish_at: publishAt || ''
-                  }
-                });
-              }
+              serverPostId = Number(persisted.postId || 0) || 0;
+              serverResolvedContent = String(persisted.content || normalizedGalleryContent);
+              serverResolvedCover = String(persisted.coverUrl || serverResolvedCover || '').trim();
+              serverResolvedThumb = serverResolvedCover || serverResolvedThumb;
             } catch (serverError) {
               throw new Error(`서버 업로드를 완료하지 못했습니다. ${serverError?.message || '잠시 후 다시 시도해 주세요.'}`);
             }
           }
           let galleryItem = null;
           if (editId) {
-            const target = data.gallery.find(g => g.id === editId);
+            const targetId = Number(serverPostId || editId || 0) || 0;
+            const target = data.gallery.find(g => Number(g?.id || 0) === targetId);
             if (target) {
               target.title = e.target.title.value;
               target.date = target.date || newDate;
               target.year = year;
               target.category = `y${year}`;
+              const resolvedImages = getImageSourcesFromHtml(serverResolvedContent);
               const existingImages = Array.isArray(target.images)
                 ? target.images
                 : (target.image ? [target.image] : []);
-              const nextImages = editorImages.length ? editorImages : existingImages;
+              const nextImages = resolvedImages.length
+                ? resolvedImages
+                : (editorImages.length ? editorImages : existingImages);
               target.images = nextImages;
-              target.image = coverImage || nextImages[0] || target.image || 'logo.png';
-              if (generatedThumb) {
-                target.thumb_url = generatedThumb;
-                target.thumbnail_url = generatedThumb;
+              target.image = serverResolvedCover || coverImage || nextImages[0] || target.image || 'logo.png';
+              if (serverResolvedThumb || generatedThumb) {
+                target.thumb_url = serverResolvedThumb || generatedThumb;
+                target.thumbnail_url = serverResolvedThumb || generatedThumb;
               } else {
                 target.thumb_url = coverImage || '';
                 target.thumbnail_url = coverImage || '';
               }
-              target.content = normalizedGalleryContent || '';
+              target.content = serverResolvedContent || normalizedGalleryContent || '';
               target.publishAt = publishAt || '';
               target.activityDuration = activityDuration;
               target.activityStartDate = activityStartDate;

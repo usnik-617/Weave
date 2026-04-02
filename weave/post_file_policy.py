@@ -39,13 +39,13 @@ def upload_policy_error_message(category, extension, mime_type):
             extension not in GALLERY_IMAGE_EXTENSIONS
             or mime_type not in GALLERY_IMAGE_MIME_TYPES
         ):
-            return "갤러리는 이미지 파일만 업로드할 수 있습니다.(jpg/jpeg/png/webp/gif)"
+            return "갤러리는 이미지 파일만 업로드할 수 있습니다. (jpg/jpeg/png/webp/gif)"
     elif post_category == "notice":
         if (
             extension not in NOTICE_ALLOWED_EXTENSIONS
             or mime_type not in NOTICE_ALLOWED_MIME_TYPES
         ):
-            return "공지사항에는 이미지 또는 PDF만 첨부할 수 있습니다."
+            return "공지사항은 이미지 또는 PDF 파일만 첨부할 수 있습니다."
     return ""
 
 

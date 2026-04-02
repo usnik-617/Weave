@@ -208,13 +208,20 @@
         })),
         gallery: (galleryRes?.items || []).map((item) => {
           const mapped = mapPostItem(item);
+          const activityStartDate = String(item?.volunteerStartDate || item?.activityStartDate || '').trim();
+          const activityEndDate = String(item?.volunteerEndDate || item?.activityEndDate || activityStartDate || '').trim();
+          const yearBase = activityStartDate || String(item?.created_at || Date.now());
+          const parsedYear = new Date(yearBase);
+          const year = Number.isNaN(parsedYear.getTime()) ? new Date().getFullYear() : parsedYear.getFullYear();
           return {
             ...mapped,
-            year: new Date(String(item?.created_at || Date.now())).getFullYear(),
-            category: `y${new Date(String(item?.created_at || Date.now())).getFullYear()}`,
+            year,
+            category: `y${year}`,
             image: String(item?.image_url || item?.thumb_url || mapped.image || 'logo.png'),
             thumbnail_url: String(item?.thumb_url || ''),
-            thumb_url: String(item?.thumb_url || '')
+            thumb_url: String(item?.thumb_url || ''),
+            activityStartDate,
+            activityEndDate
           };
         })
       };

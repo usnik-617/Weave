@@ -597,14 +597,14 @@
             <div class="col-md-1 d-grid">
               <button class="btn btn-sm btn-primary" type="submit">등록</button>
             </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small mb-1">PDF/이미지 첨부 (본문 삽입)</label>
+              <input type="file" class="form-control form-control-sm" name="activityAttachmentFiles" accept="image/*,.pdf" multiple>
+            </div>
             <div class="col-12">
               <label class="form-label small mb-1">상세 내용</label>
               <div id="activity-editor" class="rich-editor" contenteditable="true"></div>
               <input type="hidden" name="content">
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label small mb-1">PDF/이미지 첨부 (본문 삽입)</label>
-              <input type="file" class="form-control form-control-sm" name="activityAttachmentFiles" accept="image/*,.pdf" multiple>
             </div>
           </form>
         </div>
@@ -1188,11 +1188,18 @@
               <ul class="pagination pagination-sm justify-content-center mt-3 mb-0" id="join-honor-pagination"></ul>
               <hr>
               <div id="join-honor-audit-wrap">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="fw-bold mb-0">명예의 전당 감사 로그</h6>
-                  <small class="text-muted">등록/수정/삭제 이력</small>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                  <div>
+                    <h6 class="fw-bold mb-0">명예의 전당 감사 로그</h6>
+                    <small class="text-muted">등록/수정/삭제 이력</small>
+                  </div>
+                  <div class="d-flex gap-2 join-honor-search-wrap">
+                    <input type="text" class="form-control form-control-sm" id="join-honor-audit-search" placeholder="이름 검색">
+                    <button type="button" class="btn btn-sm btn-primary text-nowrap" id="join-honor-audit-search-btn">검색</button>
+                  </div>
                 </div>
                 <div id="join-honor-audit-list" class="d-flex flex-column gap-2"></div>
+                <ul class="pagination pagination-sm justify-content-center mt-3 mb-0" id="join-honor-audit-pagination"></ul>
               </div>
             </div>
           </div>
@@ -1493,22 +1500,6 @@
                     <input type="text" class="form-control" name="author" required>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label mb-1">내용</label>
-                    <div class="editor-toolbar mb-2" data-editor-target="news-editor">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="underline"><u>U</u></button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyLeft">좌</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyCenter">중</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyFull">가로</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="indent">들여쓰기</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList">번호</button>
-                      <input type="color" class="form-control form-control-color d-inline-block align-middle" data-cmd="foreColor" value="#000000" title="글자색">
-                    </div>
-                    <div id="news-editor" class="rich-editor" contenteditable="true"></div>
-                    <input type="hidden" name="content" required>
-                  </div>
-                  <div class="mb-3">
                     <label class="form-label">이미지 파일 (본문 삽입)</label>
                     <input type="file" class="form-control" name="imageFile" accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,image/*" multiple>
                     <small class="text-muted d-block mt-1">지원 확장자: .jpg .jpeg .png .webp .gif .heic .heif (HEIC/HEIF 자동 변환 실패 시 JPG로 변환 후 재시도)</small>
@@ -1556,6 +1547,22 @@
                     </div>
                     <div class="small text-muted mt-1" id="news-image-limit-hint">본문 이미지 0/30장 · 파일당 최대 25MB · 글당 최대 300MB</div>
                     <img id="news-image-preview" class="img-fluid rounded mt-2 d-none admin-preview-image" alt="소식 이미지 미리보기" width="480" height="270" loading="lazy" decoding="async">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label mb-1">내용</label>
+                    <div class="editor-toolbar mb-2" data-editor-target="news-editor">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="underline"><u>U</u></button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyLeft">좌</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyCenter">중</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="justifyFull">가로</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="indent">들여쓰기</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="insertOrderedList">번호</button>
+                      <input type="color" class="form-control form-control-color d-inline-block align-middle" data-cmd="foreColor" value="#000000" title="글자색">
+                    </div>
+                    <div id="news-editor" class="rich-editor" contenteditable="true"></div>
+                    <input type="hidden" name="content" required>
                   </div>
                   <div class="mb-3 d-none" id="news-attachments-wrap">
                     <label class="form-label">첨부 파일 (최대 5개)</label>

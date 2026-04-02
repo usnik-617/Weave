@@ -67,7 +67,7 @@ def metrics():
             "storage": snapshot_storage_stats(),
             "database_mode": (
                 "sqlite" if str(core.DATABASE_URL).strip().lower().startswith("sqlite")
-                else "postgres_migration_pending"
+                else "postgres"
             ),
         }
     )

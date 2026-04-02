@@ -9,6 +9,7 @@ from weave.config import load_config
 from weave.db import init_db
 from weave.media_queue import ensure_background_workers_started
 from weave.notice_calendar_integrity import start_notice_calendar_integrity_worker
+from weave.ops_requirements import enforce_runtime_separation
 from weave.security import register_hooks
 
 
@@ -38,6 +39,7 @@ def create_app():
         methods=["GET"],
     )
 
+    enforce_runtime_separation(app.logger)
     init_db()
     ensure_background_workers_started()
     if str(os.environ.get("WEAVE_NOTICE_INTEGRITY_AUTORUN", "true")).strip().lower() in {"1", "true", "yes"}:

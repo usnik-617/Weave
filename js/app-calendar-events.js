@@ -158,6 +158,7 @@ const JOIN_HONOR_KEY = 'weave_join_honor_hall';
 const JOIN_HONOR_AUDIT_KEY = 'weave_join_honor_hall_audit';
 const JOIN_HONOR_SEED_URL = '/data/join-honor.seed.json';
 const JOIN_HONOR_PAGE_SIZE = 24;
+const JOIN_HONOR_AUDIT_PAGE_SIZE = 10;
 const JOIN_HONOR_TIER_LIMITS = {
   gold: 6,
   silver: 10,
@@ -165,6 +166,8 @@ const JOIN_HONOR_TIER_LIMITS = {
 };
 let joinHonorPage = 1;
 let joinHonorQuery = '';
+let joinHonorAuditPage = 1;
+let joinHonorAuditQuery = '';
 let joinHonorItemsMemory = [];
 let joinHonorAuditMemory = [];
 let joinHonorSeedPromise = null;
@@ -428,6 +431,30 @@ function renderJoinHonorPagination(totalPages) {
   appendPage('다음', joinHonorPage >= totalPages, Math.min(totalPages, joinHonorPage + 1), false);
 }
 
+function renderJoinHonorAuditPagination(totalPages) {
+  const pager = document.getElementById('join-honor-audit-pagination');
+  if (!pager) return;
+  pager.innerHTML = '';
+  if (totalPages <= 1) return;
+  const appendPage = (label, disabled, page, active = false) => {
+    const li = document.createElement('li');
+    li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`.trim();
+    li.innerHTML = `<a class="page-link" href="#">${label}</a>`;
+    li.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (disabled) return;
+      joinHonorAuditPage = page;
+      renderJoinHonorAuditLogs();
+    });
+    pager.appendChild(li);
+  };
+  appendPage('이전', joinHonorAuditPage <= 1, Math.max(1, joinHonorAuditPage - 1), false);
+  for (let page = 1; page <= totalPages; page += 1) {
+    appendPage(String(page), false, page, page === joinHonorAuditPage);
+  }
+  appendPage('다음', joinHonorAuditPage >= totalPages, Math.min(totalPages, joinHonorAuditPage + 1), false);
+}
+
 function updateJoinHonorAdminVisibility() {
   const wrap = document.getElementById('join-honor-admin-tools');
   if (!wrap) return;
@@ -532,18 +559,29 @@ function renderJoinHonorHall() {
 function renderJoinHonorAuditLogs() {
   const listEl = document.getElementById('join-honor-audit-list');
   const wrap = document.getElementById('join-honor-audit-wrap');
+  const pagerEl = document.getElementById('join-honor-audit-pagination');
   if (!listEl) return;
   const canManage = canManageJoinHonor(getCurrentUser());
   if (wrap) wrap.classList.toggle('d-none', !canManage);
   if (!canManage) {
     listEl.innerHTML = '';
+    if (pagerEl) pagerEl.innerHTML = '';
     return;
   }
-  const logs = getJoinHonorAuditLogs().slice(0, 20);
-  if (!logs.length) {
+  const keyword = String(joinHonorAuditQuery || '').trim().toLowerCase();
+  const filtered = getJoinHonorAuditLogs().filter((log) => {
+    if (!keyword) return true;
+    return String(log?.name || '').toLowerCase().includes(keyword);
+  });
+  if (!filtered.length) {
     listEl.innerHTML = '<div class="small text-muted">아직 감사 로그가 없습니다.</div>';
+    if (pagerEl) pagerEl.innerHTML = '';
     return;
   }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / JOIN_HONOR_AUDIT_PAGE_SIZE));
+  if (joinHonorAuditPage > totalPages) joinHonorAuditPage = totalPages;
+  const start = (joinHonorAuditPage - 1) * JOIN_HONOR_AUDIT_PAGE_SIZE;
+  const logs = filtered.slice(start, start + JOIN_HONOR_AUDIT_PAGE_SIZE);
   const actionLabel = { create: '등록', update: '수정', delete: '삭제' };
   const tierLabel = { gold: '금', silver: '은', bronze: '동' };
   listEl.innerHTML = logs.map((log) => `
@@ -553,11 +591,14 @@ function renderJoinHonorAuditLogs() {
       <div class="text-muted">사유: ${escapeHtml(String(log.reason || '-'))}</div>
     </div>
   `).join('');
+  renderJoinHonorAuditPagination(totalPages);
 }
 
 function initJoinHonorBindings() {
   const searchInput = document.getElementById('join-honor-search');
   const searchBtn = document.getElementById('join-honor-search-btn');
+  const auditSearchInput = document.getElementById('join-honor-audit-search');
+  const auditSearchBtn = document.getElementById('join-honor-audit-search-btn');
   const addBtn = document.getElementById('join-honor-add-btn');
   const updateBtn = document.getElementById('join-honor-update-btn');
   const resetBtn = document.getElementById('join-honor-reset-btn');
@@ -669,6 +710,11 @@ function initJoinHonorBindings() {
     joinHonorPage = 1;
     renderJoinHonorHall();
   };
+  const applyAuditSearch = () => {
+    joinHonorAuditQuery = String(auditSearchInput?.value || '').trim();
+    joinHonorAuditPage = 1;
+    renderJoinHonorAuditLogs();
+  };
 
   if (searchBtn) searchBtn.addEventListener('click', applySearch);
   if (searchInput) {
@@ -676,6 +722,15 @@ function initJoinHonorBindings() {
       if (e.key === 'Enter') {
         e.preventDefault();
         applySearch();
+      }
+    });
+  }
+  if (auditSearchBtn) auditSearchBtn.addEventListener('click', applyAuditSearch);
+  if (auditSearchInput) {
+    auditSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyAuditSearch();
       }
     });
   }
@@ -820,6 +875,9 @@ function initJoinHonorBindings() {
       if (searchInput) searchInput.value = '';
       joinHonorQuery = '';
       joinHonorPage = 1;
+      if (auditSearchInput) auditSearchInput.value = '';
+      joinHonorAuditQuery = '';
+      joinHonorAuditPage = 1;
       renderJoinHonorHall();
     });
   }

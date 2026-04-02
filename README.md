@@ -44,6 +44,11 @@ They are **not** the active runtime DB path.
 
 - Testing guide: `TESTING.md`
 - Legacy response migration: `LEGACY_RESPONSE_MIGRATION.md`
+- Operations setup: `docs/WEAVE_OPERATIONS_SETUP.md`
+- DB structure notes: `docs/WEAVE_DB_STRUCTURE.md`
+- PostgreSQL cutover checklist: `docs/WEAVE_POSTGRES_CUTOVER_CHECKLIST.md`
+- Production quickstart: `docs/WEAVE_PRODUCTION_QUICKSTART.md`
+- R2 checklist: `docs/WEAVE_R2_CHECKLIST.md`
 
 ## Scalable Upload Architecture
 
@@ -75,6 +80,24 @@ They are **not** the active runtime DB path.
   1. migrate into PostgreSQL
   2. run read-only validation and row-count checks
   3. switch runtime adapter in a dedicated branch after SQL placeholder compatibility migration
+
+## Production Separation Guard
+
+- For production, the recommended stack is:
+  - `DATABASE_URL=postgresql://...`
+  - `WEAVE_STORAGE_BACKEND=s3|r2|minio`
+  - `WEAVE_MEDIA_QUEUE_BACKEND=rq`
+- To make this mandatory at startup, set:
+  - `WEAVE_REQUIRE_EXTERNAL_SERVICES=1`
+- Example environment file:
+  - `deploy/.env.production.example`
+- Preflight check:
+  - `python scripts/preflight_ops_check.py --env production`
+- Core table count compare after migration:
+  - `python scripts/compare_sqlite_postgres_counts.py --sqlite weave.db --postgres-dsn "postgresql://..."`
+- PowerShell helpers:
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\ops_preflight_production.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\ops_postgres_cutover.ps1 -PostgresDsn "postgresql://..."`
 
 ## Frontend Sync Rule
 

@@ -13,6 +13,17 @@ def create_gallery_post(payload, conn, me, post_visibility_status):
 
     status = post_visibility_status(publish_at)
 
+    activity_start = (
+        str(payload.get("activityStartDate", "")).strip()
+        or str(payload.get("volunteerStartDate", "")).strip()
+        or None
+    )
+    activity_end = (
+        str(payload.get("activityEndDate", "")).strip()
+        or str(payload.get("volunteerEndDate", "")).strip()
+        or activity_start
+    )
+
     cur = conn.cursor()
     cur.execute(
         """
@@ -32,8 +43,8 @@ def create_gallery_post(payload, conn, me, post_visibility_status):
             status,
             str(payload.get("image_url", "")).strip(),
             str(payload.get("thumb_url", "")).strip(),
-            None,
-            None,
+            activity_start,
+            activity_end,
             me["id"],
             now_iso(),
             now_iso(),
@@ -61,11 +72,22 @@ def update_gallery_post(post_id, payload, conn, me, post_visibility_status):
         return error_response("publish_at은 ISO 형식이어야 합니다.", 400)
     status = post_visibility_status(publish_at)
 
+    activity_start = (
+        str(payload.get("activityStartDate", "")).strip()
+        or str(payload.get("volunteerStartDate", post["volunteer_start_date"] or "")).strip()
+        or None
+    )
+    activity_end = (
+        str(payload.get("activityEndDate", "")).strip()
+        or str(payload.get("volunteerEndDate", post["volunteer_end_date"] or "")).strip()
+        or activity_start
+    )
+
     conn.execute(
         """
         UPDATE posts
         SET category = ?, title = ?, content = ?, is_pinned = ?, is_important = ?, publish_at = ?, status = ?,
-            volunteer_start_date = NULL, volunteer_end_date = NULL, updated_at = ?
+            volunteer_start_date = ?, volunteer_end_date = ?, updated_at = ?
         WHERE id = ?
         """,
         (
@@ -78,6 +100,8 @@ def update_gallery_post(post_id, payload, conn, me, post_visibility_status):
             else 0,
             publish_at,
             status,
+            activity_start,
+            activity_end,
             now_iso(),
             post_id,
         ),
